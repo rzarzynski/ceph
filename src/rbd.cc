@@ -853,7 +853,8 @@ struct rbd_bencher {
       in_flight(0)
   { }
 
-  bool start_write(int max, uint64_t off, uint64_t len, bufferlist& bl)
+  bool start_write(int max, uint64_t off, uint64_t len, bufferlist& bl,
+		   int op_flags)
   {
     {
       Mutex::Locker l(lock);
@@ -863,7 +864,7 @@ struct rbd_bencher {
     }
     librbd::RBD::AioCompletion *c =
       new librbd::RBD::AioCompletion((void *)this, rbd_bencher_completion);
-    image->aio_write(off, len, bl, c);
+    image->aio_write2(off, len, bl, c, op_flags);
     //cout << "start " << c << " at " << off << "~" << len << std::endl;
     return true;
   }
@@ -950,13 +951,20 @@ static int do_bench_write(librbd::Image& image, uint64_t io_size,
   uint64_t cur_ios = 0;
   uint64_t cur_off = 0;
 
+  int op_flags;
+  if  (pattern == "rand") {
+    op_flags = LIBRADOS_OP_FLAG_FADVISE_RANDOM;
+  } else {
+    op_flags = LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL;
+  }
+
   printf("  SEC       OPS   OPS/SEC   BYTES/SEC\n");
   uint64_t off;
   for (off = 0; off < io_bytes; ) {
     b.wait_for(io_threads - 1);
     i = 0;
     while (i < io_threads && off < io_bytes &&
-	   b.start_write(io_threads, thread_offset[i], io_size, bl)) {
+	   b.start_write(io_threads, thread_offset[i], io_size, bl, op_flags)) {
       ++i;
       ++ios;
       off += io_size;
@@ -1034,7 +1042,11 @@ public:
       m_fd(fd)
   {
     m_throttle.start_op();
-    int r = image.aio_read(offset, length, m_bufferlist, m_aio_completion);
+
+    int op_flags = LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL |
+		   LIBRADOS_OP_FLAG_FADVISE_DONTNEED;
+    int r = image.aio_read2(offset, length, m_bufferlist, m_aio_completion,
+			    op_flags);
     if (r < 0) {
       cerr << "rbd: error requesting read from source image" << std::endl;
       m_throttle.end_op(r);
@@ -1163,7 +1175,7 @@ static int export_diff_cb(uint64_t ofs, size_t _len, int exists, void *arg)
   if (exists) {
     // read block
     bl.clear();
-    r = ec->image->read(ofs, len, bl);
+    r = ec->image->read2(ofs, len, bl, LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
     if (r < 0)
       return r;
     r = bl.write_fd(ec->fd);
@@ -1373,7 +1385,10 @@ public:
   {
     m_throttle.start_op();
 
-    int r = image.aio_write(m_offset, bl.length(), bl, m_aio_completion);
+    int op_flags = LIBRADOS_OP_FLAG_FADVISE_SEQUENTIAL |
+		   LIBRADOS_OP_FLAG_FADVISE_DONTNEED; 
+    int r = image.aio_write2(m_offset, bl.length(), bl, m_aio_completion,
+			     op_flags);
     if (r < 0) {
       cerr << "rbd: error requesting write to destination image" << std::endl;
       m_throttle.end_op(r);
@@ -1680,7 +1695,7 @@ static int do_import_diff(librbd::Image &image, const char *path)
 	bufferlist data;
 	data.append(bp);
 	dout(2) << " write " << off << "~" << len << dendl;
-	image.write(off, len, data);
+	image.write2(off, len, data, LIBRADOS_OP_FLAG_FADVISE_DONTNEED);
       } else {
 	dout(2) << " zero " << off << "~" << len << dendl;
 	image.discard(off, len);
