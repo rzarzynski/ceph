@@ -22,7 +22,10 @@ void ECSubWrite::encode(bufferlist &bl) const
   ::encode(reqid, bl);
   ::encode(soid, bl);
   ::encode(stats, bl);
-  ::encode(t, bl);
+  if (t)
+    ::encode(*t, bl);
+  else
+    ::encode(ObjectStore::Transaction(), bl);
   ::encode(at_version, bl);
   ::encode(trim_to, bl);
   ::encode(log_entries, bl);
@@ -35,13 +38,15 @@ void ECSubWrite::encode(bufferlist &bl) const
 
 void ECSubWrite::decode(bufferlist::iterator &bl)
 {
+  delete t;
+  t = new ObjectStore::Transaction;
   DECODE_START(3, bl);
   ::decode(from, bl);
   ::decode(tid, bl);
   ::decode(reqid, bl);
   ::decode(soid, bl);
   ::decode(stats, bl);
-  ::decode(t, bl);
+  ::decode(*t, bl);
   ::decode(at_version, bl);
   ::decode(trim_to, bl);
   ::decode(log_entries, bl);
