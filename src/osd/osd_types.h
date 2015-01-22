@@ -870,6 +870,8 @@ struct pg_pool_t {
       return FLAG_NOPGCHANGE;
     if (name == "nosizechange")
       return FLAG_NOSIZECHANGE;
+    if (name == "write_fadvise_dontneed")
+      return FLAG_WRITE_FADVISE_DONTNEED;
     return 0;
   }
 
