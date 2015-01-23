@@ -2844,7 +2844,7 @@ void pg_log_entry_t::decode_with_checksum(bufferlist::iterator& p)
 
 void pg_log_entry_t::encode(bufferlist &bl) const
 {
-  ENCODE_START(9, 4, bl);
+  ENCODE_START(10, 4, bl);
   ::encode(op, bl);
   ::encode(soid, bl);
   ::encode(version, bl);
@@ -2868,12 +2868,13 @@ void pg_log_entry_t::encode(bufferlist &bl) const
   ::encode(snaps, bl);
   ::encode(user_version, bl);
   ::encode(mod_desc, bl);
+  ::encode(extra_reqids, bl);
   ENCODE_FINISH(bl);
 }
 
 void pg_log_entry_t::decode(bufferlist::iterator &bl)
 {
-  DECODE_START_LEGACY_COMPAT_LEN(8, 4, 4, bl);
+  DECODE_START_LEGACY_COMPAT_LEN(10, 4, 4, bl);
   ::decode(op, bl);
   if (struct_v < 2) {
     sobject_t old_soid;
@@ -2894,6 +2895,7 @@ void pg_log_entry_t::decode(bufferlist::iterator &bl)
     ::decode(prior_version, bl);
 
   ::decode(reqid, bl);
+
   ::decode(mtime, bl);
   if (struct_v < 5)
     invalid_pool = true;
@@ -2919,6 +2921,8 @@ void pg_log_entry_t::decode(bufferlist::iterator &bl)
     ::decode(mod_desc, bl);
   else
     mod_desc.mark_unrollbackable();
+  if (struct_v >= 10)
+    ::decode(extra_reqids, bl);
 
   DECODE_FINISH(bl);
 }
@@ -2930,6 +2934,12 @@ void pg_log_entry_t::dump(Formatter *f) const
   f->dump_stream("version") << version;
   f->dump_stream("prior_version") << prior_version;
   f->dump_stream("reqid") << reqid;
+  f->open_array_section("extra_reqids");
+  for (vector<osd_reqid_t>::const_iterator p = extra_reqids.begin();
+       p != extra_reqids.end();
+       ++p)
+    f->dump_stream("reqid") << *p;
+  f->close_section();
   f->dump_stream("mtime") << mtime;
   if (snaps.length() > 0) {
     vector<snapid_t> v;
