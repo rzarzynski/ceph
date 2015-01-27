@@ -139,6 +139,26 @@ struct PGLog {
       return NULL;
     }
 
+    /// get a (bounded) list of recent reqids for the given object
+    void get_object_reqids(const hobject_t& oid, unsigned max,
+			   vector<osd_reqid_t> *pls) const {
+      for (list<pg_log_entry_t>::const_reverse_iterator i = log.rbegin();
+           i != log.rend();
+           ++i) {
+	if (i->soid == oid) {
+	  if (i->reqid != osd_reqid_t())
+	    pls->push_back(i->reqid);
+	  pls->insert(pls->end(), i->extra_reqids.begin(), i->extra_reqids.end());
+	  if (pls->size() >= max) {
+	    if (pls->size() > max) {
+	      pls->resize(max);
+	    }
+	    return;
+	  }
+	}
+      }
+    }
+
     void index() {
       objects.clear();
       caller_ops.clear();

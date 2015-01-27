@@ -3447,7 +3447,7 @@ void object_copy_data_t::encode(bufferlist& bl, uint64_t features) const
     return;
   }
 
-  ENCODE_START(5, 5, bl);
+  ENCODE_START(6, 5, bl);
   ::encode(size, bl);
   ::encode(mtime, bl);
   ::encode(attrs, bl);
@@ -3460,12 +3460,13 @@ void object_copy_data_t::encode(bufferlist& bl, uint64_t features) const
   ::encode(flags, bl);
   ::encode(data_digest, bl);
   ::encode(omap_digest, bl);
+  ::encode(reqids, bl);
   ENCODE_FINISH(bl);
 }
 
 void object_copy_data_t::decode(bufferlist::iterator& bl)
 {
-  DECODE_START(5, bl);
+  DECODE_START(6, bl);
   if (struct_v < 5) {
     // old
     ::decode(size, bl);
@@ -3520,6 +3521,9 @@ void object_copy_data_t::decode(bufferlist::iterator& bl)
       ::decode(data_digest, bl);
       ::decode(omap_digest, bl);
     }
+    if (struct_v >= 6) {
+      ::decode(reqids, bl);
+    }
   }
   DECODE_FINISH(bl);
 }
@@ -3553,6 +3557,7 @@ void object_copy_data_t::generate_test_instances(list<object_copy_data_t*>& o)
   o.back()->data.push_back(databp);
   o.back()->omap_header.append("this is an omap header");
   o.back()->snaps.push_back(123);
+  o.back()->reqids.push_back(osd_reqid_t());
 }
 
 void object_copy_data_t::dump(Formatter *f) const
@@ -3575,6 +3580,12 @@ void object_copy_data_t::dump(Formatter *f) const
   for (vector<snapid_t>::const_iterator p = snaps.begin();
        p != snaps.end(); ++p)
     f->dump_unsigned("snap", *p);
+  f->close_section();
+  f->open_array_section("reqids");
+  for (vector<osd_reqid_t>::const_iterator p = reqids.begin();
+       p != reqids.end();
+       ++p)
+    f->dump_stream("reqid") << *p;
   f->close_section();
 }
 
