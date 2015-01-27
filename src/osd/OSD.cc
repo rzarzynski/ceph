@@ -2146,6 +2146,9 @@ void OSD::create_logger()
   osd_plb.add_u64_counter(l_osd_agent_flush, "agent_flush");
   osd_plb.add_u64_counter(l_osd_agent_evict, "agent_evict");
 
+  osd_plb.add_u64_counter(l_osd_object_ctx_cache_hit, "object_ctx_cache_hit");
+  osd_plb.add_u64_counter(l_osd_object_ctx_cache_total, "object_ctx_cache_total");
+
   logger = osd_plb.create_perf_counters();
   cct->get_perfcounters_collection()->add(logger);
 }
@@ -5940,7 +5943,7 @@ void OSD::sched_scrub()
 
       PG *pg = _lookup_lock_pg(pgid);
       if (pg) {
-	if (pg->get_pgbackend()->scrub_supported() && pg->is_active() &&
+	if (pg->get_pgbackend()->scrub_supported() && pg->is_peered() &&
 	    (load_is_low ||
 	     (double)diff >= cct->_conf->osd_scrub_max_interval ||
 	     pg->scrubber.must_scrub)) {
@@ -7835,7 +7838,7 @@ void OSD::do_recovery(PG *pg, ThreadPool::TPHandle &handle)
     return;
   } else {
     pg->lock_suspend_timeout(handle);
-    if (pg->deleting || !(pg->is_active() && pg->is_primary())) {
+    if (pg->deleting || !(pg->is_peered() && pg->is_primary())) {
       pg->unlock();
       goto out;
     }
