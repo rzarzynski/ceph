@@ -203,10 +203,9 @@ Rados object in state %s." % self.state)
 
     def __init__(self, rados_id=None, name=None, clustername=None,
                  conf_defaults=None, conffile=None, conf=None, flags=0):
-        librados_path = find_library('rados')
         # maybe find_library can not find it correctly on all platforms,
         # so fall back to librados.so.2 in such case.
-        self.librados = CDLL(librados_path or 'librados.so.2')
+        self.librados = CDLL(find_library('rados') or 'librados.so.2')
 
         self.parsed_args = []
         self.conf_defaults = conf_defaults
