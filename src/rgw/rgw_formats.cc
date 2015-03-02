@@ -22,7 +22,7 @@
 #define dout_subsys ceph_subsys_rgw
 
 RGWFormatter_Plain::RGWFormatter_Plain()
-  : buf(NULL), len(0), max_len(0), min_stack_level(0)
+  : buf(NULL), len(0), max_len(0), nline_on_eof(true), min_stack_level(0)
 {
 }
 
@@ -37,7 +37,11 @@ void RGWFormatter_Plain::flush(ostream& os)
     return;
 
   if (len) {
-    os << buf << "\n";
+    os << buf;
+
+    if (nline_on_eof)
+      os << "\n";
+
     os.flush();
   }
 
@@ -50,6 +54,7 @@ void RGWFormatter_Plain::reset_buf()
   buf = NULL;
   len = 0;
   max_len = 0;
+  nline_on_eof = true;
 }
 
 void RGWFormatter_Plain::reset()
@@ -80,6 +85,11 @@ void RGWFormatter_Plain::open_object_section(const char *name)
   new_entry.is_array = false;
   new_entry.size = 0;
   stack.push_back(new_entry);
+
+  if (strcmp(name, "Error") == 0)
+    nline_on_eof = false;
+  else
+    nline_on_eof = true;
 }
 
 void RGWFormatter_Plain::open_object_section_in_ns(const char *name,
@@ -149,8 +159,10 @@ void RGWFormatter_Plain::dump_format_va(const char *name, const char *ns, bool q
 
 int RGWFormatter_Plain::get_len() const
 {
-  // don't include null termination in length
-  return (len ? len - 1 : 0);
+  if (nline_on_eof)
+    return len;
+  else
+    return (len ? len - 1 : 0);
 }
 
 void RGWFormatter_Plain::write_raw_data(const char *data)
