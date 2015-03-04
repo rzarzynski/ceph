@@ -459,6 +459,7 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
     return -EINVAL;
 
   if (s->object.empty()) {
+    // FIXME: skip for an account
     int r = get_swift_container_settings(s, store, &policy, &has_policy, &cors_config, &has_cors);
     if (r < 0) {
       return r;
@@ -482,6 +483,7 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
       }
     }
   }
+  // FIXME: skip for an account
   placement_rule = s->info.env->get("HTTP_X_STORAGE_POLICY", "");
 
   return 0;
@@ -711,7 +713,7 @@ RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_post()
   if (temp_url) {
     return new RGWSetTempUrl_ObjStore_SWIFT;
   }
-  return NULL;
+  return new RGWPutMetadata_ObjStore_SWIFT;
 }
 
 RGWOp *RGWHandler_ObjStore_Bucket_SWIFT::get_obj_op(bool get_data)

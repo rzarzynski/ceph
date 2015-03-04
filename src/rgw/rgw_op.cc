@@ -2010,6 +2010,8 @@ int RGWPutMetadata::verify_permission()
     if (!verify_object_permission(s, RGW_PERM_WRITE))
       return -EACCES;
   } else {
+    // FIXME: needs to differentiate for bucket/account
+    return 0;
     if (!verify_bucket_permission(s, RGW_PERM_WRITE))
       return -EACCES;
   }
@@ -2019,6 +2021,8 @@ int RGWPutMetadata::verify_permission()
 
 void RGWPutMetadata::pre_exec()
 {
+  // FIXME: not necessary for account but currently would not
+  // harm the things.
   rgw_bucket_object_pre_exec(s);
 }
 
@@ -2043,13 +2047,14 @@ void RGWPutMetadata::execute()
   RGWObjVersionTracker *ptracker = NULL;
 
   bool is_object_op = (!s->object.empty());
+  bool is_bucket_op = (!s->bucket_name_str.empty());
 
   if (is_object_op) {
     /* check if obj exists, read orig attrs */
     ret = get_obj_attrs(store, s, obj, orig_attrs);
     if (ret < 0)
       return;
-  } else {
+  } else if (is_bucket_op) {
     ptracker = &s->bucket_info.objv_tracker;
     orig_attrs = s->bucket_attrs;
 
@@ -2083,6 +2088,7 @@ void RGWPutMetadata::execute()
     }
   }
 
+  // FIXME: does we need that in the account case?
   map<string, string>::iterator giter;
   for (giter = s->generic_attrs.begin(); giter != s->generic_attrs.end(); ++giter) {
     bufferlist& attrbl = attrs[giter->first];
@@ -2101,8 +2107,14 @@ void RGWPutMetadata::execute()
   }
   if (is_object_op) {
     ret = store->set_attrs(s->obj_ctx, obj, attrs, &rmattrs, ptracker);
-  } else {
+  } else if (is_bucket_op) {
     ret = rgw_bucket_set_attrs(store, s->bucket_info, attrs, &rmattrs, ptracker);
+  }
+  else /* is_account_op */ {
+    string buckets_obj_id;
+    rgw_get_buckets_obj(s->user.user_id, buckets_obj_id);
+    rgw_obj acct_obj(store->zone.user_uid_pool, buckets_obj_id);
+    ret = store->set_attrs(NULL, acct_obj, attrs, &rmattrs, ptracker);
   }
 }
 
