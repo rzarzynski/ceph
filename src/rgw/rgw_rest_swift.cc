@@ -473,12 +473,17 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
   if (s->has_bad_meta)
     return -EINVAL;
 
-  if (s->object.empty()) {
-    // FIXME: skip for an account
+  const bool is_bucket_op  = (!s->bucket_name_str.empty() && s->object.empty());
+  const bool is_account_op = (s->bucket_name_str.empty());
+
+  if (is_bucket_op) {
     int r = get_swift_container_settings(s, store, &policy, &has_policy, &cors_config, &has_cors);
     if (r < 0) {
       return r;
     }
+  }
+
+  if (is_bucket_op || is_account_op) {
     map<string, string, ltstr_nocase>& m = s->info.env->get_map();
     map<string, string, ltstr_nocase>::iterator iter;
     for (iter = m.begin(); iter != m.end(); ++iter) {
@@ -498,8 +503,9 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
       }
     }
   }
-  // FIXME: skip for an account
-  placement_rule = s->info.env->get("HTTP_X_STORAGE_POLICY", "");
+
+  if (!is_account_op)
+    placement_rule = s->info.env->get("HTTP_X_STORAGE_POLICY", "");
 
   return 0;
 }
