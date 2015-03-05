@@ -1028,6 +1028,8 @@ void RGWListBuckets::execute()
     }
   } while (!done);
 
+  ret = rgw_read_user_metadata(store, s->user.user_id, attrs);
+
 send_end:
   if (!started) {
     send_response_begin(false);

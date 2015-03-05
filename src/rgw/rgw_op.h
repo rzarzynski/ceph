@@ -191,6 +191,7 @@ protected:
   uint64_t buckets_objcount;
   uint64_t buckets_size;
   uint64_t buckets_size_rounded;
+  map<string, bufferlist> attrs;
 
 public:
   RGWListBuckets() : ret(0), sent_data(false) {
