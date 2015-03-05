@@ -38,14 +38,14 @@ void rgw_get_buckets_obj(const string& user_id, string& buckets_obj_id)
   buckets_obj_id += RGW_BUCKETS_OBJ_SUFFIX;
 }
 
-int rgw_read_user_metadata(RGWRados *store, string user_id, map<string, bufferlist>& attrs)
+int rgw_read_user_metadata(RGWRados *store, string user_id, map<string, bufferlist>& attrs, RGWObjVersionTracker *objv_tracker)
 {
   int ret = -EINVAL;
   string buckets_obj_id;
   rgw_get_buckets_obj(user_id, buckets_obj_id);
   rgw_obj acct_obj(store->zone.user_uid_pool, buckets_obj_id);
 
-  ret = store->raw_obj_stat(acct_obj, NULL, NULL, NULL, &attrs, NULL, NULL);
+  ret = store->raw_obj_stat(acct_obj, NULL, NULL, NULL, &attrs, NULL, objv_tracker);
   if (ret < 0)
     return ret;
 
