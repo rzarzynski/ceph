@@ -1040,6 +1040,7 @@ int RGWStatAccount::verify_permission()
   return 0;
 }
 
+int rgw_read_user_metadata(RGWRados *store, string user_id, map<string, bufferlist>& attrs);
 void RGWStatAccount::execute()
 {
   string marker;
@@ -1071,6 +1072,8 @@ void RGWStatAccount::execute()
       done = (m.size() < max_buckets);
     }
   } while (!done);
+
+  ret = rgw_read_user_metadata(store, s->user.user_id, attrs);
 }
 
 int RGWGetBucketVersioning::verify_permission()
