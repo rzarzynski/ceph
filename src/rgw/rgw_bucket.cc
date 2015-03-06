@@ -38,7 +38,7 @@ void rgw_get_buckets_obj(const string& user_id, string& buckets_obj_id)
   buckets_obj_id += RGW_BUCKETS_OBJ_SUFFIX;
 }
 
-int rgw_read_user_metadata(RGWRados *store, string user_id, map<string, bufferlist>& attrs, RGWObjVersionTracker *objv_tracker)
+int rgw_read_user_buckets_metadata(RGWRados *store, string user_id, map<string, bufferlist>& attrs, RGWObjVersionTracker *objv_tracker)
 {
   int ret = -EINVAL;
   string buckets_obj_id;

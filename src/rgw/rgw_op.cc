@@ -1028,7 +1028,7 @@ void RGWListBuckets::execute()
     }
   } while (!done);
 
-  ret = rgw_read_user_metadata(store, s->user.user_id, attrs);
+  ret = rgw_read_user_buckets_metadata(store, s->user.user_id, attrs);
 
 send_end:
   if (!started) {
@@ -1074,7 +1074,7 @@ void RGWStatAccount::execute()
     }
   } while (!done);
 
-  ret = rgw_read_user_metadata(store, s->user.user_id, attrs);
+  ret = rgw_read_user_buckets_metadata(store, s->user.user_id, attrs);
 }
 
 int RGWGetBucketVersioning::verify_permission()
@@ -2082,7 +2082,7 @@ void RGWPutMetadata::execute()
     }
   } else {
     ptracker = &acct_ot;
-    rgw_read_user_metadata(store, s->user.user_id, orig_attrs, ptracker);
+    rgw_read_user_buckets_metadata(store, s->user.user_id, orig_attrs, ptracker);
   }
 
   for (iter = orig_attrs.begin(); iter != orig_attrs.end(); ++iter) {

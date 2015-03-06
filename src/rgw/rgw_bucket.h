@@ -106,7 +106,7 @@ extern void rgw_bucket_init(RGWMetadataManager *mm);
  * of buckets owned by a user and fill up an @attrs with them.
  * Returns: 0 on success, -ERR# on failure.
  */
-extern int rgw_read_user_metadata(RGWRados * store,
+extern int rgw_read_user_buckets_metadata(RGWRados * store,
                                           string user_id,
                                           map<string, bufferlist>& attrs,
                                           RGWObjVersionTracker * objv_tracker = NULL);
