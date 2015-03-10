@@ -64,7 +64,7 @@ static void dump_account_metadata(struct req_state *s, uint32_t buckets_count,
   s->cio->print("X-Account-Bytes-Used-Actual: %s\r\n", buf);
 
   /* Dump TempURL-related stuff */
-  {
+  if (s->perm_mask == RGW_PERM_FULL_CONTROL) {
     map<int, string>::iterator iter;
     iter = s->user.temp_url_keys.find(0);
     if (iter != s->user.temp_url_keys.end() && !iter->second.empty()) {
