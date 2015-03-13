@@ -605,6 +605,17 @@ void RGWCopyObj_ObjStore_SWIFT::send_response()
     dump_errno(s);
     dump_etag(s, etag.c_str());
     dump_last_modified(s, mtime);
+
+    /* Dump X-Copied-From */
+    {
+      string objname;
+      url_encode(src_object.name, objname);
+
+      string bucketname;
+      url_encode(src_bucket.name, bucketname);
+
+      s->cio->print("X-Copied-From: %s/%s\r\n", bucketname.c_str(), objname.c_str());
+    }
     end_header(s, this);
   } else {
     s->formatter->close_section();
