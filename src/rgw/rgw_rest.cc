@@ -500,6 +500,10 @@ void end_header(struct req_state *s, RGWOp *op, const char *content_type, const 
     dump_access_control(s, op);
   }
 
+  if (s->prot_flags & RGW_REST_SWIFT) {
+    s->cio->print("X-Trans-Id: txfef50586cbc94c37beb71-0054ff2114\r\n");
+  }
+
   if (!content_type || s->err.is_err()) {
     switch (s->format) {
     case RGW_FORMAT_XML:
