@@ -3407,6 +3407,7 @@ static void set_copy_attrs(map<string, bufferlist>& src_attrs,
     for (map<string, bufferlist>::iterator it = attrs.begin(); it != attrs.end(); ++it) {
       src_attrs[it->first] = it->second;
     }
+    attrs = src_attrs;
     break;
   }
 }
