@@ -2169,7 +2169,7 @@ void RGWPutMetadataAccount::execute()
     return;
   }
 
-  rgw_get_request_metadata(s->cct, s->info, attrs);
+  rgw_get_request_metadata(s->cct, s->info, attrs, false);
   rgw_read_user_buckets_metadata(store, s->user.user_id, orig_attrs, &acct_op_tracker);
   prepare_add_del_attrs(orig_attrs, rmattr_names, attrs, rmattrs);
   populate_with_generic_attrs(s, attrs);
@@ -2215,7 +2215,7 @@ void RGWPutMetadataBucket::execute()
     return;
   }
 
-  rgw_get_request_metadata(s->cct, s->info, attrs);
+  rgw_get_request_metadata(s->cct, s->info, attrs, false);
 
   if (!placement_rule.empty() &&
       placement_rule != s->bucket_info.placement_rule) {
