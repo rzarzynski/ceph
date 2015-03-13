@@ -616,6 +616,15 @@ void RGWCopyObj_ObjStore_SWIFT::send_response()
 
       s->cio->print("X-Copied-From: %s/%s\r\n", bucketname.c_str(), objname.c_str());
     }
+
+    /* Dump X-Copied-From-Account */
+    {
+      string account_name;
+      url_encode(s->user.display_name, account_name);
+
+      s->cio->print("X-Copied-From-Account: %s\r\n", account_name.c_str());
+    }
+
     end_header(s, this);
   } else {
     s->formatter->close_section();
