@@ -71,10 +71,6 @@ void RGWListBuckets_ObjStore_SWIFT::send_response_begin(bool has_buckets)
     ret = STATUS_NO_CONTENT;
     set_req_state_err(s, ret);
   }
-  /* Adding account stats in the header to keep align with Swift API */
-  dump_account_metadata(s, buckets_count, buckets_objcount, buckets_size, buckets_size_rounded);
-  dump_errno(s);
-  end_header(s, NULL);
 
   if (!ret) {
     dump_start(s);
@@ -101,7 +97,6 @@ void RGWListBuckets_ObjStore_SWIFT::send_response_data(RGWUserBuckets& buckets)
       s->formatter->dump_int("bytes", obj.size);
     }
     s->formatter->close_section();
-    rgw_flush_formatter(s, s->formatter);
   }
 }
 
@@ -109,8 +104,14 @@ void RGWListBuckets_ObjStore_SWIFT::send_response_end()
 {
   if (sent_data) {
     s->formatter->close_section();
-    rgw_flush_formatter_and_reset(s, s->formatter);
   }
+
+  /* Adding account stats in the header to keep align with Swift API */
+  dump_account_metadata(s, buckets_count, buckets_objcount, buckets_size, buckets_size_rounded);
+  dump_errno(s);
+  end_header(s, NULL, NULL, s->formatter->get_len());
+
+  rgw_flush_formatter_and_reset(s, s->formatter);
 }
 
 int RGWListBucket_ObjStore_SWIFT::get_params()
@@ -230,14 +231,15 @@ next:
 
   s->formatter->close_section();
 
-  if (!ret && s->formatter->get_len() == 0)
+  int64_t content_len = 0;
+  if (!ret && (content_len = s->formatter->get_len()) == 0)
     ret = STATUS_NO_CONTENT;
   else if (ret > 0)
     ret = 0;
 
   set_req_state_err(s, ret);
   dump_errno(s);
-  end_header(s, this);
+  end_header(s, this, NULL, content_len);
   if (ret < 0) {
     return;
   }
@@ -295,7 +297,7 @@ void RGWStatAccount_ObjStore_SWIFT::send_response()
   set_req_state_err(s, ret);
   dump_errno(s);
 
-  end_header(s, NULL);
+  end_header(s, NULL, NULL, 0);
   dump_start(s);
 }
 
@@ -390,7 +392,8 @@ void RGWCreateBucket_ObjStore_SWIFT::send_response()
     ret = STATUS_ACCEPTED;
   set_req_state_err(s, ret);
   dump_errno(s);
-  end_header(s, NULL);
+  /* Propose ending HTTP header with 0 Content-Length header. */
+  end_header(s, NULL, NULL, 0);
   rgw_flush_formatter_and_reset(s, s->formatter);
 }
 
@@ -402,7 +405,7 @@ void RGWDeleteBucket_ObjStore_SWIFT::send_response()
 
   set_req_state_err(s, r);
   dump_errno(s);
-  end_header(s, this);
+  end_header(s, this, NULL, 0);
   rgw_flush_formatter_and_reset(s, s->formatter);
 }
 
