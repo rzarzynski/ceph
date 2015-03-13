@@ -100,6 +100,16 @@ WRITE_CLASS_ENCODER(RGWUserBuckets)
 class RGWMetadataManager;
 
 extern void rgw_bucket_init(RGWMetadataManager *mm);
+
+/**
+ * Get all the metadata stored in xattrs of object containing the list
+ * of buckets owned by a user and fill up an @attrs with them.
+ * Returns: 0 on success, -ERR# on failure.
+ */
+extern int rgw_read_user_buckets_metadata(RGWRados * store,
+                                          string user_id,
+                                          map<string, bufferlist>& attrs,
+                                          RGWObjVersionTracker * objv_tracker = NULL);
 /**
  * Get all the buckets owned by a user and fill up an RGWUserBuckets with them.
  * Returns: 0 on success, -ERR# on failure.
