@@ -658,7 +658,10 @@ void RGWCopyObj_ObjStore_SWIFT::send_response()
       s->cio->print("X-Copied-From-Account: %s\r\n", account_name.c_str());
     }
 
-    end_header(s, this);
+    string content_type;
+    extract_contype_attr(attrs, content_type);
+    dump_object_metadata(s, attrs);
+    end_header(s, this, !content_type.empty() ? content_type.c_str() : "binary/octet-stream");
   } else {
     s->formatter->close_section();
     rgw_flush_formatter(s, s->formatter);
