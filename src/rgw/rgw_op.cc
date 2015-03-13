@@ -1345,6 +1345,9 @@ void RGWCreateBucket::execute()
     }
   }
 
+  attrs = s->bucket_attrs;
+  rgw_get_request_metadata(s->cct, s->info, attrs, false);
+
   RGWBucketInfo master_info;
   rgw_bucket *pmaster_bucket;
   time_t creation_time;
@@ -1430,8 +1433,15 @@ void RGWCreateBucket::execute()
     }
   }
 
-  if (ret == -EEXIST)
+  if (ret == -EEXIST) {
     ret = -ERR_BUCKET_EXISTS;
+  }
+
+  if (existed) {
+    map<string, bufferlist> rmattrs;
+    ret = rgw_bucket_set_attrs(store, s->bucket_info, attrs, &rmattrs,
+            &s->bucket_info.objv_tracker);
+  }
 }
 
 int RGWDeleteBucket::verify_permission()
