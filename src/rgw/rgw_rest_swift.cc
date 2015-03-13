@@ -639,6 +639,9 @@ void RGWCopyObj_ObjStore_SWIFT::send_response()
     dump_etag(s, etag.c_str());
     dump_last_modified(s, mtime);
 
+    /* Dump X-Copied-Last-Modified. */
+    dump_time_header(s, "X-Copied-From-Last-Modified", src_mtime);
+
     /* Dump X-Copied-From */
     {
       string objname;
