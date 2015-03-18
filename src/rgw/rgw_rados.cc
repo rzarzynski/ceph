@@ -3380,19 +3380,27 @@ static void set_copy_attrs(map<string, bufferlist>& src_attrs,
                            map<string, bufferlist>& attrs,
                            RGWRados::AttrsMod attrs_mod)
 {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+    for (map<string, bufferlist>::iterator it = src_attrs.begin(); it != src_attrs.end(); ++it) {
+      std::cout << "src_attr " << it->first << " = " << it->second.c_str() << std::endl;
+    }
   switch (attrs_mod) {
   case RGWRados::ATTRSMOD_NONE:
+    std::cout << "none mode" << std::endl;
     src_attrs[RGW_ATTR_ACL] = attrs[RGW_ATTR_ACL];
     break;
   case RGWRados::ATTRSMOD_REPLACE:
+    std::cout << "replace mode" << std::endl;
     if (!attrs[RGW_ATTR_ETAG].length()) {
       attrs[RGW_ATTR_ETAG] = src_attrs[RGW_ATTR_ETAG];
     }
     src_attrs = attrs;
     break;
   case RGWRados::ATTRSMOD_MERGE:
+    std::cout << "merge mode" << std::endl;
     for (map<string, bufferlist>::iterator it = attrs.begin(); it != attrs.end(); ++it) {
       src_attrs[it->first] = it->second;
+      std::cout << "merging attr " << it->first << " = " << it->second.c_str() << std::endl;
     }
     attrs = src_attrs;
     break;
