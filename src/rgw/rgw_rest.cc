@@ -40,6 +40,7 @@ static struct rgw_http_attr rgw_to_http_attr_list[] = {
   { RGW_ATTR_CONTENT_DISP, "Content-Disposition"},
   { RGW_ATTR_CONTENT_ENC, "Content-Encoding"},
   { RGW_ATTR_USER_MANIFEST, "X-Object-Manifest"},
+  { RGW_ATTR_SLO_INDICATOR, "X-Static-Large-Object"},
   { NULL, NULL},
 };
 
@@ -59,6 +60,7 @@ struct generic_attr generic_attrs[] = {
   { "HTTP_CACHE_CONTROL", RGW_ATTR_CACHE_CONTROL },
   { "HTTP_CONTENT_DISPOSITION", RGW_ATTR_CONTENT_DISP },
   { "HTTP_CONTENT_ENCODING", RGW_ATTR_CONTENT_ENC },
+  { "HTTP_X_STATIC_LARGE_OBJECT", RGW_ATTR_SLO_INDICATOR },
   { NULL, NULL },
 };
 
