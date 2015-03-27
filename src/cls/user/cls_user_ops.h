@@ -59,6 +59,7 @@ WRITE_CLASS_ENCODER(cls_user_remove_bucket_op)
 
 struct cls_user_list_buckets_op {
   string marker;
+  string end_marker;
   int max_entries; /* upperbound to returned num of entries
                       might return less than that and still be truncated */
 
@@ -68,6 +69,7 @@ struct cls_user_list_buckets_op {
   void encode(bufferlist& bl) const {
     ENCODE_START(1, 1, bl);
     ::encode(marker, bl);
+    ::encode(end_marker, bl);
     ::encode(max_entries, bl);
     ENCODE_FINISH(bl);
   }
@@ -75,6 +77,7 @@ struct cls_user_list_buckets_op {
   void decode(bufferlist::iterator& bl) {
     DECODE_START(1, bl);
     ::decode(marker, bl);
+    ::decode(end_marker, bl);
     ::decode(max_entries, bl);
     DECODE_FINISH(bl);
   }
