@@ -937,11 +937,30 @@ RGWOp *RGWHandler_ObjStore_Obj_SWIFT::op_options()
 
 int RGWHandler_ObjStore_SWIFT::authorize()
 {
+  if (!s->swift_account.empty()) {
+    string uid = s->swift_account.substr(strlen("KEY_"));
+    if (rgw_get_user_info_by_uid(store, uid, s->user) < 0) {
+      //ldout(cct, 0) << "NOTICE: couldn't map swift user" << dendl;
+      s->user.user_id = uid;
+      s->user.display_name = uid;
+
+      int ret = rgw_store_user_info(store, s->user, NULL, NULL, 0, true);
+      if (ret < 0) {
+        //ldout(cct, 0) << "ERROR: failed to store new user's info: ret=" << ret << dendl;
+        return ret;
+      }
+    }
+    s->perm_mask = RGW_PERM_FULL_CONTROL;
+    return 0;
+  }
+
   if ((!s->os_auth_token && s->info.args.get("temp_url_sig").empty()) ||
       (s->op == OP_OPTIONS)) {
-    /* anonymous access */
-    rgw_get_anon_user(s->user);
-    s->perm_mask = RGW_PERM_FULL_CONTROL;
+    if (s->swift_account.empty()) {
+      /* anonymous access */
+      rgw_get_anon_user(s->user);
+      s->perm_mask = RGW_PERM_FULL_CONTROL;
+    }
     return 0;
   }
 
