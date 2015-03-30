@@ -14,19 +14,52 @@
 
 #define dout_subsys ceph_subsys_rgw
 
+/* We really need our own version of strict_strtol because the standard
+ * one (located in src/common/strtol.cc) loses information whether
+ * the error was caused by overflow or underflow. */
+static long priv_strict_strtol(const char * const str,
+                               const int base,
+                               bool& failed)
+{
+  errno = 0; /* To distinguish success/failure after call (see man page) */
+  failed = true;
+  char *endptr;
+  const long ret = strtol(str, &endptr, 10);
+
+  if ((errno == ERANGE && (ret == LONG_MAX || ret == LONG_MIN))
+      || (errno != 0 && ret == 0)) {
+    return ret;
+  }
+
+  if (endptr == str || *endptr != '\0') {
+    return 0;
+  }
+
+  failed = false;
+  return ret;
+}
+
 int RGWListBuckets_ObjStore_SWIFT::get_params()
 {
   marker = s->info.args.get("marker");
-  string limit_str;
-  limit_str = s->info.args.get("limit");
-  long l = strtol(limit_str.c_str(), NULL, 10);
-  if (l > (long)limit_max || l < 0)
-    return -ERR_PRECONDITION_FAILED;
 
-  limit = (uint64_t)l;
+  const string limit_str = s->info.args.get("limit");
+  if (!limit_str.empty()) {
+    bool conv_failed;
+    const long l = priv_strict_strtol(limit_str.c_str(), 10, conv_failed);
 
-  if (limit == 0)
-    limit = limit_max;
+    if (conv_failed) {
+      if (l == LONG_MAX) {
+        return -ERR_PRECONDITION_FAILED;
+      }
+    } else {
+      if (l > (long)limit_max) {
+        return -ERR_PRECONDITION_FAILED;
+      }
+
+      limit = (uint64_t)l;
+    }
+  }
 
   need_stats = (s->format != RGW_FORMAT_PLAIN);
 
@@ -34,8 +67,9 @@ int RGWListBuckets_ObjStore_SWIFT::get_params()
     bool stats, exists;
     int r = s->info.args.get_bool("stats", &stats, &exists);
 
-    if (r < 0)
+    if (r < 0) {
       return r;
+    }
 
     if (exists) {
       need_stats = stats;
