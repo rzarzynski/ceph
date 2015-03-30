@@ -19,14 +19,15 @@ int RGWListBuckets_ObjStore_SWIFT::get_params()
   marker = s->info.args.get("marker");
   string limit_str;
   limit_str = s->info.args.get("limit");
-  long l = strtol(limit_str.c_str(), NULL, 10);
-  if (l > (long)limit_max || l < 0)
+  string err;
+  long l = strict_strtol(limit_str.c_str(), 10, &err);
+  if (l > (long)limit_max || l < 0) {
     return -ERR_PRECONDITION_FAILED;
+  }
 
-  limit = (uint64_t)l;
-
-  if (limit == 0)
-    limit = limit_max;
+  if (err.empty()) {
+    limit = (uint64_t)l;
+  }
 
   need_stats = (s->format != RGW_FORMAT_PLAIN);
 
@@ -34,8 +35,9 @@ int RGWListBuckets_ObjStore_SWIFT::get_params()
     bool stats, exists;
     int r = s->info.args.get_bool("stats", &stats, &exists);
 
-    if (r < 0)
+    if (r < 0) {
       return r;
+    }
 
     if (exists) {
       need_stats = stats;
