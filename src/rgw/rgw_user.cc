@@ -89,8 +89,13 @@ int rgw_user_sync_all_stats(RGWRados *store, const string& user_id)
  * Save the given user information to storage.
  * Returns: 0 on success, -ERR# on failure.
  */
-int rgw_store_user_info(RGWRados *store, RGWUserInfo& info, RGWUserInfo *old_info,
-                        RGWObjVersionTracker *objv_tracker, time_t mtime, bool exclusive)
+int rgw_store_user_info(RGWRados *store,
+                        RGWUserInfo& info,
+                        RGWUserInfo *old_info,
+                        RGWObjVersionTracker *objv_tracker,
+                        time_t mtime,
+                        bool exclusive,
+                        map<string, bufferlist> *pattrs)
 {
   bufferlist bl;
   info.encode(bl);
@@ -151,7 +156,7 @@ int rgw_store_user_info(RGWRados *store, RGWUserInfo& info, RGWUserInfo *old_inf
   ::encode(ui, data_bl);
   ::encode(info, data_bl);
 
-  ret = store->meta_mgr->put_entry(user_meta_handler, info.user_id, data_bl, exclusive, &ot, mtime);
+  ret = store->meta_mgr->put_entry(user_meta_handler, info.user_id, data_bl, exclusive, &ot, mtime, pattrs);
   if (ret < 0)
     return ret;
 
@@ -194,6 +199,16 @@ int rgw_store_user_info(RGWRados *store, RGWUserInfo& info, RGWUserInfo *old_inf
   }
 
   return ret;
+}
+
+int rgw_store_user_attrs(RGWRados *const store,
+                         const string& user_id,
+                         map<string, bufferlist>& attrs,
+                         map<string, bufferlist>* const rmattrs,
+                         RGWObjVersionTracker * const objv_tracker)
+{
+  return store->meta_mgr->set_attrs(bucket_instance_meta_handler, key,
+                                    obj, attrs, rmattrs, objv_tracker);
 }
 
 struct user_info_entry {
@@ -257,17 +272,22 @@ int rgw_get_user_info_from_index(RGWRados *store, string& key, rgw_bucket& bucke
  * Given a uid, finds the user info associated with it.
  * returns: 0 on success, -ERR# on failure (including nonexistence)
  */
-int rgw_get_user_info_by_uid(RGWRados *store, string& uid, RGWUserInfo& info,
-                             RGWObjVersionTracker *objv_tracker, time_t *pmtime,
-                             rgw_cache_entry_info *cache_info)
+int rgw_get_user_info_by_uid(RGWRados *store,
+                             string& uid,
+                             RGWUserInfo& info,
+                             RGWObjVersionTracker *objv_tracker,
+                             time_t *pmtime,
+                             rgw_cache_entry_info *cache_info,
+                             map<string, bufferlist> *pattrs)
 {
   bufferlist bl;
   RGWUID user_id;
 
   RGWObjectCtx obj_ctx(store);
-  int ret = rgw_get_system_obj(store, obj_ctx, store->zone.user_uid_pool, uid, bl, objv_tracker, pmtime, NULL, cache_info);
-  if (ret < 0)
+  int ret = rgw_get_system_obj(store, obj_ctx, store->zone.user_uid_pool, uid, bl, objv_tracker, pmtime, pattrs, cache_info);
+  if (ret < 0) {
     return ret;
+  }
 
   bufferlist::iterator iter = bl.begin();
   try {
@@ -315,6 +335,13 @@ extern int rgw_get_user_info_by_access_key(RGWRados *store, string& access_key, 
                                            RGWObjVersionTracker *objv_tracker, time_t *pmtime)
 {
   return rgw_get_user_info_from_index(store, access_key, store->zone.user_keys_pool, info, objv_tracker, pmtime);
+}
+
+int rgw_get_user_attrs_by_uid(RGWRados *store,
+                              const string& user_id,
+                              map<string, bufferlist>& attrs,
+                              RGWObjVersionTracker *objv_tracker)
+{
 }
 
 int rgw_remove_key_index(RGWRados *store, RGWAccessKey& access_key)
@@ -2389,16 +2416,34 @@ int RGWUserAdminOp_Caps::remove(RGWRados *store, RGWUserAdminOpState& op_state,
   return 0;
 }
 
+struct RGWUserCompleteInfo {
+  RGWUserInfo info;
+  map<string, bufferlist> attrs;
+
+  void dump(Formatter * const f) const {
+    encode_json("bucket_info", info, f);
+    encode_json("attrs", attrs, f);
+  }
+
+  void decode_json(JSONObj *obj) {
+    JSONDecoder::decode_json("bucket_info", info, obj);
+    JSONDecoder::decode_json("attrs", attrs, obj);
+  }
+};
+
 class RGWUserMetadataObject : public RGWMetadataObject {
   RGWUserInfo info;
+  map<string, bufferlist> attrs;
 public:
-  RGWUserMetadataObject(RGWUserInfo& i, obj_version& v, time_t m) : info(i) {
+  RGWUserMetadataObject(RGWUserInfo& i, obj_version& v, time_t m)
+      : info(i), attrs(attrs) {
     objv = v;
     mtime = m;
   }
 
   void dump(Formatter *f) const {
     info.dump(f);
+    attrs.dump(f);
   }
 };
 
@@ -2412,12 +2457,12 @@ public:
     RGWObjVersionTracker objv_tracker;
     time_t mtime;
 
-    int ret = rgw_get_user_info_by_uid(store, entry, info, &objv_tracker, &mtime);
-    if (ret < 0)
+    int ret = rgw_get_user_info_by_uid(store, entry, info, &objv_tracker, &mtime, &attrs);
+    if (ret < 0) {
       return ret;
+    }
 
-    RGWUserMetadataObject *mdo = new RGWUserMetadataObject(info, objv_tracker.read_version, mtime);
-
+    RGWUserMetadataObject *mdo = new RGWUserMetadataObject(info, attrs, objv_tracker.read_version, mtime);
     *obj = mdo;
 
     return 0;
@@ -2428,6 +2473,12 @@ public:
     RGWUserInfo info;
 
     decode_json_obj(info, obj);
+    decode_json_obj(attrs, obj);
+
+    pattrs = NULL;
+    if (nowa wersja RGW) {
+      pattrs = &attrs;
+    }
 
     RGWUserInfo old_info;
     time_t orig_mtime;
@@ -2442,9 +2493,10 @@ public:
       return STATUS_NO_APPLY;
     }
 
-    ret = rgw_store_user_info(store, info, &old_info, &objv_tracker, mtime, false);
-    if (ret < 0)
+    ret = rgw_store_user_info(store, info, &old_info, &objv_tracker, mtime, false, pattrs);
+    if (ret < 0) {
       return ret;
+    }
 
     return STATUS_APPLIED;
   }
