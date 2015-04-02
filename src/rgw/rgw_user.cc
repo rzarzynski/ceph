@@ -2428,31 +2428,34 @@ int RGWUserAdminOp_Caps::remove(RGWRados *store, RGWUserAdminOpState& op_state,
 struct RGWUserCompleteInfo {
   RGWUserInfo info;
   map<string, bufferlist> attrs;
+  bool has_user_attrs;
+
+  RGWUserCompleteInfo()
+    : has_user_attrs(false)
+  {}
 
   void dump(Formatter * const f) const {
-    encode_json("bucket_info", info, f);
+    info.dump(f);
     encode_json("attrs", attrs, f);
   }
 
   void decode_json(JSONObj *obj) {
-    JSONDecoder::decode_json("bucket_info", info, obj);
+    decode_json_obj(info, obj);
     JSONDecoder::decode_json("attrs", attrs, obj);
   }
 };
 
 class RGWUserMetadataObject : public RGWMetadataObject {
-  RGWUserInfo info;
-  map<string, bufferlist> attrs;
+  RGWUserCompleteInfo uci;
 public:
-  RGWUserMetadataObject(RGWUserInfo& i, obj_version& v, time_t m)
-      : info(i), attrs(attrs) {
+  RGWUserMetadataObject(const RGWUserCompleteInfo& _uci, obj_version& v, time_t m)
+      : uci(_uci) {
     objv = v;
     mtime = m;
   }
 
   void dump(Formatter *f) const {
-    info.dump(f);
-    attrs.dump(f);
+    uci.dump(f);
   }
 };
 
@@ -2461,17 +2464,17 @@ public:
   string get_type() { return "user"; }
 
   int get(RGWRados *store, string& entry, RGWMetadataObject **obj) {
-    RGWUserInfo info;
-
+    RGWUserCompleteInfo uci;
     RGWObjVersionTracker objv_tracker;
     time_t mtime;
 
-    int ret = rgw_get_user_info_by_uid(store, entry, info, &objv_tracker, &mtime, &attrs);
+    int ret = rgw_get_user_info_by_uid(store, entry, uci.info, &objv_tracker,
+                                       &mtime, &uci.attrs);
     if (ret < 0) {
       return ret;
     }
 
-    RGWUserMetadataObject *mdo = new RGWUserMetadataObject(info, attrs, objv_tracker.read_version, mtime);
+    RGWUserMetadataObject *mdo = new RGWUserMetadataObject(uci, objv_tracker.read_version, mtime);
     *obj = mdo;
 
     return 0;
@@ -2479,14 +2482,13 @@ public:
 
   int put(RGWRados *store, string& entry, RGWObjVersionTracker& objv_tracker,
           time_t mtime, JSONObj *obj, sync_type_t sync_mode) {
-    RGWUserInfo info;
+    RGWUserCompleteInfo uci;
 
-    decode_json_obj(info, obj);
-    decode_json_obj(attrs, obj);
+    decode_json_obj(uci, obj);
 
-    pattrs = NULL;
-    if (nowa wersja RGW) {
-      pattrs = &attrs;
+    map<string, bufferlist> *pattrs = NULL;
+    if (uci.has_user_attrs()) {
+      pattrs = &uci.attrs;
     }
 
     RGWUserInfo old_info;
@@ -2502,7 +2504,7 @@ public:
       return STATUS_NO_APPLY;
     }
 
-    ret = rgw_store_user_info(store, info, &old_info, &objv_tracker, mtime, false, pattrs);
+    ret = rgw_store_user_info(store, uci.info, &old_info, &objv_tracker, mtime, false, pattrs);
     if (ret < 0) {
       return ret;
     }
