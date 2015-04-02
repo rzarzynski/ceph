@@ -202,7 +202,7 @@ int rgw_store_user_info(RGWRados *store,
 }
 
 int rgw_store_user_attrs(RGWRados *const store,
-                         const string& user_id,
+                         string& user_id,
                          map<string, bufferlist>& attrs,
                          map<string, bufferlist>* const rmattrs,
                          RGWObjVersionTracker * const objv_tracker)
@@ -2428,10 +2428,10 @@ int RGWUserAdminOp_Caps::remove(RGWRados *store, RGWUserAdminOpState& op_state,
 struct RGWUserCompleteInfo {
   RGWUserInfo info;
   map<string, bufferlist> attrs;
-  bool has_user_attrs;
+  bool has_attrs;
 
   RGWUserCompleteInfo()
-    : has_user_attrs(false)
+    : has_attrs(false)
   {}
 
   void dump(Formatter * const f) const {
@@ -2441,7 +2441,7 @@ struct RGWUserCompleteInfo {
 
   void decode_json(JSONObj *obj) {
     decode_json_obj(info, obj);
-    JSONDecoder::decode_json("attrs", attrs, obj);
+    has_attrs = JSONDecoder::decode_json("attrs", attrs, obj);
   }
 };
 
@@ -2469,7 +2469,7 @@ public:
     time_t mtime;
 
     int ret = rgw_get_user_info_by_uid(store, entry, uci.info, &objv_tracker,
-                                       &mtime, &uci.attrs);
+                                       &mtime, NULL, &uci.attrs);
     if (ret < 0) {
       return ret;
     }
@@ -2487,7 +2487,7 @@ public:
     decode_json_obj(uci, obj);
 
     map<string, bufferlist> *pattrs = NULL;
-    if (uci.has_user_attrs()) {
+    if (uci.has_attrs) {
       pattrs = &uci.attrs;
     }
 

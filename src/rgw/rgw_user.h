@@ -64,7 +64,7 @@ extern int rgw_store_user_info(RGWRados *store,
                                map<string, bufferlist> *pattrs = NULL);
 
 extern int rgw_store_user_attrs(RGWRados *store,
-                                const string& user_id,
+                                string& user_id,
                                 map<string, bufferlist>& attrs,
                                 map<string, bufferlist>* rmattrs,
                                 RGWObjVersionTracker *objv_tracker);
