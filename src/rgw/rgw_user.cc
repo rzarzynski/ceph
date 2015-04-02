@@ -207,8 +207,10 @@ int rgw_store_user_attrs(RGWRados *const store,
                          map<string, bufferlist>* const rmattrs,
                          RGWObjVersionTracker * const objv_tracker)
 {
-  return store->meta_mgr->set_attrs(bucket_instance_meta_handler, key,
-                                    obj, attrs, rmattrs, objv_tracker);
+  rgw_obj obj(store->zone.user_uid_pool, user_id);
+
+  return store->meta_mgr->set_attrs(user_meta_handler, user_id, obj,
+                                    attrs, rmattrs, objv_tracker);
 }
 
 struct user_info_entry {
@@ -342,6 +344,13 @@ int rgw_get_user_attrs_by_uid(RGWRados *store,
                               map<string, bufferlist>& attrs,
                               RGWObjVersionTracker *objv_tracker)
 {
+  RGWObjectCtx obj_ctx(store);
+  rgw_obj obj(store->zone.user_uid_pool, user_id);
+  RGWRados::SystemObject src(store, obj_ctx, obj);
+  RGWRados::SystemObject::Read rop(&src);
+
+  rop.stat_params.attrs = &attrs;
+  return rop.stat(objv_tracker);
 }
 
 int rgw_remove_key_index(RGWRados *store, RGWAccessKey& access_key)
