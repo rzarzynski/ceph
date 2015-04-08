@@ -2524,6 +2524,7 @@ void RGWCopyObj::execute()
                         src_obj,
                         dest_bucket_info,
                         src_bucket_info,
+                        &src_mtime,
                         &mtime,
                         mod_ptr,
                         unmod_ptr,
