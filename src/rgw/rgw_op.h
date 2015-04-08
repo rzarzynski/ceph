@@ -254,6 +254,7 @@ protected:
   string prefix;
   rgw_obj_key marker; 
   rgw_obj_key next_marker; 
+  rgw_obj_key end_marker;
   string max_keys;
   string delimiter;
   bool list_versions;
