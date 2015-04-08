@@ -1007,14 +1007,10 @@ void RGWListBuckets::execute()
   do {
     RGWUserBuckets buckets;
     uint64_t read_count;
-    if (limit > 0)
-      read_count = min(limit - total_count, (uint64_t)max_buckets);
-    else
-      read_count = max_buckets;
+    read_count = min(limit - total_count, (uint64_t)max_buckets);
 
     ret = rgw_read_user_buckets(store, s->user.user_id, buckets,
-                                marker, read_count, should_get_stats(), end_marker);
-
+                                marker, read_count, should_get_stats(), end_marker, 0);
     if (ret < 0) {
       /* hmm.. something wrong here.. the user was authenticated, so it
          should exist */
@@ -1034,7 +1030,7 @@ void RGWListBuckets::execute()
     buckets_count += m.size();
     total_count += m.size();
 
-    done = (m.size() < read_count || (limit > 0 && total_count == limit));
+    done = (m.size() < read_count || total_count >= limit);
 
     if (!started) {
       send_response_begin(buckets.count() > 0);

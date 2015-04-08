@@ -48,7 +48,8 @@ int rgw_read_user_buckets(RGWRados *store,
                           const string& marker,
                           uint64_t max,
                           bool need_stats,
-                          string end_marker)
+                          string end_marker,
+                          uint64_t default_amount)
 {
   int ret;
   buckets.clear();
@@ -63,6 +64,10 @@ int rgw_read_user_buckets(RGWRados *store,
   string m = marker;
 
   uint64_t total = 0;
+
+  if (!max) {
+    max = default_amount;
+  }
 
   do {
     ret = store->cls_user_list_buckets(obj, m, end_marker, max - total, entries, &m, &truncated);
