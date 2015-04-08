@@ -2184,14 +2184,19 @@ void RGWPutMetadataAccount::execute()
       ret = -EPERM;
       return;
     }
+  }
 
+  ret = rgw_store_user_attrs(store, s->user.user_id, attrs, &rmattrs, &acct_op_tracker);
+  if (ret < 0) {
+    return;
+  }
+
+  if (!temp_url_keys.empty()) {
     ret = handle_temp_url_update(temp_url_keys);
     if (ret < 0) {
       return;
     }
   }
-
-  ret = rgw_store_user_attrs(store, s->user.user_id, attrs, &rmattrs, &acct_op_tracker);
 }
 
 int RGWPutMetadataBucket::verify_permission()
