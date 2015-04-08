@@ -1013,7 +1013,7 @@ void RGWListBuckets::execute()
       read_count = max_buckets;
 
     ret = rgw_read_user_buckets(store, s->user.user_id, buckets,
-                                marker, read_count, should_get_stats());
+                                marker, read_count, should_get_stats(), end_marker);
 
     if (!started) {
       send_response_begin(buckets.count() > 0);
