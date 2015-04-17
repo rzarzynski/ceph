@@ -46,9 +46,9 @@ int rgw_read_user_buckets(RGWRados *store,
                           string user_id,
                           RGWUserBuckets& buckets,
                           const string& marker,
+                          const string& end_marker,
                           uint64_t max,
-                          bool need_stats,
-                          string end_marker)
+                          bool need_stats)
 {
   int ret;
   buckets.clear();
@@ -320,7 +320,8 @@ void check_bad_user_bucket_mapping(RGWRados *store, const string& user_id, bool 
   size_t max_entries = cct->_conf->rgw_list_buckets_max_chunk;
 
   do {
-    int ret = rgw_read_user_buckets(store, user_id, user_buckets, marker, max_entries, false);
+    int ret = rgw_read_user_buckets(store, user_id, user_buckets,
+                                    marker, string(), max_entries, false);
     if (ret < 0) {
       ldout(store->ctx(), 0) << "failed to read user buckets: " << cpp_strerror(-ret) << dendl;
       return;
@@ -1067,7 +1068,8 @@ int RGWBucketAdminOp::info(RGWRados *store, RGWBucketAdminOpState& op_state,
     bool done;
 
     do {
-      ret = rgw_read_user_buckets(store, op_state.get_user_id(), buckets, marker, max_entries, false);
+      ret = rgw_read_user_buckets(store, op_state.get_user_id(), buckets,
+                                  marker, string(), max_entries, false);
       if (ret < 0)
         return ret;
 

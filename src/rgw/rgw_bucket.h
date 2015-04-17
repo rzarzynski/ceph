@@ -108,9 +108,9 @@ extern int rgw_read_user_buckets(RGWRados *store,
                                  string user_id,
                                  RGWUserBuckets& buckets,
                                  const string& marker,
+                                 const string& end_marker,
                                  uint64_t max,
-                                 bool need_stats,
-                                 string end_marker = string());
+                                 bool need_stats);
 
 extern int rgw_link_bucket(RGWRados *store, string user_id, rgw_bucket& bucket, time_t creation_time, bool update_entrypoint = true);
 extern int rgw_unlink_bucket(RGWRados *store, string user_id, const string& bucket_name, bool update_entrypoint = true);
