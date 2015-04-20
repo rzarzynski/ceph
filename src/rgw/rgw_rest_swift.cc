@@ -326,27 +326,20 @@ static void dump_container_metadata(struct req_state *s, RGWBucketEnt& bucket)
   s->cio->print("X-Container-Bytes-Used-Actual: %s\r\n", buf);
 
   if (s->object.empty()) {
-    RGWAccessControlPolicy_SWIFT *swift_policy = static_cast<RGWAccessControlPolicy_SWIFT *>(s->bucket_acl);
-    string read_acl, write_acl;
-    swift_policy->to_str(read_acl, write_acl);
-    if (read_acl.size()) {
-      s->cio->print("X-Container-Read: %s\r\n", read_acl.c_str());
-    }
-    if (write_acl.size()) {
-      s->cio->print("X-Container-Write: %s\r\n", write_acl.c_str());
-    }
     if (!s->bucket_info.placement_rule.empty()) {
       s->cio->print("X-Storage-Policy: %s\r\n", s->bucket_info.placement_rule.c_str());
     }
     // Dump user-defined metadata items
     const size_t PREFIX_LEN = sizeof(RGW_ATTR_META_PREFIX) - 1;
     map<string, bufferlist>::iterator iter;
-    for (iter = s->bucket_attrs.lower_bound(RGW_ATTR_META_PREFIX); iter != s->bucket_attrs.end(); ++iter) {
+    for (iter = s->bucket_attrs.begin(); iter != s->bucket_attrs.end(); ++iter) {
       const char *name = iter->first.c_str();
       if (strncmp(name, RGW_ATTR_META_PREFIX, PREFIX_LEN) == 0) {
         s->cio->print("X-Container-Meta-%s: %s\r\n", name + PREFIX_LEN, iter->second.c_str());
-      } else {
-        break;
+      } else if (strcmp(name, RGW_ATTR_CONT_RACL) == 0) {
+        s->cio->print("X-Container-Read: %s\r\n", iter->second.c_str());
+      } else if (strcmp(name, RGW_ATTR_CONT_WACL) == 0) {
+        s->cio->print("X-Container-Write: %s\r\n", iter->second.c_str());
       }
     }
   }
