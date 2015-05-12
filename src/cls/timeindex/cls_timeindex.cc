@@ -28,14 +28,6 @@ cls_method_handle_t h_timeindex_info;
 static string log_index_prefix = "1_";
 
 
-static void get_index_time_prefix(const utime_t& ts, string& index)
-{
-  char buf[32];
-  snprintf(buf, sizeof(buf), "%010ld.%06ld_", (long)ts.sec(), (long)ts.usec());
-
-  index = log_index_prefix + buf;
-}
-
 static int read_header(cls_method_context_t hctx, cls_timeindex_header& header)
 {
   bufferlist header_bl;
@@ -71,6 +63,14 @@ static int write_header(cls_method_context_t hctx, cls_timeindex_header& header)
   }
 
   return 0;
+}
+
+static void get_index_time_prefix(const utime_t& ts, string& index)
+{
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%010ld.%06ld_", (long)ts.sec(), (long)ts.usec());
+
+  index = log_index_prefix + buf;
 }
 
 static void get_index(cls_method_context_t hctx,
@@ -170,8 +170,7 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
   bool done = false;
   string marker;
 
-  size_t i;
-  for (i = 0; i < max_entries && iter != keys.end(); ++i, ++iter) {
+  for (size_t i = 0; i < max_entries && iter != keys.end(); ++i, ++iter) {
     const string& index = iter->first;
     marker = index;
     if (use_time_boundary && index.compare(0, to_index.size(), to_index) >= 0) {
@@ -190,8 +189,9 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
     }
   }
 
-  if (iter == keys.end())
+  if (iter == keys.end()) {
     done = true;
+  }
 
   ret.marker = marker;
   ret.truncated = !done;
@@ -224,6 +224,7 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
   } else {
     from_index = op.from_marker;
   }
+
   if (op.to_marker.empty()) {
     get_index_time_prefix(op.to_time, to_index);
   } else {
@@ -234,20 +235,21 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
   size_t max_entries = MAX_TRIM_ENTRIES;
 
   int rc = cls_cxx_map_get_vals(hctx, from_index, log_index_prefix, max_entries, &keys);
-  if (rc < 0)
+  if (rc < 0) {
     return rc;
+  }
 
   map<string, bufferlist>::iterator iter = keys.begin();
 
-  size_t i;
   bool removed = false;
-  for (i = 0; i < max_entries && iter != keys.end(); ++i, ++iter) {
+  for (size_t i = 0; i < max_entries && iter != keys.end(); ++i, ++iter) {
     const string& index = iter->first;
 
     CLS_LOG(20, "index=%s to_index=%s", index.c_str(), to_index.c_str());
 
-    if (index.compare(0, to_index.size(), to_index) > 0)
+    if (index.compare(0, to_index.size(), to_index) > 0) {
       break;
+    }
 
     CLS_LOG(20, "removing key: index=%s", index.c_str());
 
@@ -256,11 +258,13 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
       CLS_LOG(1, "ERROR: cls_cxx_map_remove_key failed rc=%d", rc);
       return -EINVAL;
     }
+
     removed = true;
   }
 
-  if (!removed)
+  if (!removed) {
     return -ENODATA;
+  }
 
   return 0;
 }
