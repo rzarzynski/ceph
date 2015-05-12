@@ -27,6 +27,7 @@
 #include "cls/version/cls_version_client.h"
 #include "cls/log/cls_log_client.h"
 #include "cls/statelog/cls_statelog_client.h"
+#include "cls/timeindex/cls_timeindex_client.h"
 #include "cls/lock/cls_lock_client.h"
 #include "cls/user/cls_user_client.h"
 
@@ -2233,6 +2234,50 @@ int RGWRados::time_log_trim(const string& oid, const utime_t& start_time, const 
   return cls_log_trim(io_ctx, oid, start_time, end_time, from_marker, to_marker);
 }
 
+static const unsigned int OBJECT_EXPIRATION_EXP = 12;
+static const unsigned int OBJECT_EXPIRATION_SHARD_NUM = 128 - 1;
+
+static string objexp_hint_get_shardname(const utime_t &ts)
+{
+  const unsigned int mask  = ~((2 << OBJECT_EXPIRATION_EXP) - 1);
+  const unsigned int shnum = (ts.sec() & mask) % OBJECT_EXPIRATION_SHARD_NUM;
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%010u", shnum);
+
+  string objname("time_index_hint.");
+  return objname + buf;
+}
+
+int RGWRados::objexp_hint_add(const string &oid,
+                              const utime_t& delete_at,
+                              bufferlist& idtag)
+{
+  librados::IoCtx io_ctx;
+
+  const char *log_pool = ".test_pool";
+  int r = rados->ioctx_create(log_pool, io_ctx);
+  if (r == -ENOENT) {
+    rgw_bucket pool(log_pool);
+    r = create_pool(pool);
+    if (r < 0) {
+      return r;
+    }
+
+    // retry
+    r = rados->ioctx_create(log_pool, io_ctx);
+  }
+  if (r < 0) {
+    return r;
+  }
+
+  ObjectWriteOperation op;
+  cls_timeindex_add(op, delete_at, oid, idtag);
+
+  string shard_name = objexp_hint_get_shardname(delete_at);
+  r = io_ctx.operate(shard_name, &op);
+  return r;
+}
 
 int RGWRados::lock_exclusive(rgw_bucket& pool, const string& oid, utime_t& duration, 
                              string& zone_id, string& owner_id) {
