@@ -5043,6 +5043,14 @@ int RGWRados::set_attrs(void *ctx, rgw_obj& obj,
       continue;
 
     op.setxattr(name.c_str(), bl);
+
+    if (name.compare(RGW_ATTR_DELETE_AT) == 0) {
+      string err;
+      int64_t del_at = (int64_t)strict_strtoll(bl.c_str(), 10, &err);
+
+      utime_t ts(del_at, 0);
+      objexp_hint_add(ref.oid, ts, attrs[RGW_ATTR_ETAG]);
+    }
   }
 
   if (!op.size())
