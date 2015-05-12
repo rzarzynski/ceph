@@ -296,7 +296,7 @@ void __cls_init()
 {
   CLS_LOG(1, "Loaded timeindex class!");
 
-  cls_register("log", &h_class);
+  cls_register("timeindex", &h_class);
 
   /* timeindex */
   cls_register_cxx_method(h_class, "add", CLS_METHOD_RD | CLS_METHOD_WR,

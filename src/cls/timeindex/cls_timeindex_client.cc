@@ -34,7 +34,7 @@ void cls_timeindex_add(librados::ObjectWriteOperation& op, cls_timeindex_entry& 
 void cls_timeindex_add_prepare_entry(cls_timeindex_entry& entry,
                                      const utime_t& key_timestamp,
                                      const string& key_ext,
-                                     bufferlist& bl)
+                                     const bufferlist& bl)
 {
   entry.key_ts  = key_timestamp;
   entry.key_ext = key_ext;
@@ -44,7 +44,7 @@ void cls_timeindex_add_prepare_entry(cls_timeindex_entry& entry,
 void cls_timeindex_add(librados::ObjectWriteOperation& op,
                        const utime_t& key_timestamp,
                        const string& key_ext,
-                       bufferlist& bl)
+                       const bufferlist& bl)
 {
   cls_timeindex_entry entry;
 

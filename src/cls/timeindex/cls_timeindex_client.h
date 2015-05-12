@@ -20,7 +20,7 @@ void cls_timeindex_add(const librados::ObjectWriteOperation& op,
 void cls_timeindex_add(const librados::ObjectWriteOperation& op,
                        const cls_timeindex_entry& entry);
 
-void cls_timeindex_add(const librados::ObjectWriteOperation& op,
+void cls_timeindex_add(librados::ObjectWriteOperation& op,
                        const utime_t& timestamp,
                        const string& name,
                        const bufferlist& bl);
