@@ -505,8 +505,15 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
 
   if (!s->object.empty()) {
     utime_t delat_proposal;
-    string x_delete = s->info.env->get("HTTP_X_DELETE_AT", "");
+    string x_delete = s->info.env->get("HTTP_X_DELETE_AFTER", "");
 
+    if (x_delete.empty()) {
+      x_delete = s->info.env->get("HTTP_X_DELETE_AT", "");
+    } else {
+      /* X-Delete-After HTTP is present. It means we need add its value
+       * to the current time. */
+      delat_proposal = ceph_clock_now(g_ceph_context);
+    }
 
     if (!x_delete.empty()) {
       string err;
