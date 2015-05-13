@@ -94,6 +94,7 @@ public:
 
   int get_params();
   void send_response();
+  bool need_object_expiration() { return true; }
 };
 
 class RGWSetTempUrl_ObjStore_SWIFT : public RGWSetTempUrl_ObjStore {

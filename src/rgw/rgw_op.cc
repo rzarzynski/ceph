@@ -2102,8 +2102,16 @@ void RGWPutMetadata::execute()
   if (is_object_op) {
     /* check if obj exists, read orig attrs */
     ret = get_obj_attrs(store, s, obj, orig_attrs);
-    if (ret < 0)
+    if (ret < 0) {
       return;
+    }
+
+    /* Check whether the object has expired. Swift API documentation
+     * stands that we should return 404 Not Found in such case. */
+    if (need_object_expiration() && object_is_expired(orig_attrs)) {
+      ret = -ENOENT;
+      return;
+    }
   } else {
     ptracker = &s->bucket_info.objv_tracker;
     orig_attrs = s->bucket_attrs;
