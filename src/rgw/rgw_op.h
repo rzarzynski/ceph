@@ -538,6 +538,7 @@ public:
   virtual const string name() { return "put_obj_metadata"; }
   virtual RGWOpType get_type() { return RGW_OP_PUT_METADATA; }
   virtual uint32_t op_mask() { return RGW_OP_TYPE_WRITE; }
+  virtual bool need_object_expiration() { return false; }
 };
 
 class RGWSetTempUrl : public RGWOp {
