@@ -516,7 +516,7 @@ protected:
   RGWAccessControlPolicy policy;
   RGWCORSConfiguration cors_config;
   string placement_rule;
-  string delete_at;
+  utime_t delete_at;
 
 public:
   RGWPutMetadata() {
