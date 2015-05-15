@@ -2279,6 +2279,41 @@ int RGWRados::objexp_hint_add(const string &oid,
   return r;
 }
 
+int RGWRados::objexp_hint_list(const string& oid,
+                               const utime_t& start_time,
+                               const utime_t& end_time,
+                               const int max_entries,
+                               const string& marker,
+                               list<cls_timeindex_entry>& entries, /* out */
+                               string *out_marker,                 /* out */
+                               bool *truncated)                    /* out */
+{
+  librados::IoCtx io_ctx;
+
+  //const char *log_pool = zone.log_pool.name.c_str();
+  const char *log_pool = ".test_pool";
+  int r = rados->ioctx_create(log_pool, io_ctx);
+  if (r < 0) {
+    return r;
+  }
+
+  librados::ObjectReadOperation op;
+  cls_timeindex_list(op, start_time, end_time, marker, max_entries, entries,
+	       out_marker, truncated);
+
+  bufferlist obl;
+  int ret = io_ctx.operate(oid, &op, &obl);
+  if ((ret < 0 ) && (ret != -ENOENT)) {
+    return ret;
+  }
+
+  if (ret == -ENOENT && truncated) {
+    *truncated = false;
+  }
+
+  return 0;
+}
+
 int RGWRados::lock_exclusive(rgw_bucket& pool, const string& oid, utime_t& duration, 
                              string& zone_id, string& owner_id) {
   librados::IoCtx io_ctx;
