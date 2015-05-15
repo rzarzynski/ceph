@@ -64,9 +64,38 @@ static inline utime_t get_last_run_time (void)
   return utime_t();
 }
 
-static void garbage_single_object ()
+static int init_bucket_info (const string& bucket_name,
+                             const string& bucket_id,
+                             RGWBucketInfo& bucket_info)
 {
-  return;
+  RGWObjectCtx obj_ctx(store);
+  const string bucket_instance_id = hint.bucket_name + ":" + hint.bucket_id;
+
+  int ret = store->get_bucket_instance_info(obj_ctx, bucket_instance_id,
+          bucket_info, NULL, NULL);
+
+  return ret;
+}
+
+static int garbage_single_object (RGWRados::objexp_hint_entry& hint)
+{
+  RGWBucketInfo bucket_info;
+
+  int ret = init_bucket_info(hint.bucket_name, hint.bucket_id, bucket_info);
+  if (ret < 0) {
+    cerr << "ERROR: could not init bucket: " << cpp_strerror(-ret) << std::endl;
+    return ret;
+  }
+
+  /* TODO: check whether the hint is actual. */
+
+  ret = rgw_remove_object(store, bucket_info, bucket_info.bucket, hint.obj_key);
+  if (ret < 0) {
+    cerr << "ERROR: object remove returned: " << cpp_strerror(-ret) << std::endl;
+    return ret;
+  }
+
+  return 0;
 }
 
 static void garbage_chunk (list<cls_timeindex_entry>& entries)
@@ -75,8 +104,21 @@ static void garbage_chunk (list<cls_timeindex_entry>& entries)
        iter != entries.end();
        ++iter)
   {
-    std::cout << "round - key_ext: " << iter->key_ext << std::endl;
+    struct RGWRados::objexp_hint_entry hint;
+
+    int ret = store->objexp_hint_parse(*iter, hint);
+    if (ret < 0) {
+      std::cout << "error1" << std::endl;
+      break;
+    }
+
+    ret = garbage_single_object(hint);
+    if (ret < 0) {
+      std::cout << "error2" << std::endl;
+      break;
+    }
   }
+
   return;
 }
 
