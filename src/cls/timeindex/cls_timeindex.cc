@@ -82,6 +82,20 @@ static void get_index(cls_method_context_t hctx,
   index.append(key_ext);
 }
 
+static int parse_index(const string& index,
+                       utime_t& key_ts,
+                       string& key_ext)
+{
+  int sec, usec;
+  char keyext[256];
+
+  int ret = sscanf(index.c_str(), "1_%d.%d_%255s", &sec, &usec, &keyext);
+
+  key_ts  = utime_t(sec, usec);
+  key_ext = string(keyext);
+  return ret;
+}
+
 static int cls_timeindex_add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   bufferlist::iterator in_iter = in->begin();
@@ -180,12 +194,17 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
 
     bufferlist& bl = iter->second;
     bufferlist::iterator biter = bl.begin();
-    try {
-      cls_timeindex_entry e;
-      ::decode(e, biter);
+
+    cls_timeindex_entry e;
+
+    if (parse_index(index, e.key_ts, e.key_ext) < 0) {
+      CLS_LOG(1, "ERROR: cls_timeindex_list: could not parse index=%s",
+              index.c_str());
+    } else {
+      CLS_LOG(5, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s",
+              index.c_str(), e.key_ext.c_str());
+      e.value = *biter;
       entries.push_back(e);
-    } catch (buffer::error& err) {
-      CLS_LOG(0, "ERROR: cls_timeindex_list: could not decode entry, index=%s", index.c_str());
     }
   }
 

@@ -14,10 +14,10 @@ void cls_timeindex_add_prepare_entry(cls_timeindex_entry& entry,
                                      const string& key_ext,
                                      bufferlist& bl);
 
-void cls_timeindex_add(const librados::ObjectWriteOperation& op,
+void cls_timeindex_add(librados::ObjectWriteOperation& op,
                        const list<cls_timeindex_entry>& entry);
 
-void cls_timeindex_add(const librados::ObjectWriteOperation& op,
+void cls_timeindex_add(librados::ObjectWriteOperation& op,
                        const cls_timeindex_entry& entry);
 
 void cls_timeindex_add(librados::ObjectWriteOperation& op,
@@ -31,12 +31,12 @@ void cls_timeindex_list(librados::ObjectReadOperation& op,
                         const utime_t& to,
                         const string& in_marker,
                         const int max_entries,
-		                list<cls_timeindex_entry>& entries,
+                        list<cls_timeindex_entry>& entries,
                         string *out_marker,
                         bool *truncated);
 
 
-void cls_timeindex_trim(const librados::ObjectWriteOperation& op,
+void cls_timeindex_trim(librados::ObjectWriteOperation& op,
                         const utime_t& from_time,
                         const utime_t& to_time,
                         const string& from_marker,
