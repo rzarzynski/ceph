@@ -2249,9 +2249,38 @@ static string objexp_hint_get_shardname(const utime_t &ts)
   return objname + buf;
 }
 
-int RGWRados::objexp_hint_add(const string &oid,
-                              const utime_t& delete_at,
-                              bufferlist& idtag)
+static string objexp_hint_get_keyext(const string& bucket_name,
+                                     const string& bucket_id,
+                                     const rgw_obj_key& obj_key)
+{
+  return bucket_name + ":" + bucket_id + ":" + obj_key.name + ":" + obj_key.instance;
+}
+
+static RGWRados::objexp_hint_entry objexp_hint_parse_keyext(const string& keyext)
+{
+  char bname[128] = {0, };
+  char bid[128]   = {0, };
+  char oname[128] = {0, };
+  char over[128]  = {0, };
+
+  RGWRados::objexp_hint_entry hint;
+  std::cout << "keyext=" << keyext.c_str() << std::endl;
+  if (sscanf(keyext.c_str(), "%127[^:]:%127[^:]:%127[^:]:", bname, bid, oname) < 0) {
+    std::cout << "cannot parse the keyext string" << std::endl;
+    return hint;
+  }
+  std::cout << "bname=" << bname << ", bid=" << bid << ", oname="<<oname<<std::endl;
+  hint.bucket_name = bname;
+  hint.bucket_id = bid;
+  hint.obj_key = rgw_obj_key(oname);
+  return hint;
+}
+
+int RGWRados::objexp_hint_add(const utime_t& delete_at,
+                              const string& bucket_name,
+                              const string& bucket_id,
+                              const rgw_obj_key& obj_key,
+                              bufferlist& etag)
 {
   librados::IoCtx io_ctx;
 
@@ -2262,17 +2291,19 @@ int RGWRados::objexp_hint_add(const string &oid,
     r = create_pool(pool);
     if (r < 0) {
       return r;
+    } else {
+      /* retry */
+      r = rados->ioctx_create(log_pool, io_ctx);
     }
-
-    // retry
-    r = rados->ioctx_create(log_pool, io_ctx);
   }
   if (r < 0) {
     return r;
   }
 
+  const string keyext = objexp_hint_get_keyext(bucket_name,
+          bucket_id, obj_key);
   ObjectWriteOperation op;
-  cls_timeindex_add(op, delete_at, oid, idtag);
+  cls_timeindex_add(op, delete_at, keyext, etag);
 
   string shard_name = objexp_hint_get_shardname(delete_at);
   r = io_ctx.operate(shard_name, &op);
@@ -2290,11 +2321,11 @@ int RGWRados::objexp_hint_list(const string& oid,
 {
   librados::IoCtx io_ctx;
 
-  //const char *log_pool = zone.log_pool.name.c_str();
+  //const char * const log_pool = zone.log_pool.name.c_str();
   const char *log_pool = ".test_pool";
-  int r = rados->ioctx_create(log_pool, io_ctx);
-  if (r < 0) {
-    return r;
+  int ret = rados->ioctx_create(log_pool, io_ctx);
+  if (ret < 0) {
+    return ret;
   }
 
   librados::ObjectReadOperation op;
@@ -2302,7 +2333,8 @@ int RGWRados::objexp_hint_list(const string& oid,
 	       out_marker, truncated);
 
   bufferlist obl;
-  int ret = io_ctx.operate(oid, &op, &obl);
+  ret = io_ctx.operate(oid, &op, &obl);
+
   if ((ret < 0 ) && (ret != -ENOENT)) {
     return ret;
   }
@@ -2311,6 +2343,13 @@ int RGWRados::objexp_hint_list(const string& oid,
     *truncated = false;
   }
 
+  return 0;
+}
+
+int RGWRados::objexp_hint_parse(const cls_timeindex_entry &ti_entry,
+                                objexp_hint_entry& hint_entry)
+{
+  hint_entry = objexp_hint_parse_keyext(ti_entry.key_ext);
   return 0;
 }
 
@@ -5082,7 +5121,12 @@ int RGWRados::set_attrs(void *ctx, rgw_obj& obj,
     if (name.compare(RGW_ATTR_DELETE_AT) == 0) {
       utime_t ts;
       ::decode(ts, bl);
-      objexp_hint_add(ref.oid, ts, attrs[RGW_ATTR_ETAG]);
+
+      rgw_obj_key obj_key;
+      obj.get_index_key(&obj_key);
+
+      objexp_hint_add(ts, bucket.name, bucket.bucket_id, obj_key,
+              attrs[RGW_ATTR_ETAG]);
     }
   }
 
