@@ -98,13 +98,13 @@ int cls_timeindex_trim(librados::IoCtx& io_ctx,
   return 0;
 }
 
-class LogListCtx : public ObjectOperationCompletion {
+class TimeindexListCtx : public ObjectOperationCompletion {
   list<cls_timeindex_entry> *entries;
   string *marker;
   bool *truncated;
 
 public:
-  LogListCtx(list<cls_timeindex_entry> *_entries,
+  TimeindexListCtx(list<cls_timeindex_entry> *_entries,
              string *_marker,
              bool *_truncated)
       : entries(_entries), marker(_marker), truncated(_truncated) {}
@@ -150,13 +150,14 @@ void cls_timeindex_list(librados::ObjectReadOperation& op,
 
   ::encode(call, inbl);
 
-  op.exec("timeindex", "list", inbl, new LogListCtx(&entries, out_marker, truncated));
+  op.exec("timeindex", "list", inbl,
+          new TimeindexListCtx(&entries, out_marker, truncated));
 }
 
-class LogInfoCtx : public ObjectOperationCompletion {
+class TimeindexInfoCtx : public ObjectOperationCompletion {
   cls_timeindex_header *header;
 public:
-  LogInfoCtx(cls_timeindex_header *_header) : header(_header) {}
+  TimeindexInfoCtx(cls_timeindex_header *_header) : header(_header) {}
   void handle_completion(int r, bufferlist& outbl) {
     if (r >= 0) {
       cls_timeindex_info_ret ret;
@@ -179,6 +180,6 @@ void cls_timeindex_info(librados::ObjectReadOperation& op, cls_timeindex_header 
 
   ::encode(call, inbl);
 
-  op.exec("log", "info", inbl, new LogInfoCtx(header));
+  op.exec("log", "info", inbl, new TimeindexInfoCtx(header));
 }
 
