@@ -1,3 +1,6 @@
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab
+
 #ifndef CEPH_CLS_TIMEINDEX_CLIENT_H
 #define CEPH_CLS_TIMEINDEX_CLIENT_H
 
@@ -25,7 +28,6 @@ void cls_timeindex_add(librados::ObjectWriteOperation& op,
                        const string& name,
                        const bufferlist& bl);
 
-
 void cls_timeindex_list(librados::ObjectReadOperation& op,
                         const utime_t& from,
                         const utime_t& to,
@@ -34,7 +36,6 @@ void cls_timeindex_list(librados::ObjectReadOperation& op,
                         list<cls_timeindex_entry>& entries,
                         string *out_marker,
                         bool *truncated);
-
 
 void cls_timeindex_trim(librados::ObjectWriteOperation& op,
                         const utime_t& from_time,
@@ -48,9 +49,4 @@ int cls_timeindex_trim(librados::IoCtx& io_ctx,
                        const utime_t& to_time,
                        const string& from_marker  = std::string(),
                        const string& to_marker    = std::string());
-
-
-void cls_timeindex_info(librados::ObjectReadOperation& op,
-                       cls_timeindex_header *header);
-
 #endif

@@ -23,47 +23,8 @@ cls_handle_t h_class;
 cls_method_handle_t h_timeindex_add;
 cls_method_handle_t h_timeindex_list;
 cls_method_handle_t h_timeindex_trim;
-cls_method_handle_t h_timeindex_info;
 
 static string log_index_prefix = "1_";
-
-
-static int read_header(cls_method_context_t hctx, cls_timeindex_header& header)
-{
-  bufferlist header_bl;
-
-  int ret = cls_cxx_map_read_header(hctx, &header_bl);
-  if (ret < 0) {
-    return ret;
-  }
-
-  if (header_bl.length() == 0) {
-    header = cls_timeindex_header();
-    return 0;
-  }
-
-  bufferlist::iterator iter = header_bl.begin();
-  try {
-    ::decode(header, iter);
-  } catch (buffer::error& err) {
-    CLS_LOG(0, "ERROR: read_header(): failed to decode header");
-  }
-
-  return 0;
-}
-
-static int write_header(cls_method_context_t hctx, cls_timeindex_header& header)
-{
-  bufferlist header_bl;
-  ::encode(header, header_bl);
-
-  int ret = cls_cxx_map_write_header(hctx, &header_bl);
-  if (ret < 0) {
-    return ret;
-  }
-
-  return 0;
-}
 
 static void get_index_time_prefix(const utime_t& ts, string& index)
 {
@@ -89,7 +50,7 @@ static int parse_index(const string& index,
   int sec, usec;
   char keyext[256];
 
-  int ret = sscanf(index.c_str(), "1_%d.%d_%255s", &sec, &usec, &keyext);
+  int ret = sscanf(index.c_str(), "1_%d.%d_%255s", &sec, &usec, keyext);
 
   key_ts  = utime_t(sec, usec);
   key_ext = string(keyext);
@@ -108,15 +69,9 @@ static int cls_timeindex_add(cls_method_context_t hctx, bufferlist *in, bufferli
     return -EINVAL;
   }
 
-//  cls_timeindex_header header;
-
-//  int ret = read_header(hctx, header);
-//  if (ret < 0)
-//    return ret;
-
-  int ret = 0;
   for (list<cls_timeindex_entry>::iterator iter = op.entries.begin();
-       iter != op.entries.end(); ++iter) {
+       iter != op.entries.end();
+       ++iter) {
     cls_timeindex_entry& entry = *iter;
 
     string index;
@@ -124,15 +79,11 @@ static int cls_timeindex_add(cls_method_context_t hctx, bufferlist *in, bufferli
 
     CLS_LOG(0, "storing entry at %s", index.c_str());
 
-    ret = cls_cxx_map_set_val(hctx, index, &entry.value);
+    int ret = cls_cxx_map_set_val(hctx, index, &entry.value);
     if (ret < 0) {
       return ret;
     }
   }
-
-//  ret = write_header(hctx, header);
-//  if (ret < 0)
-//    return ret;
 
   return 0;
 }
@@ -165,10 +116,10 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
     get_index_time_prefix(op.to_time, to_index);
   }
 
-#define MAX_ENTRIES 1000
+#define MAX_LIST_ENTRIES 1000
   size_t max_entries = op.max_entries;
-  if (max_entries > MAX_ENTRIES) {
-    max_entries = MAX_ENTRIES;
+  if (max_entries > MAX_LIST_ENTRIES) {
+    max_entries = MAX_LIST_ENTRIES;
   }
 
   int rc = cls_cxx_map_get_vals(hctx, from_index, log_index_prefix, max_entries + 1, &keys);
@@ -292,29 +243,6 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
   return 0;
 }
 
-static int cls_timeindex_info(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
-{
-  bufferlist::iterator in_iter = in->begin();
-
-  cls_timeindex_info_op op;
-  try {
-    ::decode(op, in_iter);
-  } catch (buffer::error& err) {
-    CLS_LOG(1, "ERROR: cls_timeindex_add_op(): failed to decode op");
-    return -EINVAL;
-  }
-
-  cls_timeindex_info_ret ret;
-
-  int rc = read_header(hctx, ret.header);
-  if (rc < 0)
-    return rc;
-
-  ::encode(ret, *out);
-
-  return 0;
-}
-
 void __cls_init()
 {
   CLS_LOG(1, "Loaded timeindex class!");
@@ -328,8 +256,6 @@ void __cls_init()
           cls_timeindex_list, &h_timeindex_list);
   cls_register_cxx_method(h_class, "trim", CLS_METHOD_RD | CLS_METHOD_WR,
           cls_timeindex_trim, &h_timeindex_trim);
-  cls_register_cxx_method(h_class, "info", CLS_METHOD_RD,
-          cls_timeindex_info, &h_timeindex_info);
 
   return;
 }
