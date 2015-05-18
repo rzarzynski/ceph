@@ -159,7 +159,7 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
   } else {
     from_index = op.marker;
   }
-  bool use_time_boundary = (!op.from_time.is_zero() && (op.to_time >= op.from_time));
+  const bool use_time_boundary = (op.to_time >= op.from_time);
 
   if (use_time_boundary) {
     get_index_time_prefix(op.to_time, to_index);
@@ -188,6 +188,8 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
     const string& index = iter->first;
     marker = index;
     if (use_time_boundary && index.compare(0, to_index.size(), to_index) >= 0) {
+      CLS_LOG(20, "DEBUG: cls_timeindex_list: finishing on to_index=%s",
+              to_index.c_str());
       done = true;
       break;
     }
@@ -267,6 +269,8 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
     CLS_LOG(20, "index=%s to_index=%s", index.c_str(), to_index.c_str());
 
     if (index.compare(0, to_index.size(), to_index) > 0) {
+      CLS_LOG(20, "DEBUG: cls_timeindex_trim: finishing on to_index=%s",
+              to_index.c_str());
       break;
     }
 

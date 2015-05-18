@@ -76,7 +76,7 @@ int cls_timeindex_trim(librados::IoCtx& io_ctx,
                        const utime_t& from_time,
                        const utime_t& to_time,
                        const string& from_marker,
-                       string& to_marker)
+                       const string& to_marker)
 {
   bool done = false;
 
