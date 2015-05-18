@@ -2037,6 +2037,11 @@ public:
                        bool *truncated);                   /* out */
   int objexp_hint_parse(const cls_timeindex_entry &ti_entry,
                         objexp_hint_entry& hint_entry);    /* out */
+  int objexp_hint_trim(const string& oid,
+                       const utime_t& start_time,
+                       const utime_t& end_time,
+                       const string& from_marker = std::string(),
+                       const string& to_marker   = std::string());
 
   int lock_exclusive(rgw_bucket& pool, const string& oid, utime_t& duration, string& zone_id, string& owner_id);
   int unlock(rgw_bucket& pool, const string& oid, string& zone_id, string& owner_id);
