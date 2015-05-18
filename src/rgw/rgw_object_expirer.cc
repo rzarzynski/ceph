@@ -69,7 +69,7 @@ static int init_bucket_info (const string& bucket_name,
                              RGWBucketInfo& bucket_info)
 {
   RGWObjectCtx obj_ctx(store);
-  const string bucket_instance_id = hint.bucket_name + ":" + hint.bucket_id;
+  const string bucket_instance_id = bucket_name + ":" + bucket_id;
 
   int ret = store->get_bucket_instance_info(obj_ctx, bucket_instance_id,
           bucket_info, NULL, NULL);
@@ -177,6 +177,8 @@ int main (int argc, char **argv)
         marker = out_marker;
       } while (truncated);
     } /* end for */
+
+    last_run = round_start;
 
     /* End of the real work for now. Prepare for sleep. */
     const utime_t round_time = ceph_clock_now(g_ceph_context) - round_start;
