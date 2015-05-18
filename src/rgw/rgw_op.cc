@@ -939,11 +939,10 @@ void RGWGetObj::execute()
    * stands that we should return 404 Not Found in such case. */
   attr_iter = attrs.find(RGW_ATTR_DELETE_AT);
   if (need_object_expiration() && attr_iter != attrs.end()) {
-    string err;
-    int64_t del_at = (int64_t)strict_strtoll(attr_iter->second.c_str(), 10, &err);
+    utime_t delete_at;
+    ::decode(delete_at, attr_iter->second);
 
-    utime_t now = ceph_clock_now(g_ceph_context);
-    if (err.empty() && del_at <= (int64_t)now.sec()) {
+    if (delete_at <= ceph_clock_now(g_ceph_context)) {
       ret = -ENOENT;
       goto done_err;
     }
@@ -2148,9 +2147,9 @@ void RGWPutMetadata::execute()
     attrs[RGW_ATTR_CORS] = cors_bl;
   }
   if (is_object_op) {
-    if (!delete_at.empty()) {
+    if (!delete_at.is_zero()) {
       bufferlist delatbl;
-      delatbl.append(delete_at.c_str(), delete_at.size() + 1);
+      ::encode(delete_at, delatbl);
       attrs[RGW_ATTR_DELETE_AT] = delatbl;
     }
 

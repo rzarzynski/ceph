@@ -40,7 +40,6 @@ static struct rgw_http_attr rgw_to_http_attr_list[] = {
   { RGW_ATTR_CONTENT_DISP, "Content-Disposition"},
   { RGW_ATTR_CONTENT_ENC, "Content-Encoding"},
   { RGW_ATTR_USER_MANIFEST, "X-Object-Manifest"},
-  { RGW_ATTR_DELETE_AT, "X-Delete-At"},
   { NULL, NULL},
 };
 

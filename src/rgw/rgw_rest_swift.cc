@@ -504,19 +504,24 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
   placement_rule = s->info.env->get("HTTP_X_STORAGE_POLICY", "");
 
   if (!s->object.empty()) {
-    delete_at = s->info.env->get("HTTP_X_DELETE_AT", "");
+    utime_t delat_proposal;
+    string x_delete = s->info.env->get("HTTP_X_DELETE_AT", "");
 
-    if (!delete_at.empty()) {
+
+    if (!x_delete.empty()) {
       string err;
-      long l = strict_strtoll(delete_at.c_str(), 10, &err);
+      long ts = strict_strtoll(x_delete.c_str(), 10, &err);
+
       if (!err.empty()) {
         return -EINVAL;
       }
 
-      utime_t now = ceph_clock_now(g_ceph_context);
-      if (l < now.sec()) {
+      delat_proposal += utime_t(ts, 0);
+      if (delat_proposal < ceph_clock_now(g_ceph_context)) {
         return -EINVAL;
       }
+
+      delete_at = delat_proposal;
     }
   }
 
@@ -614,6 +619,13 @@ static void dump_object_metadata(struct req_state * const s,
 
   for (riter = response_attrs.begin(); riter != response_attrs.end(); ++riter) {
     s->cio->print("%s: %s\r\n", riter->first.c_str(), riter->second.c_str());
+  }
+
+  iter = attrs.find(RGW_ATTR_DELETE_AT);
+  if (iter != attrs.end()) {
+    utime_t delete_at;
+    ::decode(delete_at, iter->second);
+    s->cio->print("X-Delete-At: %lu\r\n", delete_at.sec());
   }
 }
 
