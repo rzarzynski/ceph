@@ -2022,6 +2022,7 @@ public:
     rgw_obj_key obj_key;
   };
 
+  string objexp_hint_get_shardname(const utime_t &ts);
   int objexp_hint_add(const utime_t& delete_at,
                       const string& bucket_name,
                       const string& bucket_id,

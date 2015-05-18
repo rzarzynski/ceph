@@ -2237,7 +2237,7 @@ int RGWRados::time_log_trim(const string& oid, const utime_t& start_time, const 
 static const unsigned int OBJECT_EXPIRATION_EXP = 12;
 static const unsigned int OBJECT_EXPIRATION_SHARD_NUM = 128 - 1;
 
-static string objexp_hint_get_shardname(const utime_t &ts)
+string RGWRados::objexp_hint_get_shardname(const utime_t &ts)
 {
   const unsigned int mask  = ~((2 << OBJECT_EXPIRATION_EXP) - 1);
   const unsigned int shnum = (ts.sec() & mask) % OBJECT_EXPIRATION_SHARD_NUM;
