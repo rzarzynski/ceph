@@ -39,15 +39,15 @@ void cls_timeindex_list(librados::ObjectReadOperation& op,
 void cls_timeindex_trim(librados::ObjectWriteOperation& op,
                         const utime_t& from_time,
                         const utime_t& to_time,
-                        const string& from_marker,
-                        const string& to_marker);
+                        const string& from_marker = std::string(),
+                        const string& to_marker   = std::string());
 
 int cls_timeindex_trim(librados::IoCtx& io_ctx,
                        const string& oid,
                        const utime_t& from_time,
                        const utime_t& to_time,
-                       const string& from_marker,
-                       const string& to_marker);
+                       const string& from_marker  = std::string(),
+                       const string& to_marker    = std::string());
 
 
 void cls_timeindex_info(librados::ObjectReadOperation& op,
