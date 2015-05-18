@@ -2353,6 +2353,30 @@ int RGWRados::objexp_hint_parse(const cls_timeindex_entry &ti_entry,
   return 0;
 }
 
+int RGWRados::objexp_hint_trim(const string& oid,
+                               const utime_t& start_time,
+                               const utime_t& end_time,
+                               const string& from_marker,
+                               const string& to_marker)
+{
+  librados::IoCtx io_ctx;
+
+  //const char * const log_pool = zone.log_pool.name.c_str();
+  const char * const log_pool = ".test_pool";
+  int ret = rados->ioctx_create(log_pool, io_ctx);
+  if (ret < 0) {
+    return ret;
+  }
+
+  ret = cls_timeindex_trim(io_ctx, oid, start_time, end_time,
+          from_marker, to_marker);
+  if ((ret < 0 ) && (ret != -ENOENT)) {
+    return ret;
+  }
+
+  return 0;
+}
+
 int RGWRados::lock_exclusive(rgw_bucket& pool, const string& oid, utime_t& duration, 
                              string& zone_id, string& owner_id) {
   librados::IoCtx io_ctx;
