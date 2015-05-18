@@ -98,13 +98,17 @@ static int garbage_single_object (RGWRados::objexp_hint_entry& hint)
   return 0;
 }
 
-static void garbage_chunk (list<cls_timeindex_entry>& entries)
+static void garbage_chunk (list<cls_timeindex_entry>& entries,      /* in  */
+                           bool& need_trim)                         /* out */
 {
+  need_trim = false;
+
   for (list<cls_timeindex_entry>::iterator iter = entries.begin();
        iter != entries.end();
        ++iter)
   {
     struct RGWRados::objexp_hint_entry hint;
+    std::cout << "got removal hint for: " << iter->key_ts.sec() << " - " << iter->key_ext << std::endl;
 
     int ret = store->objexp_hint_parse(*iter, hint);
     if (ret < 0) {
@@ -117,13 +121,25 @@ static void garbage_chunk (list<cls_timeindex_entry>& entries)
       std::cout << "error2" << std::endl;
       break;
     }
+
+    need_trim = true;
   }
 
   return;
 }
 
-static void trim_chunk ()
+static void trim_chunk (const string& shard,
+                        const utime_t& from,
+                        const utime_t& to)
 {
+  std::cout << "trimming: to = " << to.sec() << std::endl;
+
+  int ret = store->objexp_hint_trim(shard, from, to);
+  if (ret < 0) {
+    std::cout << "ERROR trim: " << ret << " for shard " << shard << std::endl;
+  }
+
+  return;
 }
 
 int main (int argc, char **argv)
@@ -165,6 +181,7 @@ int main (int argc, char **argv)
 
       do {
         list<cls_timeindex_entry> entries;
+        bool need_trim;
 
         int ret = store->objexp_hint_list(shard, last_run, round_start,
                                           1000, marker, entries,
@@ -173,7 +190,13 @@ int main (int argc, char **argv)
           std::cout << "round " << v.i << " - " << shard << " ======== ERROR: " << ret << std::endl;
           break;
         }
-        garbage_chunk(entries);
+
+        garbage_chunk(entries, need_trim);
+
+        if (need_trim) {
+          trim_chunk(shard, last_run, round_start);
+        }
+
         marker = out_marker;
       } while (truncated);
     } /* end for */
