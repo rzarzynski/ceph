@@ -503,6 +503,23 @@ int RGWPutMetadata_ObjStore_SWIFT::get_params()
   }
   placement_rule = s->info.env->get("HTTP_X_STORAGE_POLICY", "");
 
+  if (!s->object.empty()) {
+    delete_at = s->info.env->get("HTTP_X_DELETE_AT", "");
+
+    if (!delete_at.empty()) {
+      string err;
+      long l = strict_strtoll(delete_at.c_str(), 10, &err);
+      if (!err.empty()) {
+        return -EINVAL;
+      }
+
+      utime_t now = ceph_clock_now(g_ceph_context);
+      if (l < now.sec()) {
+        return -EINVAL;
+      }
+    }
+  }
+
   return 0;
 }
 
