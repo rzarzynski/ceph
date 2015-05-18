@@ -113,38 +113,4 @@ struct cls_timeindex_trim_op {
 };
 WRITE_CLASS_ENCODER(cls_timeindex_trim_op)
 
-struct cls_timeindex_info_op {
-  cls_timeindex_info_op() {}
-
-  void encode(bufferlist& bl) const {
-    ENCODE_START(1, 1, bl);
-    // currently empty request
-    ENCODE_FINISH(bl);
-  }
-
-  void decode(bufferlist::iterator& bl) {
-    DECODE_START(1, bl);
-    // currently empty request
-    DECODE_FINISH(bl);
-  }
-};
-WRITE_CLASS_ENCODER(cls_timeindex_info_op)
-
-struct cls_timeindex_info_ret {
-  cls_timeindex_header header;
-
-  void encode(bufferlist& bl) const {
-    ENCODE_START(1, 1, bl);
-    ::encode(header, bl);
-    ENCODE_FINISH(bl);
-  }
-
-  void decode(bufferlist::iterator& bl) {
-    DECODE_START(1, bl);
-    ::decode(header, bl);
-    DECODE_FINISH(bl);
-  }
-};
-WRITE_CLASS_ENCODER(cls_timeindex_info_ret)
-
 #endif /* CEPH_CLS_TIMEINDEX_OPS_H */

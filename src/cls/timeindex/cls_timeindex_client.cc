@@ -1,3 +1,6 @@
+// -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
+// vim: ts=8 sw=2 smarttab
+
 #include <errno.h>
 
 #include "include/types.h"
@@ -6,7 +9,6 @@
 
 
 using namespace librados;
-
 
 
 void cls_timeindex_add(librados::ObjectWriteOperation& op, list<cls_timeindex_entry>& entries)
@@ -88,8 +90,7 @@ int cls_timeindex_trim(librados::IoCtx& io_ctx,
     int r = io_ctx.operate(oid, &op);
     if (r == -ENODATA) {
       done = true;
-    }
-    else if (r < 0) {
+    } else if (r < 0) {
       return r;
     }
 
@@ -153,33 +154,3 @@ void cls_timeindex_list(librados::ObjectReadOperation& op,
   op.exec("timeindex", "list", inbl,
           new TimeindexListCtx(&entries, out_marker, truncated));
 }
-
-class TimeindexInfoCtx : public ObjectOperationCompletion {
-  cls_timeindex_header *header;
-public:
-  TimeindexInfoCtx(cls_timeindex_header *_header) : header(_header) {}
-  void handle_completion(int r, bufferlist& outbl) {
-    if (r >= 0) {
-      cls_timeindex_info_ret ret;
-      try {
-        bufferlist::iterator iter = outbl.begin();
-        ::decode(ret, iter);
-        if (header)
-	  *header = ret.header;
-      } catch (buffer::error& err) {
-        // nothing we can do about it atm
-      }
-    }
-  }
-};
-
-void cls_timeindex_info(librados::ObjectReadOperation& op, cls_timeindex_header *header)
-{
-  bufferlist inbl;
-  cls_timeindex_info_op call;
-
-  ::encode(call, inbl);
-
-  op.exec("log", "info", inbl, new TimeindexInfoCtx(header));
-}
-
