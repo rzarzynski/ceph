@@ -1573,6 +1573,7 @@ public:
         string marker_version_id;
         uint32_t bilog_flags;
         list<rgw_obj_key> *remove_objs;
+        utime_t expiration_time;
 
         DeleteParams() : versioning_status(0), olh_epoch(0), bilog_flags(0), remove_objs(NULL) {}
       } params;
@@ -1806,8 +1807,12 @@ public:
   int bucket_suspended(rgw_bucket& bucket, bool *suspended);
 
   /** Delete an object.*/
-  virtual int delete_obj(RGWObjectCtx& obj_ctx, RGWBucketInfo& bucket_owner, rgw_obj& src_obj,
-                         int versioning_status, uint16_t bilog_flags = 0);
+  virtual int delete_obj(RGWObjectCtx& obj_ctx,
+                         RGWBucketInfo& bucket_owner,
+                         rgw_obj& src_obj,
+                         int versioning_status,
+                         uint16_t bilog_flags = 0,
+                         const utime_t& expiration_time = utime_t());
 
   /* Delete a system object */
   virtual int delete_system_obj(rgw_obj& src_obj, RGWObjVersionTracker *objv_tracker = NULL);
@@ -2020,6 +2025,7 @@ public:
     string bucket_name;
     string bucket_id;
     rgw_obj_key obj_key;
+    utime_t exp_time;
   };
 
   string objexp_hint_get_shardname(const utime_t &ts);
@@ -2036,7 +2042,7 @@ public:
                        list<cls_timeindex_entry>& entries, /* out */
                        string *out_marker,                 /* out */
                        bool *truncated);                   /* out */
-  int objexp_hint_parse(const cls_timeindex_entry &ti_entry,
+  int objexp_hint_parse(cls_timeindex_entry &ti_entry,
                         objexp_hint_entry& hint_entry);    /* out */
   int objexp_hint_trim(const string& oid,
                        const utime_t& start_time,

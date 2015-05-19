@@ -2346,10 +2346,18 @@ int RGWRados::objexp_hint_list(const string& oid,
   return 0;
 }
 
-int RGWRados::objexp_hint_parse(const cls_timeindex_entry &ti_entry,
+int RGWRados::objexp_hint_parse(cls_timeindex_entry &ti_entry,
                                 objexp_hint_entry& hint_entry)
 {
   hint_entry = objexp_hint_parse_keyext(ti_entry.key_ext);
+
+  try {
+    bufferlist::iterator iter = ti_entry.value.begin();
+    ::decode(hint_entry.exp_time, iter);
+  } catch (buffer::error& err) {
+    ldout(cct, 0) << "ERROR: couldn't decode avail_pools" << dendl;
+  }
+
   return 0;
 }
 
@@ -4644,6 +4652,24 @@ int RGWRados::Object::Delete::delete_obj()
 
   uint64_t obj_size = state->size;
 
+  if (!params.expiration_time.is_zero()) {
+    bufferlist bl;
+    utime_t delete_at;
+
+    if (state->get_attr(RGW_ATTR_DELETE_AT, bl)) {
+      try {
+        bufferlist::iterator iter = bl.begin();
+        ::decode(delete_at, iter);
+      } catch (buffer::error& err) {
+        ldout(cct, 0) << "ERROR: couldn't decode RGW_ATTR_DELETE_AT" << dendl;
+      }
+
+      if (params.expiration_time != delete_at) {
+        return -ERR_PRECONDITION_FAILED;
+      }
+    }
+  }
+
   ObjectWriteOperation op;
 
   r = target->prepare_atomic_modification(op, false, NULL, NULL, NULL, true);
@@ -4704,8 +4730,12 @@ int RGWRados::Object::Delete::delete_obj()
   return 0;
 }
 
-int RGWRados::delete_obj(RGWObjectCtx& obj_ctx, RGWBucketInfo& bucket_info, rgw_obj& obj,
-                         int versioning_status, uint16_t bilog_flags)
+int RGWRados::delete_obj(RGWObjectCtx& obj_ctx,
+                         RGWBucketInfo& bucket_info,
+                         rgw_obj& obj,
+                         int versioning_status,
+                         uint16_t bilog_flags,
+                         const utime_t& expiration_time)
 {
   RGWRados::Object del_target(this, bucket_info, obj_ctx, obj);
   RGWRados::Object::Delete del_op(&del_target);
@@ -4713,6 +4743,7 @@ int RGWRados::delete_obj(RGWObjectCtx& obj_ctx, RGWBucketInfo& bucket_info, rgw_
   del_op.params.bucket_owner = bucket_info.owner;
   del_op.params.versioning_status = versioning_status;
   del_op.params.bilog_flags = bilog_flags;
+  del_op.params.expiration_time = expiration_time;
 
   return del_op.delete_obj();
 }
@@ -5149,8 +5180,7 @@ int RGWRados::set_attrs(void *ctx, rgw_obj& obj,
       rgw_obj_key obj_key;
       obj.get_index_key(&obj_key);
 
-      objexp_hint_add(ts, bucket.name, bucket.bucket_id, obj_key,
-              attrs[RGW_ATTR_ETAG]);
+      objexp_hint_add(ts, bucket.name, bucket.bucket_id, obj_key, bl);
     }
   }
 
