@@ -50,7 +50,7 @@ public:
 
 static void usage()
 {
-  generic_client_usage();
+  generic_server_usage();
 }
 
 static inline utime_t get_time_step(void)
@@ -146,23 +146,38 @@ static void trim_chunk(const string& shard,
                        const utime_t& from,
                        const utime_t& to)
 {
-  std::cout << "trimming: to = " << to.sec() << std::endl;
+  dout(20) << "trying to trim removal hints to  " << to << dendl;
 
   int ret = store->objexp_hint_trim(shard, from, to);
   if (ret < 0) {
-    std::cout << "ERROR trim: " << ret << " for shard " << shard << std::endl;
+    dout(0) << "ERROR during trim: " << ret << dendl;
   }
 
   return;
 }
 
-int main(int argc, char **argv)
+int main(const int argc, const char * const * const argv)
 {
   vector<const char *> args;
   argv_to_vec(argc, (const char **)argv, args);
   env_to_vec(args);
 
-  global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON, 0);
+  global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
+	      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
+
+  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+    if (ceph_argparse_double_dash(args, i)) {
+      break;
+    } else if (ceph_argparse_flag(args, i, "-h", "--help", (char*)NULL)) {
+      usage();
+      return 0;
+    }
+  }
+
+  if (g_conf->daemonize) {
+    global_init_daemonize(g_ceph_context, 0);
+  }
+
   common_init_finish(g_ceph_context);
 
   store = RGWStoreManager::get_storage(g_ceph_context, false, false);
