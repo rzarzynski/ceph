@@ -137,6 +137,8 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
 
   for (size_t i = 0; i < max_entries && iter != keys.end(); ++i, ++iter) {
     const string& index = iter->first;
+    bufferlist& bl = iter->second;
+
     marker = index;
     if (use_time_boundary && index.compare(0, to_index.size(), to_index) >= 0) {
       CLS_LOG(20, "DEBUG: cls_timeindex_list: finishing on to_index=%s",
@@ -145,18 +147,15 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
       break;
     }
 
-    bufferlist& bl = iter->second;
-    bufferlist::iterator biter = bl.begin();
-
     cls_timeindex_entry e;
 
     if (parse_index(index, e.key_ts, e.key_ext) < 0) {
       CLS_LOG(1, "ERROR: cls_timeindex_list: could not parse index=%s",
               index.c_str());
     } else {
-      CLS_LOG(5, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s",
-              index.c_str(), e.key_ext.c_str());
-      e.value = *biter;
+      CLS_LOG(5, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s, bl.len = %d",
+              index.c_str(), e.key_ext.c_str(), bl.length());
+      e.value = bl;
       entries.push_back(e);
     }
   }
