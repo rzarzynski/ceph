@@ -53,18 +53,18 @@ static void usage()
   generic_client_usage();
 }
 
-static inline utime_t get_time_step (void)
+static inline utime_t get_time_step(void)
 {
   //return utime_t(2 << g_ceph_context->_conf->rgw_objexp_exp, 0);
   return utime_t(2 << 12, 0);
 }
 
-static inline utime_t get_last_run_time (void)
+static inline utime_t get_last_run_time(void)
 {
   return utime_t();
 }
 
-static int init_bucket_info (const string& bucket_name,
+static int init_bucket_info(const string& bucket_name,
                              const string& bucket_id,
                              RGWBucketInfo& bucket_info)
 {
@@ -77,7 +77,7 @@ static int init_bucket_info (const string& bucket_name,
   return ret;
 }
 
-static int garbage_single_object (RGWRados::objexp_hint_entry& hint)
+static int garbage_single_object(RGWRados::objexp_hint_entry& hint)
 {
   RGWBucketInfo bucket_info;
 
@@ -98,8 +98,8 @@ static int garbage_single_object (RGWRados::objexp_hint_entry& hint)
   return 0;
 }
 
-static void garbage_chunk (list<cls_timeindex_entry>& entries,      /* in  */
-                           bool& need_trim)                         /* out */
+static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
+                          bool& need_trim)                         /* out */
 {
   need_trim = false;
 
@@ -128,9 +128,9 @@ static void garbage_chunk (list<cls_timeindex_entry>& entries,      /* in  */
   return;
 }
 
-static void trim_chunk (const string& shard,
-                        const utime_t& from,
-                        const utime_t& to)
+static void trim_chunk(const string& shard,
+                       const utime_t& from,
+                       const utime_t& to)
 {
   std::cout << "trimming: to = " << to.sec() << std::endl;
 
@@ -142,7 +142,7 @@ static void trim_chunk (const string& shard,
   return;
 }
 
-int main (int argc, char **argv)
+int main(int argc, char **argv)
 {
   vector<const char *> args;
   argv_to_vec(argc, (const char **)argv, args);
