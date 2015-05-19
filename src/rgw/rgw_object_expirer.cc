@@ -88,8 +88,20 @@ static int garbage_single_object(RGWRados::objexp_hint_entry& hint)
   }
 
   /* TODO: check whether the hint is actual. */
+  RGWObjectCtx rctx(store);
 
-  ret = rgw_remove_object(store, bucket_info, bucket_info.bucket, hint.obj_key);
+  rgw_obj_key key = hint.obj_key;
+  if (key.instance.empty()) {
+    key.instance = "null";
+  }
+
+  std::cout << "hint.exp_time.is_zero = " << hint.exp_time.is_zero() << std::endl;
+
+  rgw_obj obj(bucket_info.bucket, key);
+  ret = store->delete_obj(rctx, bucket_info, obj, bucket_info.versioning_status(), 0, hint.exp_time);
+
+
+  //ret = rgw_remove_object(store, bucket_info, bucket_info.bucket, hint.obj_key);
   if (ret < 0) {
     cerr << "ERROR: object remove returned: " << cpp_strerror(-ret) << std::endl;
     return ret;
@@ -117,7 +129,9 @@ static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
     }
 
     ret = garbage_single_object(hint);
-    if (ret < 0) {
+    /* PRECOND_FAILED simply means that our hint is not valid.
+     * We can silently ignore that and move forward. */
+    if (ret < 0 && ret != -ERR_PRECONDITION_FAILED) {
       std::cout << "error2" << std::endl;
       break;
     }
