@@ -2048,6 +2048,11 @@ public:
                     const string& from_marker, const string& to_marker);
 
   string objexp_hint_get_shardname(const utime_t &ts);
+  void objexp_get_shard(const utime_t& start_time,
+                        const utime_t& end_time,
+                        utime_t &marker,                     /* out */
+                        string& shard,                       /* out */
+                        bool& truncated);                    /* out */
   int objexp_hint_add(const utime_t& delete_at,
                       const string& bucket_name,
                       const string& bucket_id,

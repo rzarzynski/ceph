@@ -191,15 +191,15 @@ int main(const int argc, const char * const * const argv)
   utime_t last_run = get_last_run_time();
   while (true) {
     const utime_t round_start = ceph_clock_now(g_ceph_context);
-    const utime_t time_step = get_time_step();
-    const size_t num_shards = g_ceph_context->_conf->rgw_objexp_hints_num_shards;
 
-    for (struct { utime_t t; size_t i; } v = { last_run, 0 };
-         v.t < round_start && v.i < num_shards;
-         v.t += time_step, v.i++)
-    {
-      const string shard = store->objexp_hint_get_shardname(v.t);
+    bool shard_to_check;
+    utime_t shard_marker;
+    do {
+      string shard;
+      store->objexp_get_shard(last_run, round_start, shard_marker, shard,
+              shard_to_check);
 
+      std::cout << "round " << " - " << shard << " ======== DEBUG: " << shard_to_check << std::endl;
       string marker;
       string out_marker;
       bool truncated = false;
@@ -212,7 +212,7 @@ int main(const int argc, const char * const * const argv)
                                           1000, marker, entries,
                                           &out_marker, &truncated);
         if (ret < 0) {
-          std::cout << "round " << v.i << " - " << shard << " ======== ERROR: " << ret << std::endl;
+          std::cout << "round " << " - " << shard << " ======== ERROR: " << ret << std::endl;
           break;
         }
 
@@ -224,7 +224,7 @@ int main(const int argc, const char * const * const argv)
 
         marker = out_marker;
       } while (truncated);
-    } /* end for */
+    } while (shard_to_check); /* end for */
 
     last_run = round_start;
 
