@@ -984,6 +984,32 @@ struct RGWRegionMap {
 };
 WRITE_CLASS_ENCODER(RGWRegionMap)
 
+struct objexp_hint_entry {
+  string bucket_name;
+  string bucket_id;
+  rgw_obj_key obj_key;
+  utime_t exp_time;
+
+  void encode(bufferlist& bl) const {
+    ENCODE_START(1, 1, bl);
+    ::encode(bucket_name, bl);
+    ::encode(bucket_id, bl);
+    ::encode(obj_key, bl);
+    ::encode(exp_time, bl);
+    ENCODE_FINISH(bl);
+  }
+
+  void decode(bufferlist::iterator& bl) {
+    DECODE_START(1, bl);
+    ::decode(bucket_name, bl);
+    ::decode(bucket_id, bl);
+    ::decode(obj_key, bl);
+    ::decode(exp_time, bl);
+    DECODE_FINISH(bl);
+  }
+};
+WRITE_CLASS_ENCODER(objexp_hint_entry)
+
 class RGWDataChangesLog;
 class RGWReplicaLogger;
   
@@ -2021,19 +2047,11 @@ public:
   int time_log_trim(const string& oid, const utime_t& start_time, const utime_t& end_time,
                     const string& from_marker, const string& to_marker);
 
-  struct objexp_hint_entry {
-    string bucket_name;
-    string bucket_id;
-    rgw_obj_key obj_key;
-    utime_t exp_time;
-  };
-
   string objexp_hint_get_shardname(const utime_t &ts);
   int objexp_hint_add(const utime_t& delete_at,
                       const string& bucket_name,
                       const string& bucket_id,
-                      const rgw_obj_key& obj_key,
-                      bufferlist& etag);
+                      const rgw_obj_key& obj_key);
   int objexp_hint_list(const string& oid,
                        const utime_t& start_time,
                        const utime_t& end_time,

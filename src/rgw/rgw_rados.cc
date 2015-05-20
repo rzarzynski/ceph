@@ -2256,31 +2256,10 @@ static string objexp_hint_get_keyext(const string& bucket_name,
   return bucket_name + ":" + bucket_id + ":" + obj_key.name + ":" + obj_key.instance;
 }
 
-static RGWRados::objexp_hint_entry objexp_hint_parse_keyext(const string& keyext)
-{
-  char bname[128] = {0, };
-  char bid[128]   = {0, };
-  char oname[128] = {0, };
-  char over[128]  = {0, };
-
-  RGWRados::objexp_hint_entry hint;
-  std::cout << "keyext=" << keyext.c_str() << std::endl;
-  if (sscanf(keyext.c_str(), "%127[^:]:%127[^:]:%127[^:]:", bname, bid, oname) < 0) {
-    std::cout << "cannot parse the keyext string" << std::endl;
-    return hint;
-  }
-  std::cout << "bname=" << bname << ", bid=" << bid << ", oname="<<oname<<std::endl;
-  hint.bucket_name = bname;
-  hint.bucket_id = bid;
-  hint.obj_key = rgw_obj_key(oname);
-  return hint;
-}
-
 int RGWRados::objexp_hint_add(const utime_t& delete_at,
                               const string& bucket_name,
                               const string& bucket_id,
-                              const rgw_obj_key& obj_key,
-                              bufferlist& etag)
+                              const rgw_obj_key& obj_key)
 {
   librados::IoCtx io_ctx;
 
@@ -2302,8 +2281,15 @@ int RGWRados::objexp_hint_add(const utime_t& delete_at,
 
   const string keyext = objexp_hint_get_keyext(bucket_name,
           bucket_id, obj_key);
+  objexp_hint_entry he = {
+      .bucket_name = bucket_name,
+      .bucket_id = bucket_id,
+      .obj_key = obj_key,
+      .exp_time = delete_at };
+  bufferlist hebl;
+  ::encode(he, hebl);
   ObjectWriteOperation op;
-  cls_timeindex_add(op, delete_at, keyext, etag);
+  cls_timeindex_add(op, delete_at, keyext, hebl);
 
   string shard_name = objexp_hint_get_shardname(delete_at);
   r = io_ctx.operate(shard_name, &op);
@@ -2346,14 +2332,12 @@ int RGWRados::objexp_hint_list(const string& oid,
   return 0;
 }
 
-int RGWRados::objexp_hint_parse(cls_timeindex_entry &ti_entry,
-                                objexp_hint_entry& hint_entry)
+int RGWRados::objexp_hint_parse(cls_timeindex_entry &ti_entry,  /* in */
+                                objexp_hint_entry& hint_entry)  /* out */
 {
-  hint_entry = objexp_hint_parse_keyext(ti_entry.key_ext);
-
   try {
     bufferlist::iterator iter = ti_entry.value.begin();
-    ::decode(hint_entry.exp_time, iter);
+    ::decode(hint_entry, iter);
   } catch (buffer::error& err) {
     ldout(cct, 0) << "ERROR: couldn't decode avail_pools" << dendl;
   }
@@ -5180,7 +5164,7 @@ int RGWRados::set_attrs(void *ctx, rgw_obj& obj,
       rgw_obj_key obj_key;
       obj.get_index_key(&obj_key);
 
-      objexp_hint_add(ts, bucket.name, bucket.bucket_id, obj_key, bl);
+      objexp_hint_add(ts, bucket.name, bucket.bucket_id, obj_key);
     }
   }
 

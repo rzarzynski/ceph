@@ -77,7 +77,7 @@ static int init_bucket_info(const string& bucket_name,
   return ret;
 }
 
-static int garbage_single_object(RGWRados::objexp_hint_entry& hint)
+static int garbage_single_object(objexp_hint_entry& hint)
 {
   RGWBucketInfo bucket_info;
 
@@ -117,7 +117,7 @@ static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
        iter != entries.end();
        ++iter)
   {
-    struct RGWRados::objexp_hint_entry hint;
+    objexp_hint_entry hint;
     std::cout << "got removal hint for: " << iter->key_ts.sec() << " - " << iter->key_ext << std::endl;
 
     int ret = store->objexp_hint_parse(*iter, hint);
