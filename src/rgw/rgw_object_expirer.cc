@@ -65,8 +65,8 @@ static inline utime_t get_last_run_time(void)
 }
 
 static int init_bucket_info(const string& bucket_name,
-                             const string& bucket_id,
-                             RGWBucketInfo& bucket_info)
+                            const string& bucket_id,
+                            RGWBucketInfo& bucket_info)
 {
   RGWObjectCtx obj_ctx(store);
   const string bucket_instance_id = bucket_name + ":" + bucket_id;
@@ -99,13 +99,7 @@ static int garbage_single_object(objexp_hint_entry& hint)
   ret = store->delete_obj(rctx, bucket_info, obj,
           bucket_info.versioning_status(), 0, hint.exp_time);
 
-  //ret = rgw_remove_object(store, bucket_info, bucket_info.bucket, hint.obj_key);
-  if (ret < 0) {
-    dout(0) << "ERROR: cannot remove object: " << cpp_strerror(-ret) << dendl;
-    return ret;
-  }
-
-  return 0;
+  return ret;
 }
 
 static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
@@ -118,7 +112,7 @@ static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
        ++iter)
   {
     objexp_hint_entry hint;
-    std::cout << "got removal hint for: " << iter->key_ts.sec() << " - " << iter->key_ext << std::endl;
+    dout(15) << "===== got removal hint for: " << iter->key_ts.sec() << " - " << iter->key_ext << dendl;
 
     int ret = store->objexp_hint_parse(*iter, hint);
     if (ret < 0) {
@@ -128,7 +122,9 @@ static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
     /* PRECOND_FAILED simply means that our hint is not valid.
      * We can silently ignore that and move forward. */
     ret = garbage_single_object(hint);
-    if (ret < 0 && ret != -ERR_PRECONDITION_FAILED) {
+    if (ret == -ERR_PRECONDITION_FAILED) {
+      dout(15) << "===== not actual hint for object: " << hint.obj_key << dendl;
+    } else if (ret < 0) {
       dout(1) << "cannot remove expired object: " << hint.obj_key << dendl;
     }
 
