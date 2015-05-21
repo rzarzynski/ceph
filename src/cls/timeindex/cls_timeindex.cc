@@ -77,7 +77,7 @@ static int cls_timeindex_add(cls_method_context_t hctx, bufferlist *in, bufferli
     string index;
     get_index(hctx, entry.key_ts, entry.key_ext, index);
 
-    CLS_LOG(0, "storing entry at %s", index.c_str());
+    CLS_LOG(20, "storing entry at %s", index.c_str());
 
     int ret = cls_cxx_map_set_val(hctx, index, &entry.value);
     if (ret < 0) {
@@ -153,7 +153,7 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
       CLS_LOG(1, "ERROR: cls_timeindex_list: could not parse index=%s",
               index.c_str());
     } else {
-      CLS_LOG(5, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s, bl.len = %d",
+      CLS_LOG(20, "DEBUG: cls_timeindex_list: index=%s, key_ext=%s, bl.len = %d",
               index.c_str(), e.key_ext.c_str(), bl.length());
       e.value = bl;
       entries.push_back(e);
@@ -181,7 +181,7 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
   try {
     ::decode(op, in_iter);
   } catch (buffer::error& err) {
-    CLS_LOG(0, "ERROR: cls_timeindex_list_op(): failed to decode entry");
+    CLS_LOG(1, "ERROR: cls_timeindex_list_op(): failed to decode entry");
     return -EINVAL;
   }
 
