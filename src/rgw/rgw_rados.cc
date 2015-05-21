@@ -2262,7 +2262,7 @@ int RGWRados::objexp_hint_add(const utime_t& delete_at,
 {
   librados::IoCtx io_ctx;
 
-  const char *log_pool = ".test_pool";
+  const char * const log_pool = zone.log_pool.name.c_str();
   int r = rados->ioctx_create(log_pool, io_ctx);
   if (r == -ENOENT) {
     rgw_bucket pool(log_pool);
@@ -2341,8 +2341,7 @@ int RGWRados::objexp_hint_list(const string& oid,
 {
   librados::IoCtx io_ctx;
 
-  //const char * const log_pool = zone.log_pool.name.c_str();
-  const char *log_pool = ".test_pool";
+  const char * const log_pool = zone.log_pool.name.c_str();
   int ret = rados->ioctx_create(log_pool, io_ctx);
   if (ret < 0) {
     return ret;
@@ -2387,8 +2386,7 @@ int RGWRados::objexp_hint_trim(const string& oid,
 {
   librados::IoCtx io_ctx;
 
-  //const char * const log_pool = zone.log_pool.name.c_str();
-  const char * const log_pool = ".test_pool";
+  const char * const log_pool = zone.log_pool.name.c_str();
   int ret = rados->ioctx_create(log_pool, io_ctx);
   if (ret < 0) {
     return ret;
