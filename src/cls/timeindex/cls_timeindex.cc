@@ -34,7 +34,7 @@ static void get_index_time_prefix(const utime_t& ts,
 {
   char buf[32];
 
-  snprintf(buf, sizeof(buf), "%s_%010ld.%06ld_", TIMEINDEX_PREFIX.c_str(),
+  snprintf(buf, sizeof(buf), "%s%010ld.%06ld_", TIMEINDEX_PREFIX.c_str(),
           (long)ts.sec(), (long)ts.usec());
   buf[sizeof(buf) - 1] = '\0';
 
