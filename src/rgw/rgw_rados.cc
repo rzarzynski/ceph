@@ -2234,12 +2234,10 @@ int RGWRados::time_log_trim(const string& oid, const utime_t& start_time, const 
   return cls_log_trim(io_ctx, oid, start_time, end_time, from_marker, to_marker);
 }
 
-static const unsigned int OBJECT_EXPIRATION_EXP = 12;
-static const unsigned int OBJECT_EXPIRATION_SHARD_NUM = 128 - 1;
-
 string RGWRados::objexp_hint_get_shardname(const utime_t &ts)
 {
-  const unsigned int shnum = (ts.sec() >> OBJECT_EXPIRATION_EXP) % OBJECT_EXPIRATION_SHARD_NUM;
+  const time_t roundedts = ts.sec() >> cct->_conf->rgw_objexp_time_step_exp;
+  const unsigned int shnum = roundedts % cct->_conf->rgw_objexp_hints_num_shards;
 
   char buf[32];
   snprintf(buf, sizeof(buf), "%010u", shnum);
@@ -2305,10 +2303,9 @@ void  RGWRados::objexp_get_shard(const utime_t& start_time,
     marker = start_time;
   }
 
-  const uint32_t time_step_exp = OBJECT_EXPIRATION_EXP;
+  const uint32_t time_step_exp = cct->_conf->rgw_objexp_time_step_exp;
+  const uint32_t num_shards = cct->_conf->rgw_objexp_hints_num_shards;
   const time_t time_step = 1 << time_step_exp;
-  //const uint32_t num_shards = g_ceph_context->_conf->rgw_objexp_hints_num_shards;
-  const uint32_t num_shards = OBJECT_EXPIRATION_SHARD_NUM;
 
   const time_t sts = start_time.sec() >> time_step_exp;
   const time_t ets = end_time.sec() >> time_step_exp;
@@ -2316,7 +2313,6 @@ void  RGWRados::objexp_get_shard(const utime_t& start_time,
 
   const uint32_t periods = (ets - sts) / time_step;
   const uint32_t iters = min(periods, num_shards);
-
 
   shard = objexp_hint_get_shardname(marker);
 
