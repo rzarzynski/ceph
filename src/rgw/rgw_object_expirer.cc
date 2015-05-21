@@ -148,7 +148,57 @@ static void trim_chunk(const string& shard,
   return;
 }
 
-int main(const int argc, const char * const * const argv)
+static void proceed_single_shard(const string& shard,
+                                 const utime_t& last_run,
+                                 const utime_t& round_start)
+{
+  string marker;
+  string out_marker;
+  bool truncated = false;
+
+  do {
+    list<cls_timeindex_entry> entries;
+    int ret = store->objexp_hint_list(shard, last_run, round_start,
+                                      1000, marker, entries,
+                                      &out_marker, &truncated);
+    if (ret < 0) {
+      dout(10) << "cannot get removal hints from shard: " << shard << dendl;
+      continue;
+    }
+
+    bool need_trim;
+    garbage_chunk(entries, need_trim);
+
+    if (need_trim) {
+      trim_chunk(shard, last_run, round_start);
+    }
+
+    marker = out_marker;
+  } while (truncated);
+
+  return;
+}
+
+static void inspect_all_shards(const utime_t& last_run,
+                               const utime_t& round_start)
+{
+  bool is_next_available;
+  utime_t shard_marker;
+
+  do {
+    string shard;
+    store->objexp_get_shard(last_run, round_start, shard_marker, shard,
+            is_next_available);
+
+    dout(20) << "proceeding shard = " << shard << dendl;
+
+    proceed_single_shard(shard, last_run, round_start);
+  } while (is_next_available);
+
+  return;
+}
+
+int main(const int argc, const char **argv)
 {
   vector<const char *> args;
   argv_to_vec(argc, (const char **)argv, args);
@@ -187,40 +237,7 @@ int main(const int argc, const char * const * const argv)
   utime_t last_run = get_last_run_time();
   while (true) {
     const utime_t round_start = ceph_clock_now(g_ceph_context);
-
-    bool shard_to_check;
-    utime_t shard_marker;
-    do {
-      string shard;
-      store->objexp_get_shard(last_run, round_start, shard_marker, shard,
-              shard_to_check);
-
-      std::cout << "round " << " - " << shard << " ======== DEBUG: " << shard_to_check << std::endl;
-      string marker;
-      string out_marker;
-      bool truncated = false;
-
-      do {
-        list<cls_timeindex_entry> entries;
-        bool need_trim;
-
-        int ret = store->objexp_hint_list(shard, last_run, round_start,
-                                          1000, marker, entries,
-                                          &out_marker, &truncated);
-        if (ret < 0) {
-          std::cout << "round " << " - " << shard << " ======== ERROR: " << ret << std::endl;
-          break;
-        }
-
-        garbage_chunk(entries, need_trim);
-
-        if (need_trim) {
-          trim_chunk(shard, last_run, round_start);
-        }
-
-        marker = out_marker;
-      } while (truncated);
-    } while (shard_to_check); /* end for */
+    inspect_all_shards(last_run, round_start);
 
     last_run = round_start;
 
