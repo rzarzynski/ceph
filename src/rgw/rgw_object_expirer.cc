@@ -111,13 +111,14 @@ static void garbage_chunk(list<cls_timeindex_entry>& entries,      /* in  */
     int ret = store->objexp_hint_parse(*iter, hint);
     if (ret < 0) {
       dout(1) << "cannot parse removal hint for " << hint.obj_key << dendl;
+      continue;
     }
 
     /* PRECOND_FAILED simply means that our hint is not valid.
      * We can silently ignore that and move forward. */
     ret = garbage_single_object(hint);
     if (ret == -ERR_PRECONDITION_FAILED) {
-      dout(15) << "===== not actual hint for object: " << hint.obj_key << dendl;
+      dout(15) << "not actual hint for object: " << hint.obj_key << dendl;
     } else if (ret < 0) {
       dout(1) << "cannot remove expired object: " << hint.obj_key << dendl;
     }
