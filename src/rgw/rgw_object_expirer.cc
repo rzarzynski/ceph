@@ -53,12 +53,6 @@ static void usage()
   generic_server_usage();
 }
 
-static inline utime_t get_time_step(void)
-{
-  //return utime_t(2 << g_ceph_context->_conf->rgw_objexp_exp, 0);
-  return utime_t(2 << 12, 0);
-}
-
 static inline utime_t get_last_run_time(void)
 {
   return utime_t();
@@ -201,13 +195,13 @@ static void inspect_all_shards(const utime_t& last_run,
 int main(const int argc, const char **argv)
 {
   vector<const char *> args;
-  argv_to_vec(argc, (const char **)argv, args);
+  argv_to_vec(argc, argv, args);
   env_to_vec(args);
 
   global_init(NULL, args, CEPH_ENTITY_TYPE_CLIENT, CODE_ENVIRONMENT_DAEMON,
 	      CINIT_FLAG_UNPRIVILEGED_DAEMON_DEFAULTS);
 
-  for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
+  for (std::vector<const char *>::iterator i = args.begin(); i != args.end(); ) {
     if (ceph_argparse_double_dash(args, i)) {
       break;
     } else if (ceph_argparse_flag(args, i, "-h", "--help", (char*)NULL)) {
@@ -256,5 +250,5 @@ int main(const int argc, const char **argv)
     }
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }
