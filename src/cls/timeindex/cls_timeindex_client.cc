@@ -106,9 +106,9 @@ class TimeindexListCtx : public ObjectOperationCompletion {
 
 public:
   TimeindexListCtx(list<cls_timeindex_entry> *_entries,
-             string *_marker,
-             bool *_truncated)
-      : entries(_entries), marker(_marker), truncated(_truncated) {}
+                   string *_marker,
+                   bool *_truncated)
+    : entries(_entries), marker(_marker), truncated(_truncated) {}
 
   void handle_completion(int r, bufferlist& outbl) {
     if (r >= 0) {

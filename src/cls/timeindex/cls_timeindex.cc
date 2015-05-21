@@ -24,14 +24,21 @@ cls_method_handle_t h_timeindex_add;
 cls_method_handle_t h_timeindex_list;
 cls_method_handle_t h_timeindex_trim;
 
-static string log_index_prefix = "1_";
+static const size_t MAX_LIST_ENTRIES = 1000;
+static const size_t MAX_TRIM_ENTRIES = 1000;
 
-static void get_index_time_prefix(const utime_t& ts, string& index)
+static const string TIMEINDEX_PREFIX = "1_";
+
+static void get_index_time_prefix(const utime_t& ts,
+                                  string& index)
 {
   char buf[32];
-  snprintf(buf, sizeof(buf), "%010ld.%06ld_", (long)ts.sec(), (long)ts.usec());
 
-  index = log_index_prefix + buf;
+  snprintf(buf, sizeof(buf), "%s_%010ld.%06ld_", TIMEINDEX_PREFIX.c_str(),
+          (long)ts.sec(), (long)ts.usec());
+  buf[sizeof(buf) - 1] = '\0';
+
+  index = buf;
 }
 
 static void get_index(cls_method_context_t hctx,
@@ -57,7 +64,9 @@ static int parse_index(const string& index,
   return ret;
 }
 
-static int cls_timeindex_add(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int cls_timeindex_add(cls_method_context_t hctx,
+                             bufferlist * const in,
+                             bufferlist * const out)
 {
   bufferlist::iterator in_iter = in->begin();
 
@@ -88,7 +97,9 @@ static int cls_timeindex_add(cls_method_context_t hctx, bufferlist *in, bufferli
   return 0;
 }
 
-static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int cls_timeindex_list(cls_method_context_t hctx,
+                              bufferlist * const in,
+                              bufferlist * const out)
 {
   bufferlist::iterator in_iter = in->begin();
 
@@ -116,13 +127,13 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
     get_index_time_prefix(op.to_time, to_index);
   }
 
-#define MAX_LIST_ENTRIES 1000
   size_t max_entries = op.max_entries;
   if (max_entries > MAX_LIST_ENTRIES) {
     max_entries = MAX_LIST_ENTRIES;
   }
 
-  int rc = cls_cxx_map_get_vals(hctx, from_index, log_index_prefix, max_entries + 1, &keys);
+  int rc = cls_cxx_map_get_vals(hctx, from_index, TIMEINDEX_PREFIX,
+          max_entries + 1, &keys);
   if (rc < 0) {
     return rc;
   }
@@ -173,7 +184,9 @@ static int cls_timeindex_list(cls_method_context_t hctx, bufferlist *in, bufferl
 }
 
 
-static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+static int cls_timeindex_trim(cls_method_context_t hctx,
+                              bufferlist * const in,
+                              bufferlist * const out)
 {
   bufferlist::iterator in_iter = in->begin();
 
@@ -202,10 +215,8 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
     to_index = op.to_marker;
   }
 
-#define MAX_TRIM_ENTRIES 1000
-  size_t max_entries = MAX_TRIM_ENTRIES;
-
-  int rc = cls_cxx_map_get_vals(hctx, from_index, log_index_prefix, max_entries, &keys);
+  int rc = cls_cxx_map_get_vals(hctx, from_index, TIMEINDEX_PREFIX,
+          MAX_TRIM_ENTRIES, &keys);
   if (rc < 0) {
     return rc;
   }
@@ -213,7 +224,7 @@ static int cls_timeindex_trim(cls_method_context_t hctx, bufferlist *in, bufferl
   map<string, bufferlist>::iterator iter = keys.begin();
 
   bool removed = false;
-  for (size_t i = 0; i < max_entries && iter != keys.end(); ++i, ++iter) {
+  for (size_t i = 0; i < MAX_TRIM_ENTRIES && iter != keys.end(); ++i, ++iter) {
     const string& index = iter->first;
 
     CLS_LOG(20, "index=%s to_index=%s", index.c_str(), to_index.c_str());
