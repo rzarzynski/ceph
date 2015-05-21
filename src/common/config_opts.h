@@ -1054,6 +1054,9 @@ OPTION(rgw_multipart_min_part_size, OPT_INT, 5 * 1024 * 1024) // min size for ea
 
 OPTION(rgw_olh_pending_timeout_sec, OPT_INT, 3600) // time until we retire a pending olh change
 
+OPTION(rgw_objexp_time_step_exp, OPT_U32, 12) // exponent value (2 is the base) for rounding the timestamps
+OPTION(rgw_objexp_hints_num_shards, OPT_U32, 127) // maximum number of parts in which the hint index is stored in
+
 OPTION(mutex_perf_counter, OPT_BOOL, false) // enable/disable mutex perf counter
 OPTION(throttler_perf_counter, OPT_BOOL, true) // enable/disable throttler perf counter
 
