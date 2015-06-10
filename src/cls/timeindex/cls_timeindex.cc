@@ -194,7 +194,7 @@ static int cls_timeindex_trim(cls_method_context_t hctx,
   try {
     ::decode(op, in_iter);
   } catch (buffer::error& err) {
-    CLS_LOG(1, "ERROR: cls_timeindex_list_op(): failed to decode entry");
+    CLS_LOG(1, "ERROR: cls_timeindex_trim: failed to decode entry");
     return -EINVAL;
   }
 
@@ -240,7 +240,7 @@ static int cls_timeindex_trim(cls_method_context_t hctx,
     int rc = cls_cxx_map_remove_key(hctx, index);
     if (rc < 0) {
       CLS_LOG(1, "ERROR: cls_cxx_map_remove_key failed rc=%d", rc);
-      return -EINVAL;
+      return rc;
     }
 
     removed = true;
