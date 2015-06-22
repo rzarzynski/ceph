@@ -2071,6 +2071,34 @@ public:
     return s;
   }
 
+  string unique_trans_id(const uint64_t unique_num) {
+    char buf[35];
+    time_t timestamp = time(NULL);
+
+    /* The UUID used in transaction ID must contain fixed amount
+     * of [0-9][a-f] characters separated by hyphen, so we need
+     * to convert the human-readable zone name into its 13 bytes
+     * long hex representation. The number comes from:
+     * 32 (UUID size) - 4 (instance ID) - 4 (ID) - 1 (hyphen).
+     * As the length of zone name isn't predefined, we have to
+     * truncate/expand the string first if necessary. */
+    char hex_str[13 + 1];
+    const size_t orig_bytes_num = sizeof(hex_str) / 2;
+    string tmp(zone.name, 0, orig_bytes_num);
+    tmp.resize(orig_bytes_num);
+    buf_to_hex((const unsigned char *)tmp.data(),
+               orig_bytes_num, hex_str);
+    hex_str[sizeof(hex_str) - 1] = '\0';
+
+    snprintf(buf, sizeof(buf), "tx%04llx%04llx%13s-%010llx",
+             (unsigned long long)instance_id(),
+             (unsigned long long)unique_num,
+             hex_str,
+             (unsigned long long)timestamp);
+
+    return buf;
+  }
+
 
   void get_log_pool_name(string& name) {
     name = zone.log_pool.name;
