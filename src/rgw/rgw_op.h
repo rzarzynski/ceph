@@ -371,9 +371,11 @@ protected:
   obj_version ep_objv;
   bool has_cors;
   RGWCORSConfiguration cors_config;
+  set<string> rmattr_names;
 
   bufferlist in_data;
 
+  virtual bool need_metadata_upload() const { return false; }
 public:
   RGWCreateBucket() : ret(0), has_cors(false) {}
 
