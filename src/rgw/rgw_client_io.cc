@@ -10,7 +10,7 @@
 #define dout_subsys ceph_subsys_rgw
 
 void RGWClientIO::init(CephContext *cct) {
-  engine->init_env(cct);
+  init_env(cct);
 
   if (cct->_conf->subsys.should_gather(ceph_subsys_rgw, 20)) {
     std::map<string, string, ltstr_nocase>& env_map = get_env().get_map();
@@ -52,7 +52,7 @@ int RGWClientIO::print(const char *format, ...)
 
 int RGWClientIO::write(const char *buf, int len)
 {
-  int ret = engine->write_data(buf, len);
+  int ret = write_data(buf, len);
   if (ret < 0) {
     return ret;
   }
@@ -71,7 +71,7 @@ int RGWClientIO::write(const char *buf, int len)
 
 int RGWClientIO::read(char *buf, int max, int *actual)
 {
-  int ret = engine->read_data(buf, max);
+  int ret = read_data(buf, max);
   if (ret < 0) {
     return ret;
   }
@@ -84,10 +84,22 @@ int RGWClientIO::read(char *buf, int max, int *actual)
 }
 
 
-#if 0
+int RGWClientIOBufferAware::write_data(const char *buf, int len) {
+  if (!header_done) {
+    header_data.append(buf, len);
+    return len;
+  }
+  if (!sent_header) {
+    data.append(buf, len);
+    return len;
+  }
+
+  return RGWClientIODecorator::write_data(buf, len);
+}
+
 int RGWClientIOBufferAware::send_content_length(const uint64_t len) {
   has_content_length = true;
-  return IMPL->send_content_length(len);
+  return RGWClientIODecorator::send_content_length(len);
 }
 
 int RGWClientIOBufferAware::complete_header()
@@ -134,4 +146,3 @@ int RGWClientIOBufferAware::complete_request()
 
   return 0;
 }
-#endif
