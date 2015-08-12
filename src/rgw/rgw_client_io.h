@@ -10,7 +10,8 @@
 
 #include "rgw_common.h"
 
-class RGWClientIODecorator;
+class RGWClientIOEngine;
+class RGWClientEngineIODecorator;
 
 
 class RGWClientIO {
@@ -20,6 +21,7 @@ class RGWClientIO {
   size_t bytes_received;
 
 protected:
+  RGWClientIOEngine *engine;
   RGWEnv env;
 
   virtual void init_env(CephContext *cct) = 0;
@@ -28,10 +30,11 @@ protected:
 
 public:
   virtual ~RGWClientIO() {}
-  RGWClientIO()
+  RGWClientIO(RGWClientIOEngine * const _engine)
     : account(false),
       bytes_sent(0),
-      bytes_received(0)
+      bytes_received(0),
+      engine(_engine)
   {}
 
   void init(CephContext *cct);
