@@ -24,7 +24,7 @@ struct RGWLoadGenRequestEnv {
   int sign(RGWAccessKey& access_key);
 };
 
-class RGWLoadGenIO : public RGWClientIO
+class RGWLoadGenIO : public RGWClientIOEngine
 {
   uint64_t left_to_read;
   RGWLoadGenRequestEnv *req;

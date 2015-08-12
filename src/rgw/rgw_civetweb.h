@@ -11,7 +11,7 @@
 struct mg_connection;
 
 
-class RGWMongoose : public RGWClientIO
+class RGWMongoose : public RGWClientIOEngine
 {
   mg_connection *conn;
 
@@ -29,7 +29,7 @@ public:
   int send_status(const char *status, const char *status_name);
   int send_100_continue();
   int complete_header();
-  int complete_request();
+  int complete_request() { return 0; }
   int send_content_length(uint64_t len);
 
   RGWMongoose(mg_connection *_conn, int _port);

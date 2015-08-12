@@ -663,7 +663,8 @@ void RGWFCGXProcess::handle_request(RGWRequest *r)
 {
   RGWFCGXRequest *req = static_cast<RGWFCGXRequest *>(r);
   FCGX_Request *fcgx = req->fcgx;
-  RGWFCGX client_io(fcgx);
+  RGWFCGX client_io_engine(fcgx);
+  RGWClientIO client_io(&client_io_engine);
 
  
   int ret = process_request(store, rest, req, &client_io, olog);
@@ -693,7 +694,8 @@ void RGWLoadGenProcess::handle_request(RGWRequest *r)
   env.set_date(tm);
   env.sign(access_key);
 
-  RGWLoadGenIO client_io(&env);
+  RGWLoadGenIO client_io_engine(&env);
+  RGWClientIO client_io(&client_io_engine);
 
   int ret = process_request(store, rest, req, &client_io, olog);
   if (ret < 0) {
@@ -717,7 +719,8 @@ static int civetweb_callback(struct mg_connection *conn) {
   OpsLogSocket *olog = pe->olog;
 
   RGWRequest *req = new RGWRequest(store->get_new_req_id());
-  RGWMongoose client_io(conn, pe->port);
+  RGWMongoose client_io_engine(conn, pe->port);
+  RGWClientIO client_io(&client_io_engine);
 
   int ret = process_request(store, rest, req, &client_io, olog);
   if (ret < 0) {

@@ -10,7 +10,7 @@
 struct FCGX_Request;
 
 
-class RGWFCGX : public RGWClientIO
+class RGWFCGX : public RGWClientIOEngine
 {
   FCGX_Request *fcgx;
 protected:
