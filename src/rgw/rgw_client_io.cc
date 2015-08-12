@@ -10,10 +10,11 @@
 #define dout_subsys ceph_subsys_rgw
 
 void RGWClientIO::init(CephContext *cct) {
-  init_env(cct);
+  engine->init_env(cct);
 
   if (cct->_conf->subsys.should_gather(ceph_subsys_rgw, 20)) {
-    std::map<string, string, ltstr_nocase>& env_map = get_env().get_map();
+    std::map<string, string, ltstr_nocase>& env_map = \
+        engine->get_env().get_map();
     std::map<string, string, ltstr_nocase>::iterator iter = env_map.begin();
 
     for (iter = env_map.begin(); iter != env_map.end(); ++iter) {
@@ -52,7 +53,7 @@ int RGWClientIO::print(const char *format, ...)
 
 int RGWClientIO::write(const char *buf, int len)
 {
-  int ret = write_data(buf, len);
+  int ret = engine->write_data(buf, len);
   if (ret < 0) {
     return ret;
   }
@@ -71,7 +72,7 @@ int RGWClientIO::write(const char *buf, int len)
 
 int RGWClientIO::read(char *buf, int max, int *actual)
 {
-  int ret = read_data(buf, max);
+  int ret = engine->read_data(buf, max);
   if (ret < 0) {
     return ret;
   }
@@ -84,7 +85,7 @@ int RGWClientIO::read(char *buf, int max, int *actual)
 }
 
 
-int RGWClientIOBufferAware::write_data(const char *buf, int len) {
+int RGWClientIOEngineBufferAware::write_data(const char *buf, int len) {
   if (!header_done) {
     header_data.append(buf, len);
     return len;
@@ -94,15 +95,16 @@ int RGWClientIOBufferAware::write_data(const char *buf, int len) {
     return len;
   }
 
-  return RGWClientIODecorator::write_data(buf, len);
+  return RGWClientIOEngineDecorator::write_data(buf, len);
 }
 
-int RGWClientIOBufferAware::send_content_length(const uint64_t len) {
+int RGWClientIOEngineBufferAware::send_content_length(RGWClientIO * const controller,
+                                                      const uint64_t len) {
   has_content_length = true;
-  return RGWClientIODecorator::send_content_length(len);
+  return RGWClientIOEngineDecorator::send_content_length(controller, len);
 }
 
-int RGWClientIOBufferAware::complete_header()
+int RGWClientIOEngineBufferAware::complete_header(RGWClientIO * const controller)
 {
   header_done = true;
 
@@ -116,7 +118,7 @@ int RGWClientIOBufferAware::complete_header()
   return rc;
 }
 
-int RGWClientIOBufferAware::complete_request()
+int RGWClientIOEngineBufferAware::complete_request(RGWClientIO * const controller)
 {
   if (!sent_header) {
     if (!has_content_length) {
@@ -124,16 +126,16 @@ int RGWClientIOBufferAware::complete_request()
 
       if (0 && data.length() == 0) {
         has_content_length = true;
-        print("Transfer-Enconding: %s\r\n", "chunked");
+        controller->print("Transfer-Enconding: %s\r\n", "chunked");
         data.append("0\r\n\r\n", sizeof("0\r\n\r\n")-1);
       } else {
-        int r = send_content_length(data.length());
+        int r = send_content_length(controller, data.length());
         if (r < 0) {
 	        return r;
         }
       }
     }
-    complete_header();
+    complete_header(controller);
   }
 
   if (data.length()) {

@@ -11,8 +11,29 @@
 #include "rgw_common.h"
 
 class RGWClientIOEngine;
-class RGWClientEngineIODecorator;
+class RGWClientIOEngineDecorator;
 
+
+class RGWClientIOEngine {
+public:
+  virtual ~RGWClientIOEngine() {};
+
+  virtual int write_data(const char *buf, int len) = 0;
+  virtual int read_data(char *buf, int max) = 0;
+
+  virtual void init_env(CephContext *cct) = 0;
+  virtual void flush(RGWClientIO * controller) = 0;
+  virtual int send_status(RGWClientIO * const controller,
+                          const char * const status,
+                          const char *status_name) = 0;
+  virtual int send_100_continue(RGWClientIO * const controller) = 0;
+  virtual int complete_header(RGWClientIO * const controller) = 0;
+  virtual int complete_request(RGWClientIO * const controller) = 0;
+  virtual int send_content_length(RGWClientIO * const controller, uint64_t len) = 0;
+  virtual RGWEnv& get_env() = 0;
+
+  friend RGWClientIOEngineDecorator;
+};
 
 class RGWClientIO {
   bool account;
@@ -22,11 +43,6 @@ class RGWClientIO {
 
 protected:
   RGWClientIOEngine *engine;
-  RGWEnv env;
-
-  virtual void init_env(CephContext *cct) = 0;
-  virtual int write_data(const char *buf, int len) = 0;
-  virtual int read_data(char *buf, int max) = 0;
 
 public:
   virtual ~RGWClientIO() {}
@@ -43,7 +59,7 @@ public:
   int read(char *buf, int max, int *actual);
 
   RGWEnv& get_env() {
-    return env;
+    return engine->get_env();
   }
 
   void set_account(bool _account) {
@@ -60,21 +76,37 @@ public:
 
   /* Public interface parts which must be implemented for concrete
    * frontend provider. */
-  virtual void flush() = 0;
-  virtual int send_status(const char * const status,
-                          const char * const status_name) = 0;
-  virtual int send_100_continue() = 0;
-  virtual int complete_header() = 0;
-  virtual int complete_request() = 0;
-  virtual int send_content_length(uint64_t len) = 0;
+  virtual void flush() {
+    engine->flush(this);
+  }
 
-  friend RGWClientIODecorator;
+  virtual int send_status(const char * const status,
+                          const char * const status_name) {
+    return engine->send_status(this, status, status_name);
+  }
+
+  virtual int send_100_continue() {
+    return engine->send_100_continue(this);
+  }
+
+  virtual int complete_header() {
+    return engine->complete_header(this);
+  }
+
+  virtual int complete_request() {
+    return engine->complete_request(this);
+  }
+
+  virtual int send_content_length(const uint64_t len) {
+    return engine->send_content_length(this, len);
+  }
 };
 
 
-class RGWClientIODecorator : public RGWClientIO {
-protected:
-  RGWClientIO * const IMPL;
+#if 1
+class RGWClientIOEngineDecorator : public RGWClientIOEngine {
+public:
+  RGWClientIOEngine * const IMPL;
 
   virtual void init_env(CephContext *cct) override {
     return IMPL->init_env(cct);
@@ -90,38 +122,39 @@ protected:
     return IMPL->read_data(buf, max);
   }
 
-public:
-  RGWClientIODecorator(RGWClientIO * const impl)
+  RGWClientIOEngineDecorator(RGWClientIOEngine * const impl)
     : IMPL(impl) {}
 
   /* A lot of wrappers */
-  virtual void flush() {
-    return IMPL->flush();
+  virtual void flush(RGWClientIO * const controller) {
+    return IMPL->flush(controller);
   }
 
-  virtual int send_status(const char * const status,
+  virtual int send_status(RGWClientIO * const controller,
+                          const char * const status,
                           const char * const status_name) override {
-    return IMPL->send_status(status, status_name);
+    return IMPL->send_status(controller, status, status_name);
   }
 
-  virtual int send_100_continue() override {
-    return IMPL->send_100_continue();
+  virtual int send_100_continue(RGWClientIO * const controller) override {
+    return IMPL->send_100_continue(controller);
   }
 
-  virtual int complete_header() override {
-    return IMPL->complete_header();
+  virtual int complete_header(RGWClientIO * const controller) override {
+    return IMPL->complete_header(controller);
   }
 
-  virtual int complete_request() override {
-    return IMPL->complete_request();
+  virtual int complete_request(RGWClientIO * const controller) override {
+    return IMPL->complete_request(controller);
   }
 
-  virtual int send_content_length(const uint64_t len) override {
-    return IMPL->send_content_length(len);
+  virtual int send_content_length(RGWClientIO * const controller,
+                                  const uint64_t len) override {
+    return IMPL->send_content_length(controller, len);
   }
 };
 
-class RGWClientIOBufferAware : public RGWClientIODecorator {
+class RGWClientIOEngineBufferAware : public RGWClientIOEngineDecorator {
 protected:
   bufferlist header_data;
   bufferlist data;
@@ -133,8 +166,10 @@ protected:
   virtual int write_data(const char *buf, const int len) override;
 
 public:
-  int send_content_length(const uint64_t len) override;
-  int complete_request() override;
-  int complete_header() override;
+  int send_content_length(RGWClientIO * const controller,
+                          const uint64_t len) override;
+  int complete_request(RGWClientIO * const controller) override;
+  int complete_header(RGWClientIO * const controller) override;
 };
+#endif
 #endif
