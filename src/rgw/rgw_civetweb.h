@@ -14,6 +14,7 @@ struct mg_connection;
 class RGWMongoose : public RGWClientIOEngine
 {
   mg_connection *conn;
+  RGWEnv env;
 
   int port;
 
@@ -24,7 +25,6 @@ public:
   RGWMongoose(mg_connection *_conn, int _port);
 
   void init_env(CephContext *cct) override;
-
   int write_data(const char *buf, int len) override;
   int read_data(char *buf, int len) override;
 
@@ -34,9 +34,13 @@ public:
                   const char *status_name) override;
   int send_100_continue(RGWClientIO * const controller) override;
   int complete_header(RGWClientIO * const controller) override;
-  int send_content_length(RGWClientIO * const controller, uint64_t len) override;
+  int send_content_length(RGWClientIO * const controller,
+                          uint64_t len) override;
   int complete_request(RGWClientIO * const controller) override {
     return 0;
+  }
+  RGWEnv& get_env() override {
+    return env;
   }
 };
 

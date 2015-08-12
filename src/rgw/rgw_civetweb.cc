@@ -32,7 +32,7 @@ int RGWMongoose::read_data(char *buf, int len)
   return mg_read(conn, buf, len);
 }
 
-void RGWMongoose::flush()
+void RGWMongoose::flush(RGWClientIO * const controller)
 {
   /* NOP */
 }
@@ -96,7 +96,8 @@ void RGWMongoose::init_env(CephContext *cct)
   env.set("SERVER_PORT", port_buf);
 }
 
-int RGWMongoose::send_status(const char * status,
+int RGWMongoose::send_status(RGWClientIO * const controller,
+                             const char * status,
                              const char * status_name)
 {
   int status_num = atoi(status);
@@ -108,19 +109,19 @@ int RGWMongoose::send_status(const char * status,
 
   char buf[128];
   snprintf(buf, sizeof(buf), "HTTP/1.1 %s %s\r\n", status, status_name);
-  write_data(buf, strlen(buf));
+  controller->write(buf, strlen(buf));
 
   return 0;
 }
 
-int RGWMongoose::send_100_continue()
+int RGWMongoose::send_100_continue(RGWClientIO * const controller)
 {
   char buf[] = "HTTP/1.1 100 CONTINUE\r\n\r\n";
 
-  return mg_write(conn, buf, sizeof(buf) - 1);
+  return controller->write(buf, sizeof(buf) - 1);
 }
 
-int RGWMongoose::complete_header()
+int RGWMongoose::complete_header(RGWClientIO * const controller)
 {
   string str;
   if (explicit_keepalive) {
@@ -131,12 +132,12 @@ int RGWMongoose::complete_header()
 
   str.append("\r\n");
 
-  return write_data(str.c_str(), str.length());
+  return controller->write(str.c_str(), str.length());
 }
 
-int RGWMongoose::send_content_length(uint64_t len)
+int RGWMongoose::send_content_length(RGWClientIO * controller, uint64_t len)
 {
   char buf[21];
   snprintf(buf, sizeof(buf), "%" PRIu64, len);
-  return print("Content-Length: %s\r\n", buf);
+  return controller->print("Content-Length: %s\r\n", buf);
 }
