@@ -13,11 +13,14 @@ struct mg_connection;
 
 class RGWMongoose : public RGWClientIOEngine
 {
-  mg_connection *conn;
+  mg_connection * const conn;
   RGWEnv env;
+
+  bufferlist header_data;
 
   int port;
 
+  bool header_done;
   bool explicit_keepalive;
   bool explicit_conn_close;
 
