@@ -16,11 +16,16 @@ class RGWMongoose : public RGWClientIOEngine
   mg_connection * const conn;
   RGWEnv env;
 
+  bufferlist early_header_data;
   bufferlist header_data;
 
   int port;
 
-  bool header_done;
+  enum {
+    RGW_CIVETWEB_EARLY_HEADERS, /* Headers sent before calling send_status. */
+    RGW_CIVETWEB_STATUS_SEEN,   /* Status has been seen. */
+    RGW_CIVETWEB_DATA           /* Header has been completed. */
+  } phase;
   bool has_content_length;
   bool explicit_keepalive;
   bool explicit_conn_close;
@@ -40,9 +45,11 @@ public:
   int complete_header(RGWClientIO * const controller) override;
   int send_content_length(RGWClientIO * const controller,
                           uint64_t len) override;
+
   int complete_request(RGWClientIO * const controller) override {
     return 0;
   }
+
   RGWEnv& get_env() override {
     return env;
   }
