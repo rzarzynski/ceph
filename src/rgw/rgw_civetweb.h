@@ -21,6 +21,7 @@ class RGWMongoose : public RGWClientIOEngine
   int port;
 
   bool header_done;
+  bool has_content_length;
   bool explicit_keepalive;
   bool explicit_conn_close;
 

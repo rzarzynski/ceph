@@ -28,6 +28,7 @@ RGWMongoose::RGWMongoose(mg_connection *_conn, int _port)
   : conn(_conn),
     port(_port),
     header_done(false),
+    has_content_length(false),
     explicit_keepalive(false),
     explicit_conn_close(false)
 {
@@ -151,6 +152,10 @@ static void dump_date_header(bufferlist &out)
 
 int RGWMongoose::complete_header(RGWClientIO * const controller)
 {
+  if (!has_content_length) {
+    mg_enforce_close(conn);
+  }
+
   dump_date_header(header_data);
 
   if (explicit_keepalive) {
@@ -168,8 +173,9 @@ int RGWMongoose::complete_header(RGWClientIO * const controller)
 int RGWMongoose::send_content_length(RGWClientIO * const controller,
                                      const uint64_t len)
 {
-  char buf[21];
+  has_content_length = true;
 
+  char buf[21];
   snprintf(buf, sizeof(buf), "%" PRIu64, len);
   return controller->print("Content-Length: %s\r\n", buf);
 }
