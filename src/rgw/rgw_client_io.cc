@@ -86,11 +86,7 @@ int RGWClientIO::read(char *buf, int max, int *actual)
 
 
 int RGWClientIOEngineBufferAware::write_data(const char *buf, int len) {
-  if (!header_done) {
-    header_data.append(buf, len);
-    return len;
-  }
-  if (!sent_header) {
+  if (buffer_data) {
     data.append(buf, len);
     return len;
   }
@@ -106,45 +102,31 @@ int RGWClientIOEngineBufferAware::send_content_length(RGWClientIO * const contro
 
 int RGWClientIOEngineBufferAware::complete_header(RGWClientIO * const controller)
 {
-  header_done = true;
-
   if (!has_content_length) {
+    /* We will dump everything in complete_request(). */
+    buffer_data = true;
     return 0;
   }
 
-  int rc = write_data(header_data.c_str(), header_data.length());
-  sent_header = true;
-
-  return rc;
+  return RGWClientIOEngineDecorator::complete_header(controller);
 }
 
 int RGWClientIOEngineBufferAware::complete_request(RGWClientIO * const controller)
 {
-  if (!sent_header) {
-    if (!has_content_length) {
-      header_done = false; /* let's go back to writing the header */
+  if (buffer_data) {
+    buffer_data = false;
 
-      if (0 && data.length() == 0) {
-        has_content_length = true;
-        controller->print("Transfer-Enconding: %s\r\n", "chunked");
-        data.append("0\r\n\r\n", sizeof("0\r\n\r\n")-1);
-      } else {
-        int r = send_content_length(controller, data.length());
-        if (r < 0) {
-	        return r;
-        }
+    send_content_length(controller, data.length());
+    RGWClientIOEngineDecorator::complete_header(controller);
+
+    if (data.length()) {
+      int ret = RGWClientIOEngineDecorator::write_data(data.c_str(), data.length());
+      if (ret < 0) {
+        return r;
       }
+      data.clear();
     }
-    complete_header(controller);
   }
 
-  if (data.length()) {
-    int r = write_data(data.c_str(), data.length());
-    if (r < 0) {
-      return r;
-    }
-    data.clear();
-  }
-
-  return 0;
+  return RGWClientIOEngineDecorator::complete_request(controller);
 }

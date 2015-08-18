@@ -104,8 +104,7 @@ public:
 
 
 #if 1
-class RGWClientIOEngineDecorator : public RGWClientIOEngine {
-public:
+struct RGWClientIOEngineDecorator : public RGWClientIOEngine {
   RGWClientIOEngine * const IMPL;
 
   virtual void init_env(CephContext *cct) override {
@@ -152,20 +151,28 @@ public:
                                   const uint64_t len) override {
     return IMPL->send_content_length(controller, len);
   }
+
+  virtual RGWEnv& get_env() override {
+    return IMPL->get_env();
+  }
 };
 
 class RGWClientIOEngineBufferAware : public RGWClientIOEngineDecorator {
 protected:
-  bufferlist header_data;
   bufferlist data;
 
-  bool header_done;
-  bool sent_header;
   bool has_content_length;
+  bool buffer_data;
 
   virtual int write_data(const char *buf, const int len) override;
 
 public:
+  RGWClientIOEngineBufferAware(RGWClientIOEngine * const engine)
+    : RGWClientIOEngineDecorator(engine),
+      has_content_length(false),
+      buffer_data(false)
+  {}
+
   int send_content_length(RGWClientIO * const controller,
                           const uint64_t len) override;
   int complete_request(RGWClientIO * const controller) override;
