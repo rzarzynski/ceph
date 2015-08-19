@@ -43,12 +43,14 @@ protected:
   RGWClientIOEngine * const engine;
 
 public:
-  virtual ~RGWClientIO() {}
+  virtual ~RGWClientIO() {
+  }
+
   RGWClientIO(RGWClientIOEngine * const _engine)
     : account(false),
       bytes_sent(0),
       bytes_received(0),
-      engine(_engine) {
+      engine(engine) {
   }
 
   void init(CephContext *cct);
@@ -102,9 +104,15 @@ public:
 
 
 #if 1
-struct RGWClientIOEngineDecorator : public RGWClientIOEngine {
+class RGWClientIOEngineDecorator : public RGWClientIOEngine {
   RGWClientIOEngine * const IMPL;
 
+public:
+  RGWClientIOEngineDecorator(RGWClientIOEngine * const impl)
+    : IMPL(impl) {
+  }
+
+  /* A lot of wrappers */
   virtual void init_env(CephContext *cct) override {
     return IMPL->init_env(cct);
   }
@@ -119,11 +127,6 @@ struct RGWClientIOEngineDecorator : public RGWClientIOEngine {
     return IMPL->read_data(buf, max);
   }
 
-  RGWClientIOEngineDecorator(RGWClientIOEngine * const impl)
-    : IMPL(impl) {
-  }
-
-  /* A lot of wrappers */
   virtual void flush(RGWClientIO * const controller) {
     return IMPL->flush(controller);
   }
