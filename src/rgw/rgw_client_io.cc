@@ -122,7 +122,7 @@ int RGWClientIOEngineBufferAware::complete_request(RGWClientIO * const controlle
     if (data.length()) {
       int ret = RGWClientIOEngineDecorator::write_data(data.c_str(), data.length());
       if (ret < 0) {
-        return r;
+        return ret;
       }
       data.clear();
     }

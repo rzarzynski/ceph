@@ -31,8 +31,6 @@ public:
   virtual int complete_request(RGWClientIO * const controller) = 0;
   virtual int send_content_length(RGWClientIO * const controller, uint64_t len) = 0;
   virtual RGWEnv& get_env() = 0;
-
-  friend RGWClientIOEngineDecorator;
 };
 
 class RGWClientIO {
@@ -42,7 +40,7 @@ class RGWClientIO {
   size_t bytes_received;
 
 protected:
-  RGWClientIOEngine *engine;
+  RGWClientIOEngine * const engine;
 
 public:
   virtual ~RGWClientIO() {}
@@ -50,8 +48,8 @@ public:
     : account(false),
       bytes_sent(0),
       bytes_received(0),
-      engine(_engine)
-  {}
+      engine(_engine) {
+  }
 
   void init(CephContext *cct);
   int print(const char *format, ...);
@@ -122,7 +120,8 @@ struct RGWClientIOEngineDecorator : public RGWClientIOEngine {
   }
 
   RGWClientIOEngineDecorator(RGWClientIOEngine * const impl)
-    : IMPL(impl) {}
+    : IMPL(impl) {
+  }
 
   /* A lot of wrappers */
   virtual void flush(RGWClientIO * const controller) {
@@ -170,8 +169,8 @@ public:
   RGWClientIOEngineBufferAware(RGWClientIOEngine * const engine)
     : RGWClientIOEngineDecorator(engine),
       has_content_length(false),
-      buffer_data(false)
-  {}
+      buffer_data(false) {
+  }
 
   int send_content_length(RGWClientIO * const controller,
                           const uint64_t len) override;
