@@ -4,6 +4,7 @@
 #ifndef CEPH_RGW_CLIENT_IO_H
 #define CEPH_RGW_CLIENT_IO_H
 
+#include <memory>
 #include <stdlib.h>
 
 #include "include/types.h"
@@ -40,13 +41,13 @@ class RGWClientIO {
   size_t bytes_received;
 
 protected:
-  RGWClientIOEngine * const engine;
+  const std::shared_ptr<RGWClientIOEngine> engine;
 
 public:
   virtual ~RGWClientIO() {
   }
 
-  RGWClientIO(RGWClientIOEngine * const _engine)
+  RGWClientIO(const std::shared_ptr<RGWClientIOEngine> engine)
     : account(false),
       bytes_sent(0),
       bytes_received(0),
@@ -105,10 +106,10 @@ public:
 
 #if 1
 class RGWClientIOEngineDecorator : public RGWClientIOEngine {
-  RGWClientIOEngine * const IMPL;
+  const std::shared_ptr<RGWClientIOEngine> IMPL;
 
 public:
-  RGWClientIOEngineDecorator(RGWClientIOEngine * const impl)
+  RGWClientIOEngineDecorator(const std::shared_ptr<RGWClientIOEngine> impl)
     : IMPL(impl) {
   }
 
@@ -169,7 +170,7 @@ protected:
   virtual int write_data(const char *buf, const int len) override;
 
 public:
-  RGWClientIOEngineBufferAware(RGWClientIOEngine * const engine)
+  RGWClientIOEngineBufferAware(const std::shared_ptr<RGWClientIOEngine> engine)
     : RGWClientIOEngineDecorator(engine),
       has_content_length(false),
       buffer_data(false) {
