@@ -538,11 +538,10 @@ static void godown_alarm(int signum)
 static int process_request(RGWRados *store,
                            RGWREST *rest,
                            RGWRequest *req,
-                           RGWClientIOEngine *client_io_engine,
+                           RGWClientIO& client_io,
                            OpsLogSocket *olog)
 {
   int ret = 0;
-  RGWClientIO client_io(client_io_engine);
 
   client_io.init(g_ceph_context);
 
@@ -668,10 +667,11 @@ void RGWFCGXProcess::handle_request(RGWRequest *r)
 {
   RGWFCGXRequest *req = static_cast<RGWFCGXRequest *>(r);
   FCGX_Request *fcgx = req->fcgx;
-  RGWFCGX client_io(fcgx);
 
+  RGWClientIO::Builder cio_builder(std::make_shared<RGWFCGX>(fcgx));
+  RGWClientIO client_io = cio_builder.getResult();
  
-  int ret = process_request(store, rest, req, &client_io, olog);
+  int ret = process_request(store, rest, req, client_io, olog);
   if (ret < 0) {
     /* we don't really care about return code */
     dout(20) << "process_request() returned " << ret << dendl;
@@ -698,9 +698,10 @@ void RGWLoadGenProcess::handle_request(RGWRequest *r)
   env.set_date(tm);
   env.sign(access_key);
 
-  RGWLoadGenIO client_io(&env);
+  RGWClientIO::Builder cio_builder(std::make_shared<RGWLoadGenIO>(&env));
+  RGWClientIO client_io = cio_builder.getResult();
 
-  int ret = process_request(store, rest, req, &client_io, olog);
+  int ret = process_request(store, rest, req, client_io, olog);
   if (ret < 0) {
     /* we don't really care about return code */
     dout(20) << "process_request() returned " << ret << dendl;
@@ -722,9 +723,12 @@ static int civetweb_callback(struct mg_connection *conn) {
   OpsLogSocket *olog = pe->olog;
 
   RGWRequest *req = new RGWRequest(store->get_new_req_id());
-  RGWMongoose client_io(conn, pe->port);
 
-  int ret = process_request(store, rest, req, &client_io, olog);
+  RGWClientIO::Builder cio_builder(
+          std::make_shared<RGWMongoose>(conn, pe->port));
+  RGWClientIO client_io = cio_builder.getResult();
+
+  int ret = process_request(store, rest, req, client_io, olog);
   if (ret < 0) {
     /* we don't really care about return code */
     dout(20) << "process_request() returned " << ret << dendl;
