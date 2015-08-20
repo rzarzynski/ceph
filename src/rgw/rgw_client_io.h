@@ -145,59 +145,58 @@ public:
   }
 };
 
-#if 1
 class RGWClientIOEngineDecorator : public RGWClientIOEngine {
-  const std::shared_ptr<RGWClientIOEngine> IMPL;
+  const std::shared_ptr<RGWClientIOEngine> decorated;
 
 public:
   RGWClientIOEngineDecorator(const std::shared_ptr<RGWClientIOEngine> impl)
-    : IMPL(impl) {
+    : decorated(impl) {
   }
 
   /* A lot of wrappers */
   virtual void init_env(CephContext *cct) override {
-    return IMPL->init_env(cct);
+    return decorated->init_env(cct);
   }
 
   virtual int write_data(const char * const buf,
                          const int len) override {
-    return IMPL->write_data(buf, len);
+    return decorated->write_data(buf, len);
   }
 
   virtual int read_data(char * const buf,
                         const int max) override {
-    return IMPL->read_data(buf, max);
+    return decorated->read_data(buf, max);
   }
 
   virtual void flush(RGWClientIO * const controller) {
-    return IMPL->flush(controller);
+    return decorated->flush(controller);
   }
 
   virtual int send_status(RGWClientIO * const controller,
                           const char * const status,
                           const char * const status_name) override {
-    return IMPL->send_status(controller, status, status_name);
+    return decorated->send_status(controller, status, status_name);
   }
 
   virtual int send_100_continue(RGWClientIO * const controller) override {
-    return IMPL->send_100_continue(controller);
+    return decorated->send_100_continue(controller);
   }
 
   virtual int complete_header(RGWClientIO * const controller) override {
-    return IMPL->complete_header(controller);
+    return decorated->complete_header(controller);
   }
 
   virtual int complete_request(RGWClientIO * const controller) override {
-    return IMPL->complete_request(controller);
+    return decorated->complete_request(controller);
   }
 
   virtual int send_content_length(RGWClientIO * const controller,
                                   const uint64_t len) override {
-    return IMPL->send_content_length(controller, len);
+    return decorated->send_content_length(controller, len);
   }
 
   virtual RGWEnv& get_env() override {
-    return IMPL->get_env();
+    return decorated->get_env();
   }
 };
 
@@ -222,5 +221,4 @@ public:
   int complete_request(RGWClientIO * const controller) override;
   int complete_header(RGWClientIO * const controller) override;
 };
-#endif
 #endif
