@@ -43,17 +43,17 @@ class RGWClientIO {
 protected:
   const std::shared_ptr<RGWClientIOEngine> engine;
 
-public:
-  class Builder;
-
-  virtual ~RGWClientIO() {
-  }
-
-  RGWClientIO(const std::shared_ptr<RGWClientIOEngine> engine)
+  RGWClientIO(const std::shared_ptr<RGWClientIOEngine>& engine)
     : account(false),
       bytes_sent(0),
       bytes_received(0),
       engine(engine) {
+  }
+
+public:
+  class Builder;
+
+  virtual ~RGWClientIO() {
   }
 
   void init(CephContext *cct);
@@ -105,7 +105,6 @@ public:
   }
 };
 
-#if 0
 class RGWClientIO::Builder {
 protected:
   /* Whether engine is resistant to sending some headers first and then
@@ -113,11 +112,13 @@ protected:
   bool needs_reordering;
 
   /* How should we handle lack of content length specification. */
+#if 0
   enum {
     CONLEN_BUFFER_DATA,
     CONLEN_CHUNK_DATA,
     CONLEN_PASS_DATA
   } content_length_mode;
+#endif
 
   /* Last stage in pipeline. */
   std::shared_ptr<RGWClientIOEngine> final_engine;
@@ -127,26 +128,22 @@ public:
     : final_engine(engine) {
   }
 
-  RGWClientIO::Builder& set_conlen_mode(const enum mode) {
-    content_length_mode = mode;
-    return *this;
-  }
-
-  RGWClientIO& getResult() {
-    std::shared_ptr<RGWClientIOEngine> stage = final_engine;
+  RGWClientIO getResult() {
+    std::shared_ptr<RGWClientIOEngine>& stage = final_engine;
 
     if (needs_reordering) {
-      stage = std::make_shared<RGWClientIOEngineReorderer>(stage);
+      //stage = std::make_shared<RGWClientIOEngineReorderer>(stage);
     }
 
+#if 0
     if (CONLEN_BUFFER_DATA == content_length_mode) {
       stage = std::make_shared<RGWClientIOEngineBufferAware>(stage);
     }
+#endif
 
-    return RGWClientIO(stage);
+    return std::move(RGWClientIO(stage));
   }
 };
-#endif
 
 #if 1
 class RGWClientIOEngineDecorator : public RGWClientIOEngine {
