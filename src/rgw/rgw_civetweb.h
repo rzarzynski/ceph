@@ -37,16 +37,16 @@ public:
   int write_data(const char *buf, int len) override;
   int read_data(char *buf, int len) override;
 
-  void flush(RGWClientIO * controller) override;
-  int send_status(RGWClientIO * const controller,
+  void flush(RGWClientIO& controller) override;
+  int send_status(RGWClientIO& controller,
                   const char *status,
                   const char *status_name) override;
-  int send_100_continue(RGWClientIO * const controller) override;
-  int complete_header(RGWClientIO * const controller) override;
-  int send_content_length(RGWClientIO * const controller,
+  int send_100_continue(RGWClientIO& controller) override;
+  int complete_header(RGWClientIO& controller) override;
+  int send_content_length(RGWClientIO& controller,
                           uint64_t len) override;
 
-  int complete_request(RGWClientIO * const controller) override {
+  int complete_request(RGWClientIO& controller) override {
     return 0;
   }
 

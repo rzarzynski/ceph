@@ -94,13 +94,13 @@ int RGWClientIOEngineBufferAware::write_data(const char *buf, int len) {
   return RGWClientIOEngineDecorator::write_data(buf, len);
 }
 
-int RGWClientIOEngineBufferAware::send_content_length(RGWClientIO * const controller,
+int RGWClientIOEngineBufferAware::send_content_length(RGWClientIO& controller,
                                                       const uint64_t len) {
   has_content_length = true;
   return RGWClientIOEngineDecorator::send_content_length(controller, len);
 }
 
-int RGWClientIOEngineBufferAware::complete_header(RGWClientIO * const controller)
+int RGWClientIOEngineBufferAware::complete_header(RGWClientIO& controller)
 {
   if (!has_content_length) {
     /* We will dump everything in complete_request(). */
@@ -111,7 +111,7 @@ int RGWClientIOEngineBufferAware::complete_header(RGWClientIO * const controller
   return RGWClientIOEngineDecorator::complete_header(controller);
 }
 
-int RGWClientIOEngineBufferAware::complete_request(RGWClientIO * const controller)
+int RGWClientIOEngineBufferAware::complete_request(RGWClientIO& controller)
 {
   if (buffer_data) {
     buffer_data = false;

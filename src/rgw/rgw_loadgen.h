@@ -38,14 +38,14 @@ public:
   int write_data(const char *buf, int len);
   int read_data(char *buf, int len);
 
-  int send_status(RGWClientIO * controller,
+  int send_status(RGWClientIO& controller,
                   const char *status,
                   const char *status_name);
-  int send_100_continue(RGWClientIO * controller);
-  int complete_header(RGWClientIO * controller);
-  int complete_request(RGWClientIO * controller);
-  int send_content_length(RGWClientIO * controller, uint64_t len);
-  void flush(RGWClientIO *controller);
+  int send_100_continue(RGWClientIO& controller);
+  int complete_header(RGWClientIO& controller);
+  int complete_request(RGWClientIO& controller);
+  int send_content_length(RGWClientIO& controller, uint64_t len);
+  void flush(RGWClientIO& controller);
 
   RGWEnv& get_env() override {
     return env;

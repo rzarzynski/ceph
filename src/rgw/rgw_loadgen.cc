@@ -56,11 +56,11 @@ int RGWLoadGenIO::read_data(char *buf, const int len)
   return read_len;
 }
 
-void RGWLoadGenIO::flush(RGWClientIO * const controller)
+void RGWLoadGenIO::flush(RGWClientIO& controller)
 {
 }
 
-int RGWLoadGenIO::complete_request(RGWClientIO * const controller)
+int RGWLoadGenIO::complete_request(RGWClientIO& controller)
 {
   return 0;
 }
@@ -92,24 +92,24 @@ void RGWLoadGenIO::init_env(CephContext *cct)
   env.set("SERVER_PORT", port_buf);
 }
 
-int RGWLoadGenIO::send_status(RGWClientIO * const controller,
+int RGWLoadGenIO::send_status(RGWClientIO& controller,
                               const char * const conststatus,
                               const char * const status_name)
 {
   return 0;
 }
 
-int RGWLoadGenIO::send_100_continue(RGWClientIO * const controller)
+int RGWLoadGenIO::send_100_continue(RGWClientIO& controller)
 {
   return 0;
 }
 
-int RGWLoadGenIO::complete_header(RGWClientIO * const controller)
+int RGWLoadGenIO::complete_header(RGWClientIO& controller)
 {
   return 0;
 }
 
-int RGWLoadGenIO::send_content_length(RGWClientIO * const controller,
+int RGWLoadGenIO::send_content_length(RGWClientIO& controller,
                                       const uint64_t len)
 {
   return 0;

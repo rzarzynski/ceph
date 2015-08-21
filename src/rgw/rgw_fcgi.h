@@ -22,17 +22,17 @@ public:
   int write_data(const char *buf, int len) override;
   int read_data(char *buf, int len) override;
 
-  int send_status(RGWClientIO * controller,
+  int send_status(RGWClientIO& controller,
                   const char *status,
                   const char *status_name) override;
-  int send_100_continue(RGWClientIO * controller) override;
-  int complete_header(RGWClientIO * controller) override;
-  int complete_request(RGWClientIO * controller) override {
+  int send_100_continue(RGWClientIO& controller) override;
+  int complete_header(RGWClientIO& controller) override;
+  int complete_request(RGWClientIO& controller) override {
     return 0;
   }
-  int send_content_length(RGWClientIO * controller,
+  int send_content_length(RGWClientIO& controller,
                           uint64_t len) override;
-  void flush(RGWClientIO * controller) override;
+  void flush(RGWClientIO& controller) override;
   RGWEnv& get_env() override {
     return env;
   }

@@ -19,14 +19,14 @@ public:
   virtual int read_data(char *buf, int max) = 0;
 
   virtual void init_env(CephContext *cct) = 0;
-  virtual void flush(RGWClientIO * controller) = 0;
-  virtual int send_status(RGWClientIO * const controller,
+  virtual void flush(RGWClientIO& controller) = 0;
+  virtual int send_status(RGWClientIO& controller,
                           const char * const status,
                           const char * const status_name) = 0;
-  virtual int send_100_continue(RGWClientIO * const controller) = 0;
-  virtual int complete_header(RGWClientIO * const controller) = 0;
-  virtual int complete_request(RGWClientIO * const controller) = 0;
-  virtual int send_content_length(RGWClientIO * const controller, uint64_t len) = 0;
+  virtual int send_100_continue(RGWClientIO& controller) = 0;
+  virtual int complete_header(RGWClientIO& controller) = 0;
+  virtual int complete_request(RGWClientIO& controller) = 0;
+  virtual int send_content_length(RGWClientIO& controller, uint64_t len) = 0;
   virtual RGWEnv& get_env() = 0;
 };
 
@@ -54,29 +54,29 @@ public:
     return decorated->read_data(buf, max);
   }
 
-  virtual void flush(RGWClientIO * const controller) {
+  virtual void flush(RGWClientIO& controller) {
     return decorated->flush(controller);
   }
 
-  virtual int send_status(RGWClientIO * const controller,
+  virtual int send_status(RGWClientIO& controller,
                           const char * const status,
                           const char * const status_name) override {
     return decorated->send_status(controller, status, status_name);
   }
 
-  virtual int send_100_continue(RGWClientIO * const controller) override {
+  virtual int send_100_continue(RGWClientIO& controller) override {
     return decorated->send_100_continue(controller);
   }
 
-  virtual int complete_header(RGWClientIO * const controller) override {
+  virtual int complete_header(RGWClientIO& controller) override {
     return decorated->complete_header(controller);
   }
 
-  virtual int complete_request(RGWClientIO * const controller) override {
+  virtual int complete_request(RGWClientIO& controller) override {
     return decorated->complete_request(controller);
   }
 
-  virtual int send_content_length(RGWClientIO * const controller,
+  virtual int send_content_length(RGWClientIO& controller,
                                   const uint64_t len) override {
     return decorated->send_content_length(controller, len);
   }
@@ -103,10 +103,10 @@ public:
       buffer_data(false) {
   }
 
-  int send_content_length(RGWClientIO * const controller,
+  int send_content_length(RGWClientIO& controller,
                           const uint64_t len) override;
-  int complete_request(RGWClientIO * const controller) override;
-  int complete_header(RGWClientIO * const controller) override;
+  int complete_request(RGWClientIO& controller) override;
+  int complete_header(RGWClientIO& controller) override;
 };
 
 
@@ -151,39 +151,39 @@ public:
     account = _account;
   }
 
-  uint64_t get_bytes_sent() {
+  uint64_t get_bytes_sent() const {
     return bytes_sent;
   }
 
-  uint64_t get_bytes_received() {
+  uint64_t get_bytes_received() const {
     return bytes_received;
   }
 
   /* Public interface parts which must be implemented for concrete
    * frontend provider. */
   virtual void flush() {
-    engine->flush(this);
+    engine->flush(*this);
   }
 
   virtual int send_status(const char * const status,
                           const char * const status_name) {
-    return engine->send_status(this, status, status_name);
+    return engine->send_status(*this, status, status_name);
   }
 
   virtual int send_100_continue() {
-    return engine->send_100_continue(this);
+    return engine->send_100_continue(*this);
   }
 
   virtual int complete_header() {
-    return engine->complete_header(this);
+    return engine->complete_header(*this);
   }
 
   virtual int complete_request() {
-    return engine->complete_request(this);
+    return engine->complete_request(*this);
   }
 
   virtual int send_content_length(const uint64_t len) {
-    return engine->send_content_length(this, len);
+    return engine->send_content_length(*this, len);
   }
 };
 
