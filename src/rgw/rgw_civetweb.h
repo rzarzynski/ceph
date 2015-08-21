@@ -16,16 +16,8 @@ class RGWMongoose : public RGWClientIOEngine
   mg_connection * const conn;
   RGWEnv env;
 
-  bufferlist early_header_data;
-  bufferlist header_data;
-
   int port;
 
-  enum {
-    RGW_CIVETWEB_EARLY_HEADERS, /* Headers sent before calling send_status. */
-    RGW_CIVETWEB_STATUS_SEEN,   /* Status has been seen. */
-    RGW_CIVETWEB_DATA           /* Header has been completed. */
-  } phase;
   bool has_content_length;
   bool explicit_keepalive;
   bool explicit_conn_close;
