@@ -11,10 +11,6 @@
 
 #include "rgw_common.h"
 
-class RGWClientIOEngine;
-class RGWClientIOEngineDecorator;
-
-
 class RGWClientIOEngine {
 public:
   virtual ~RGWClientIOEngine() {};
@@ -26,13 +22,93 @@ public:
   virtual void flush(RGWClientIO * controller) = 0;
   virtual int send_status(RGWClientIO * const controller,
                           const char * const status,
-                          const char *status_name) = 0;
+                          const char * const status_name) = 0;
   virtual int send_100_continue(RGWClientIO * const controller) = 0;
   virtual int complete_header(RGWClientIO * const controller) = 0;
   virtual int complete_request(RGWClientIO * const controller) = 0;
   virtual int send_content_length(RGWClientIO * const controller, uint64_t len) = 0;
   virtual RGWEnv& get_env() = 0;
 };
+
+
+class RGWClientIOEngineDecorator : public RGWClientIOEngine {
+  std::shared_ptr<RGWClientIOEngine> decorated;
+
+public:
+  RGWClientIOEngineDecorator(std::shared_ptr<RGWClientIOEngine> impl)
+    : decorated(impl) {
+  }
+
+  /* A lot of wrappers */
+  virtual void init_env(CephContext *cct) override {
+    return decorated->init_env(cct);
+  }
+
+  virtual int write_data(const char * const buf,
+                         const int len) override {
+    return decorated->write_data(buf, len);
+  }
+
+  virtual int read_data(char * const buf,
+                        const int max) override {
+    return decorated->read_data(buf, max);
+  }
+
+  virtual void flush(RGWClientIO * const controller) {
+    return decorated->flush(controller);
+  }
+
+  virtual int send_status(RGWClientIO * const controller,
+                          const char * const status,
+                          const char * const status_name) override {
+    return decorated->send_status(controller, status, status_name);
+  }
+
+  virtual int send_100_continue(RGWClientIO * const controller) override {
+    return decorated->send_100_continue(controller);
+  }
+
+  virtual int complete_header(RGWClientIO * const controller) override {
+    return decorated->complete_header(controller);
+  }
+
+  virtual int complete_request(RGWClientIO * const controller) override {
+    return decorated->complete_request(controller);
+  }
+
+  virtual int send_content_length(RGWClientIO * const controller,
+                                  const uint64_t len) override {
+    return decorated->send_content_length(controller, len);
+  }
+
+  virtual RGWEnv& get_env() override {
+    return decorated->get_env();
+  }
+};
+
+
+class RGWClientIOEngineBufferAware : public RGWClientIOEngineDecorator {
+protected:
+  bufferlist data;
+
+  bool has_content_length;
+  bool buffer_data;
+
+  virtual int write_data(const char *buf, const int len) override;
+
+public:
+  RGWClientIOEngineBufferAware(std::shared_ptr<RGWClientIOEngine> engine)
+    : RGWClientIOEngineDecorator(engine),
+      has_content_length(false),
+      buffer_data(false) {
+  }
+
+  int send_content_length(RGWClientIO * const controller,
+                          const uint64_t len) override;
+  int complete_request(RGWClientIO * const controller) override;
+  int complete_header(RGWClientIO * const controller) override;
+};
+
 
 class RGWClientIO {
   bool account;
@@ -43,7 +119,7 @@ class RGWClientIO {
 protected:
   const std::shared_ptr<RGWClientIOEngine> engine;
 
-  RGWClientIO(const std::shared_ptr<RGWClientIOEngine>& engine)
+  RGWClientIO(const std::shared_ptr<RGWClientIOEngine> engine)
     : account(false),
       bytes_sent(0),
       bytes_received(0),
@@ -52,6 +128,12 @@ protected:
 
 public:
   class Builder;
+
+  enum class BufferingMode  {
+    CONLEN_BUFFER_DATA,
+    CONLEN_CHUNK_DATA,
+    CONLEN_PASS_DATA
+  };
 
   virtual ~RGWClientIO() {
   }
@@ -105,20 +187,12 @@ public:
   }
 };
 
+
 class RGWClientIO::Builder {
 protected:
   /* Whether engine is resistant to sending some headers first and then
    * setting HTTP status or not and we need to reorder operations. */
   bool needs_reordering;
-
-  /* How should we handle lack of content length specification. */
-#if 0
-  enum {
-    CONLEN_BUFFER_DATA,
-    CONLEN_CHUNK_DATA,
-    CONLEN_PASS_DATA
-  } content_length_mode;
-#endif
 
   /* Last stage in pipeline. */
   std::shared_ptr<RGWClientIOEngine> final_engine;
@@ -129,96 +203,17 @@ public:
   }
 
   RGWClientIO getResult() {
-    std::shared_ptr<RGWClientIOEngine>& stage = final_engine;
-
-    if (needs_reordering) {
-      //stage = std::make_shared<RGWClientIOEngineReorderer>(stage);
-    }
+    std::shared_ptr<RGWClientIOEngine> stage = final_engine;
 
 #if 0
-    if (CONLEN_BUFFER_DATA == content_length_mode) {
-      stage = std::make_shared<RGWClientIOEngineBufferAware>(stage);
+    if (needs_reordering) {
+      stage = std::make_shared<RGWClientIOEngineReorderer>(stage);
     }
 #endif
 
-    return std::move(RGWClientIO(stage));
+    stage = std::make_shared<RGWClientIOEngineBufferAware>(stage);
+
+    return RGWClientIO(stage);
   }
-};
-
-class RGWClientIOEngineDecorator : public RGWClientIOEngine {
-  const std::shared_ptr<RGWClientIOEngine> decorated;
-
-public:
-  RGWClientIOEngineDecorator(const std::shared_ptr<RGWClientIOEngine> impl)
-    : decorated(impl) {
-  }
-
-  /* A lot of wrappers */
-  virtual void init_env(CephContext *cct) override {
-    return decorated->init_env(cct);
-  }
-
-  virtual int write_data(const char * const buf,
-                         const int len) override {
-    return decorated->write_data(buf, len);
-  }
-
-  virtual int read_data(char * const buf,
-                        const int max) override {
-    return decorated->read_data(buf, max);
-  }
-
-  virtual void flush(RGWClientIO * const controller) {
-    return decorated->flush(controller);
-  }
-
-  virtual int send_status(RGWClientIO * const controller,
-                          const char * const status,
-                          const char * const status_name) override {
-    return decorated->send_status(controller, status, status_name);
-  }
-
-  virtual int send_100_continue(RGWClientIO * const controller) override {
-    return decorated->send_100_continue(controller);
-  }
-
-  virtual int complete_header(RGWClientIO * const controller) override {
-    return decorated->complete_header(controller);
-  }
-
-  virtual int complete_request(RGWClientIO * const controller) override {
-    return decorated->complete_request(controller);
-  }
-
-  virtual int send_content_length(RGWClientIO * const controller,
-                                  const uint64_t len) override {
-    return decorated->send_content_length(controller, len);
-  }
-
-  virtual RGWEnv& get_env() override {
-    return decorated->get_env();
-  }
-};
-
-class RGWClientIOEngineBufferAware : public RGWClientIOEngineDecorator {
-protected:
-  bufferlist data;
-
-  bool has_content_length;
-  bool buffer_data;
-
-  virtual int write_data(const char *buf, const int len) override;
-
-public:
-  RGWClientIOEngineBufferAware(const std::shared_ptr<RGWClientIOEngine> engine)
-    : RGWClientIOEngineDecorator(engine),
-      has_content_length(false),
-      buffer_data(false) {
-  }
-
-  int send_content_length(RGWClientIO * const controller,
-                          const uint64_t len) override;
-  int complete_request(RGWClientIO * const controller) override;
-  int complete_header(RGWClientIO * const controller) override;
 };
 #endif
