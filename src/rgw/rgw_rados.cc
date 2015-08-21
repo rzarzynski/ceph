@@ -1856,7 +1856,7 @@ void RGWRados::pick_control_oid(const string& key, string& notify_oid)
   notify_oid.append(buf);
 }
 
-int RGWRados::open_bucket_pool_ctx(const string& bucket_name, const string& pool, librados::IoCtx&  io_ctx)
+int RGWRados::open_bucket_pool_ctx(const string& pool, librados::IoCtx&  io_ctx)
 {
   librados::Rados *rad = get_rados_handle();
   int r = rad->ioctx_create(pool.c_str(), io_ctx);
@@ -1877,7 +1877,7 @@ int RGWRados::open_bucket_pool_ctx(const string& bucket_name, const string& pool
 
 int RGWRados::open_bucket_data_ctx(rgw_bucket& bucket, librados::IoCtx& data_ctx)
 {
-  int r = open_bucket_pool_ctx(bucket.name, bucket.data_pool, data_ctx);
+  int r = open_bucket_pool_ctx(bucket.data_pool, data_ctx);
   if (r < 0)
     return r;
 
@@ -1887,7 +1887,7 @@ int RGWRados::open_bucket_data_ctx(rgw_bucket& bucket, librados::IoCtx& data_ctx
 int RGWRados::open_bucket_data_extra_ctx(rgw_bucket& bucket, librados::IoCtx& data_ctx)
 {
   string& pool = (!bucket.data_extra_pool.empty() ? bucket.data_extra_pool : bucket.data_pool);
-  int r = open_bucket_pool_ctx(bucket.name, pool, data_ctx);
+  int r = open_bucket_pool_ctx(pool, data_ctx);
   if (r < 0)
     return r;
 
@@ -1905,7 +1905,7 @@ void RGWRados::build_bucket_index_marker(const string& shard_id_str, const strin
 
 int RGWRados::open_bucket_index_ctx(rgw_bucket& bucket, librados::IoCtx& index_ctx)
 {
-  int r = open_bucket_pool_ctx(bucket.name, bucket.index_pool, index_ctx);
+  int r = open_bucket_pool_ctx(bucket.index_pool, index_ctx);
   if (r < 0)
     return r;
 
@@ -2146,15 +2146,16 @@ int RGWRados::log_usage(map<rgw_user_bucket, RGWUsageBatch>& usage_info)
   return 0;
 }
 
-int RGWRados::read_usage(string& user, uint64_t start_epoch, uint64_t end_epoch, uint32_t max_entries,
+int RGWRados::read_usage(const rgw_user& user, uint64_t start_epoch, uint64_t end_epoch, uint32_t max_entries,
                          bool *is_truncated, RGWUsageIter& usage_iter, map<rgw_user_bucket, rgw_usage_log_entry>& usage)
 {
   uint32_t num = max_entries;
   string hash, first_hash;
-  usage_log_hash(cct, user, first_hash, 0);
+  string user_str = user.to_str();
+  usage_log_hash(cct, user_str, first_hash, 0);
 
   if (usage_iter.index) {
-    usage_log_hash(cct, user, hash, usage_iter.index);
+    usage_log_hash(cct, user_str, hash, usage_iter.index);
   } else {
     hash = first_hash;
   }
@@ -2165,7 +2166,7 @@ int RGWRados::read_usage(string& user, uint64_t start_epoch, uint64_t end_epoch,
     map<rgw_user_bucket, rgw_usage_log_entry> ret_usage;
     map<rgw_user_bucket, rgw_usage_log_entry>::iterator iter;
 
-    int ret =  cls_obj_usage_log_read(hash, user, start_epoch, end_epoch, num,
+    int ret =  cls_obj_usage_log_read(hash, user_str, start_epoch, end_epoch, num,
                                     usage_iter.read_iter, ret_usage, is_truncated);
     if (ret == -ENOENT)
       goto next;
@@ -2182,22 +2183,23 @@ int RGWRados::read_usage(string& user, uint64_t start_epoch, uint64_t end_epoch,
 next:
     if (!*is_truncated) {
       usage_iter.read_iter.clear();
-      usage_log_hash(cct, user, hash, ++usage_iter.index);
+      usage_log_hash(cct, user_str, hash, ++usage_iter.index);
     }
   } while (num && !*is_truncated && hash != first_hash);
   return 0;
 }
 
-int RGWRados::trim_usage(string& user, uint64_t start_epoch, uint64_t end_epoch)
+int RGWRados::trim_usage(rgw_user& user, uint64_t start_epoch, uint64_t end_epoch)
 {
   uint32_t index = 0;
   string hash, first_hash;
-  usage_log_hash(cct, user, first_hash, index);
+  string user_str = user.to_str();
+  usage_log_hash(cct, user_str, first_hash, index);
 
   hash = first_hash;
 
   do {
-    int ret =  cls_obj_usage_log_trim(hash, user, start_epoch, end_epoch);
+    int ret =  cls_obj_usage_log_trim(hash, user_str, start_epoch, end_epoch);
     if (ret == -ENOENT)
       goto next;
 
@@ -2205,7 +2207,7 @@ int RGWRados::trim_usage(string& user, uint64_t start_epoch, uint64_t end_epoch)
       return ret;
 
 next:
-    usage_log_hash(cct, user, hash, ++index);
+    usage_log_hash(cct, user_str, hash, ++index);
   } while (hash != first_hash);
 
   return 0;
@@ -2780,7 +2782,9 @@ int RGWRados::create_bucket(RGWUserInfo& owner, rgw_bucket& bucket,
   string selected_placement_rule;
   for (int i = 0; i < MAX_CREATE_RETRIES; i++) {
     int ret = 0;
-    ret = select_bucket_placement(owner, region_name, placement_rule, bucket.name, bucket, &selected_placement_rule);
+    ret = select_bucket_placement(owner, region_name, placement_rule,
+                                  bucket.tenant, bucket.name, bucket,
+                                  &selected_placement_rule);
     if (ret < 0)
       return ret;
     bufferlist bl;
@@ -2806,9 +2810,6 @@ int RGWRados::create_bucket(RGWUserInfo& owner, rgw_bucket& bucket,
       bucket.marker = pmaster_bucket->marker;
       bucket.bucket_id = pmaster_bucket->bucket_id;
     }
-
-    string dir_oid =  dir_oid_prefix;
-    dir_oid.append(bucket.marker);
 
     r = init_bucket_index(bucket, bucket_index_max_shards);
     if (r < 0)
@@ -2838,7 +2839,7 @@ int RGWRados::create_bucket(RGWUserInfo& owner, rgw_bucket& bucket,
       RGWObjVersionTracker instance_ver = info.objv_tracker;
       info.objv_tracker.clear();
       RGWObjectCtx obj_ctx(this);
-      r = get_bucket_info(obj_ctx, bucket.name, info, NULL, NULL);
+      r = get_bucket_info(obj_ctx, bucket.tenant, bucket.name, info, NULL, NULL);
       if (r < 0) {
         if (r == -ENOENT) {
           continue;
@@ -2880,7 +2881,7 @@ int RGWRados::create_bucket(RGWUserInfo& owner, rgw_bucket& bucket,
 }
 
 int RGWRados::select_new_bucket_location(RGWUserInfo& user_info, const string& region_name, const string& request_rule,
-                                         const string& bucket_name, rgw_bucket& bucket, string *pselected_rule)
+                                         const string& tenant_name, const string& bucket_name, rgw_bucket& bucket, string *pselected_rule)
 {
   /* first check that rule exists within the specific region */
   map<string, RGWRegion>::iterator riter = region_map.regions.find(region_name);
@@ -2922,10 +2923,10 @@ int RGWRados::select_new_bucket_location(RGWUserInfo& user_info, const string& r
   if (pselected_rule)
     *pselected_rule = rule;
   
-  return set_bucket_location_by_rule(rule, bucket_name, bucket);
+  return set_bucket_location_by_rule(rule, tenant_name, bucket_name, bucket);
 }
 
-int RGWRados::set_bucket_location_by_rule(const string& location_rule, const std::string& bucket_name, rgw_bucket& bucket)
+int RGWRados::set_bucket_location_by_rule(const string& location_rule, const string& tenant_name, const string& bucket_name, rgw_bucket& bucket)
 {
   bucket.name = bucket_name;
 
@@ -2933,7 +2934,7 @@ int RGWRados::set_bucket_location_by_rule(const string& location_rule, const std
     /* we can only reach here if we're trying to set a bucket location from a bucket
      * created on a different zone, using a legacy / default pool configuration
      */
-    return select_legacy_bucket_placement(bucket_name, bucket);
+    return select_legacy_bucket_placement(tenant_name, bucket_name, bucket);
   }
 
   /*
@@ -2960,24 +2961,29 @@ int RGWRados::set_bucket_location_by_rule(const string& location_rule, const std
   bucket.data_extra_pool = placement_info.data_extra_pool;
   bucket.index_pool = placement_info.index_pool;
 
-  return 0;
+  // XXX The select_legacy_bucket_placement() does this, but here we don't?
+  // bucket.tenant = tenant_name;
+  // bucket.name = bucket_name;
 
+  return 0;
 }
 
 int RGWRados::select_bucket_placement(RGWUserInfo& user_info, const string& region_name, const string& placement_rule,
-                                      const string& bucket_name, rgw_bucket& bucket, string *pselected_rule)
+                                      const string& tenant_name, const string& bucket_name, rgw_bucket& bucket,
+                                      string *pselected_rule)
 {
   if (!zone.placement_pools.empty()) {
-    return select_new_bucket_location(user_info, region_name, placement_rule, bucket_name, bucket, pselected_rule);
+    return select_new_bucket_location(user_info, region_name, placement_rule,
+                                      tenant_name, bucket_name, bucket, pselected_rule);
   }
 
   if (pselected_rule)
     pselected_rule->clear();
 
-  return select_legacy_bucket_placement(bucket_name, bucket);
+  return select_legacy_bucket_placement(tenant_name, bucket_name, bucket);
 }
 
-int RGWRados::select_legacy_bucket_placement(const string& bucket_name, rgw_bucket& bucket)
+int RGWRados::select_legacy_bucket_placement(const string& tenant_name, const string& bucket_name, rgw_bucket& bucket)
 {
   bufferlist map_bl;
   map<string, bufferlist> m;
@@ -3050,6 +3056,7 @@ read_omap:
   }
   bucket.data_pool = pool_name;
   bucket.index_pool = pool_name;
+  bucket.tenant = tenant_name;
   bucket.name = bucket_name;
 
   return 0;
@@ -3924,7 +3931,7 @@ int RGWRados::rewrite_obj(RGWBucketInfo& dest_bucket_info, rgw_obj& obj)
 }
 
 int RGWRados::fetch_remote_obj(RGWObjectCtx& obj_ctx,
-               const string& user_id,
+               const rgw_user& user_id,
                const string& client_id,
                const string& op_id,
                req_info *info,
@@ -4080,7 +4087,7 @@ set_err_state:
 int RGWRados::copy_obj_to_remote_dest(RGWObjState *astate,
                                       map<string, bufferlist>& src_attrs,
                                       RGWRados::Object::Read& read_op,
-                                      const string& user_id,
+                                      const rgw_user& user_id,
                                       rgw_obj& dest_obj,
                                       time_t *mtime)
 {
@@ -4119,7 +4126,7 @@ int RGWRados::copy_obj_to_remote_dest(RGWObjState *astate,
  * Returns: 0 on success, -ERR# otherwise.
  */
 int RGWRados::copy_obj(RGWObjectCtx& obj_ctx,
-               const string& user_id,
+               const rgw_user& user_id,
                const string& client_id,
                const string& op_id,
                req_info *info,
@@ -4533,7 +4540,7 @@ int RGWRados::set_bucket_owner(rgw_bucket& bucket, ACLOwner& owner)
   RGWBucketInfo info;
   map<string, bufferlist> attrs;
   RGWObjectCtx obj_ctx(this);
-  int r = get_bucket_info(obj_ctx, bucket.name, info, NULL, &attrs);
+  int r = get_bucket_info(obj_ctx, bucket.tenant, bucket.name, info, NULL, &attrs);
   if (r < 0) {
     ldout(cct, 0) << "NOTICE: get_bucket_info on bucket=" << bucket.name << " returned err=" << r << dendl;
     return r;
@@ -4567,7 +4574,7 @@ int RGWRados::set_buckets_enabled(vector<rgw_bucket>& buckets, bool enabled)
     RGWBucketInfo info;
     map<string, bufferlist> attrs;
     RGWObjectCtx obj_ctx(this);
-    int r = get_bucket_info(obj_ctx, bucket.name, info, NULL, &attrs);
+    int r = get_bucket_info(obj_ctx, bucket.tenant, bucket.name, info, NULL, &attrs);
     if (r < 0) {
       ldout(cct, 0) << "NOTICE: get_bucket_info on bucket=" << bucket.name << " returned err=" << r << ", skipping bucket" << dendl;
       ret = r;
@@ -4593,7 +4600,7 @@ int RGWRados::bucket_suspended(rgw_bucket& bucket, bool *suspended)
 {
   RGWBucketInfo bucket_info;
   RGWObjectCtx obj_ctx(this);
-  int ret = get_bucket_info(obj_ctx, bucket.name, bucket_info, NULL);
+  int ret = get_bucket_info(obj_ctx, bucket.tenant, bucket.name, bucket_info, NULL);
   if (ret < 0) {
     return ret;
   }
@@ -4873,7 +4880,7 @@ int RGWRados::Object::Delete::delete_obj()
 
       struct rgw_bucket_dir_entry_meta meta;
 
-      meta.owner = params.obj_owner.get_id();
+      meta.owner = params.obj_owner.get_id().to_str();
       meta.owner_display_name = params.obj_owner.get_display_name();
       meta.mtime = ceph_clock_now(store->ctx());
 
@@ -5613,6 +5620,7 @@ int RGWRados::set_attrs(void *ctx, rgw_obj& obj,
  *          (if get_data==true) length of read data,
  *          (if get_data==false) length of the object
  */
+// P3 XXX get_data is not seen used anywhere.
 int RGWRados::Object::Read::prepare(int64_t *pofs, int64_t *pend)
 {
   RGWRados *store = source->get_store();
@@ -7405,10 +7413,12 @@ public:
   }
 };
 
-int RGWRados::get_user_stats(const string& user, RGWStorageStats& stats)
+int RGWRados::get_user_stats(const rgw_user& user, RGWStorageStats& stats)
 {
+  string user_str = user.to_str();
+
   cls_user_header header;
-  int r = cls_user_get_header(user, &header);
+  int r = cls_user_get_header(user_str, &header);
   if (r < 0)
     return r;
 
@@ -7421,10 +7431,12 @@ int RGWRados::get_user_stats(const string& user, RGWStorageStats& stats)
   return 0;
 }
 
-int RGWRados::get_user_stats_async(const string& user, RGWGetUserStats_CB *ctx)
+int RGWRados::get_user_stats_async(const rgw_user& user, RGWGetUserStats_CB *ctx)
 {
+  string user_str = user.to_str();
+
   RGWGetUserStatsContext *get_ctx = new RGWGetUserStatsContext(ctx);
-  int r = cls_user_get_header_async(user, get_ctx);
+  int r = cls_user_get_header_async(user_str, get_ctx);
   if (r < 0) {
     ctx->put();
     delete get_ctx;
@@ -7436,7 +7448,11 @@ int RGWRados::get_user_stats_async(const string& user, RGWGetUserStats_CB *ctx)
 
 void RGWRados::get_bucket_instance_entry(rgw_bucket& bucket, string& entry)
 {
-  entry = bucket.name + ":" + bucket.bucket_id;
+  if (bucket.tenant.empty()) {
+    entry = bucket.name + ":" + bucket.bucket_id;
+  } else {
+    entry = bucket.tenant + ":" + bucket.name + ":" + bucket.bucket_id;
+  }
 }
 
 void RGWRados::get_bucket_meta_oid(rgw_bucket& bucket, string& oid)
@@ -7506,7 +7522,9 @@ int RGWRados::get_bucket_instance_from_oid(RGWObjectCtx& obj_ctx, string& oid, R
   return 0;
 }
 
-int RGWRados::get_bucket_entrypoint_info(RGWObjectCtx& obj_ctx, const string& bucket_name,
+int RGWRados::get_bucket_entrypoint_info(RGWObjectCtx& obj_ctx,
+                                         const string& tenant_name,
+                                         const string& bucket_name,
                                          RGWBucketEntryPoint& entry_point,
                                          RGWObjVersionTracker *objv_tracker,
                                          time_t *pmtime,
@@ -7514,8 +7532,10 @@ int RGWRados::get_bucket_entrypoint_info(RGWObjectCtx& obj_ctx, const string& bu
                                          rgw_cache_entry_info *cache_info)
 {
   bufferlist bl;
+  string bucket_entry;
 
-  int ret = rgw_get_system_obj(this, obj_ctx, zone.domain_root, bucket_name, bl, objv_tracker, pmtime, pattrs, cache_info);
+  make_bucket_entry_name(tenant_name, bucket_name, bucket_entry);
+  int ret = rgw_get_system_obj(this, obj_ctx, zone.domain_root, bucket_entry, bl, objv_tracker, pmtime, pattrs, cache_info);
   if (ret < 0) {
     return ret;
   }
@@ -7530,7 +7550,9 @@ int RGWRados::get_bucket_entrypoint_info(RGWObjectCtx& obj_ctx, const string& bu
   return 0;
 }
 
-int RGWRados::convert_old_bucket_info(RGWObjectCtx& obj_ctx, string& bucket_name)
+int RGWRados::convert_old_bucket_info(RGWObjectCtx& obj_ctx,
+                                      const string& tenant_name,
+                                      const string& bucket_name)
 {
   RGWBucketEntryPoint entry_point;
   time_t ep_mtime;
@@ -7540,7 +7562,7 @@ int RGWRados::convert_old_bucket_info(RGWObjectCtx& obj_ctx, string& bucket_name
 
   ldout(cct, 10) << "RGWRados::convert_old_bucket_info(): bucket=" << bucket_name << dendl;
 
-  int ret = get_bucket_entrypoint_info(obj_ctx, bucket_name, entry_point, &ot, &ep_mtime, &attrs);
+  int ret = get_bucket_entrypoint_info(obj_ctx, tenant_name, bucket_name, entry_point, &ot, &ep_mtime, &attrs);
   if (ret < 0) {
     ldout(cct, 0) << "ERROR: get_bucket_entrypont_info() returned " << ret << " bucket=" << bucket_name << dendl;
     return ret;
@@ -7565,7 +7587,23 @@ int RGWRados::convert_old_bucket_info(RGWObjectCtx& obj_ctx, string& bucket_name
   return 0;
 }
 
-int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx, const string& bucket_name, RGWBucketInfo& info,
+/*
+ * Note that this is not a reversal of parse_bucket(). That one deals
+ * with the syntax we need in metadata and such. This one deals with
+ * the representation in RADOS pools. We chose '/' because it's not
+ * acceptable in bucket names and thus qualified buckets cannot conflict
+ * with the legacy or S3 buckets.
+ */
+void RGWRados::make_bucket_entry_name(const string& tenant_name, const string& bucket_name, string& bucket_entry) {
+  if (tenant_name.empty()) {
+    bucket_entry = bucket_name;
+  } else {
+    bucket_entry = tenant_name + "/" + bucket_name;
+  }
+}
+
+int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx,
+                              const string& tenant, const string& bucket_name, RGWBucketInfo& info,
                               time_t *pmtime, map<string, bufferlist> *pattrs)
 {
   bucket_info_entry e;
@@ -7584,7 +7622,7 @@ int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx, const string& bucket_name, 
   time_t ep_mtime;
   RGWObjVersionTracker ot;
   rgw_cache_entry_info entry_cache_info;
-  int ret = get_bucket_entrypoint_info(obj_ctx, bucket_name, entry_point, &ot, &ep_mtime, pattrs, &entry_cache_info);
+  int ret = get_bucket_entrypoint_info(obj_ctx, tenant, bucket_name, entry_point, &ot, &ep_mtime, pattrs, &entry_cache_info);
   if (ret < 0) {
     info.bucket.name = bucket_name; /* only init this field */
     return ret;
@@ -7593,6 +7631,7 @@ int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx, const string& bucket_name, 
   if (entry_point.has_bucket_info) {
     info = entry_point.old_bucket_info;
     info.bucket.oid = bucket_name;
+    info.bucket.tenant = tenant;
     info.ep_objv = ot.read_version;
     ldout(cct, 20) << "rgw_get_bucket_info: old bucket info, bucket=" << info.bucket << " owner " << info.owner << dendl;
     return 0;
@@ -7621,7 +7660,9 @@ int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx, const string& bucket_name, 
   e.info.ep_objv = ot.read_version;
   info = e.info;
   if (ret < 0) {
+    // XXX not tenant like above?
     info.bucket.name = bucket_name;
+    // XXX and why return anything in case of an error anyway?
     return ret;
   }
 
@@ -7643,13 +7684,16 @@ int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx, const string& bucket_name, 
   return 0;
 }
 
-int RGWRados::put_bucket_entrypoint_info(const string& bucket_name, RGWBucketEntryPoint& entry_point,
+int RGWRados::put_bucket_entrypoint_info(const string& tenant_name, const string& bucket_name, RGWBucketEntryPoint& entry_point,
                                          bool exclusive, RGWObjVersionTracker& objv_tracker, time_t mtime,
                                          map<string, bufferlist> *pattrs)
 {
   bufferlist epbl;
   ::encode(entry_point, epbl);
-  return rgw_bucket_store_info(this, bucket_name, epbl, exclusive, pattrs, &objv_tracker, mtime);
+  string bucket_entry;
+  make_bucket_entry_name(tenant_name, bucket_name, bucket_entry);
+  /* P3 */ ldout(cct, 0) << "INFO: put_bucket_entrypoint_info " << tenant_name << ":" << bucket_name << dendl;
+  return rgw_bucket_store_info(this, bucket_entry, epbl, exclusive, pattrs, &objv_tracker, mtime);
 }
 
 int RGWRados::put_bucket_instance_info(RGWBucketInfo& info, bool exclusive,
@@ -7694,7 +7738,7 @@ int RGWRados::put_linked_bucket_info(RGWBucketInfo& info, bool exclusive, time_t
       *pep_objv = ot.write_version;
     }
   }
-  ret = put_bucket_entrypoint_info(info.bucket.name, entry_point, exclusive, ot, mtime, NULL); 
+  ret = put_bucket_entrypoint_info(info.bucket.tenant, info.bucket.name, entry_point, exclusive, ot, mtime, NULL); 
   if (ret < 0)
     return ret;
 
@@ -8193,7 +8237,7 @@ int RGWRados::cls_obj_complete_op(BucketShard& bs, RGWModifyOp op, string& tag,
   dir_meta.accounted_size = ent.size;
   dir_meta.mtime = utime_t(ent.mtime, 0);
   dir_meta.etag = ent.etag;
-  dir_meta.owner = ent.owner;
+  dir_meta.owner = ent.owner.to_str();
   dir_meta.owner_display_name = ent.owner_display_name;
   dir_meta.content_type = ent.content_type;
   dir_meta.category = category;
@@ -8553,7 +8597,7 @@ int RGWRados::check_disk_state(librados::IoCtx io_ctx,
   list_state.meta.content_type = content_type;
   if (astate->obj_tag.length() > 0)
     list_state.tag = astate->obj_tag.c_str();
-  list_state.meta.owner = owner.get_id();
+  list_state.meta.owner = owner.get_id().to_str();
   list_state.meta.owner_display_name = owner.get_display_name();
 
   list_state.exists = true;
@@ -8752,7 +8796,7 @@ int RGWRados::cls_user_update_buckets(rgw_obj& obj, list<cls_user_bucket_entry>&
   return 0;
 }
 
-int RGWRados::complete_sync_user_stats(const string& user_id)
+int RGWRados::complete_sync_user_stats(const rgw_user& user_id)
 {
   string buckets_obj_id;
   rgw_get_buckets_obj(user_id, buckets_obj_id);
@@ -8804,7 +8848,7 @@ int RGWRados::cls_user_remove_bucket(rgw_obj& obj, const cls_user_bucket& bucket
   return 0;
 }
 
-int RGWRados::check_quota(const string& bucket_owner, rgw_bucket& bucket,
+int RGWRados::check_quota(const rgw_user& bucket_owner, rgw_bucket& bucket,
                           RGWQuotaInfo& user_quota, RGWQuotaInfo& bucket_quota, uint64_t obj_size)
 {
   return quota_handler->check_quota(bucket_owner, bucket, user_quota, bucket_quota, 1, obj_size);
