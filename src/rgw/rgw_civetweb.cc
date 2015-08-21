@@ -11,28 +11,19 @@
 
 int RGWMongoose::write_data(const char * const buf, const int len)
 {
-  switch (phase) {
-  case RGW_CIVETWEB_EARLY_HEADERS:
-    early_header_data.append(buf, len);
-    return len;
-  case RGW_CIVETWEB_STATUS_SEEN:
-    header_data.append(buf, len);
-    return len;
-  case RGW_CIVETWEB_DATA:
-    const int r = mg_write(conn, buf, len);
-    if (r > 0) {
-      return r;
-    }
+  const int ret = mg_write(conn, buf, len);
+  if (ret > 0) {
+    return ret;
   }
 
   /* didn't send anything, error out */
+  dout(3) << "mg_write() returned " << ret << dendl;
   return -EIO;
 }
 
 RGWMongoose::RGWMongoose(mg_connection *_conn, int _port)
   : conn(_conn),
     port(_port),
-    phase(RGW_CIVETWEB_EARLY_HEADERS),
     has_content_length(false),
     explicit_keepalive(false),
     explicit_conn_close(false)
@@ -112,8 +103,6 @@ int RGWMongoose::send_status(RGWClientIO& controller,
                              const char * const status,
                              const char * const status_name)
 {
-  phase = RGW_CIVETWEB_STATUS_SEEN;
-
   const int status_num = atoi(status);
   mg_set_http_status(conn, status_num);
 
@@ -172,21 +161,6 @@ int RGWMongoose::complete_header(RGWClientIO& controller)
     dout(3) << "sending conn state returned " << rc << dendl;
     return rc;
   }
-  /* Change state in order to immediately send everything we get. */
-  phase = RGW_CIVETWEB_DATA;
-
-  /* Header data in buffers are already counted. */
-  rc = write_data(header_data.c_str(), header_data.length());
-  if (rc < 0) {
-    return rc;
-  }
-  header_data.clear();
-
-  rc = write_data(early_header_data.c_str(), early_header_data.length());
-  if (rc < 0) {
-    return rc;
-  }
-  early_header_data.clear();
 
   return controller.print("\r\n");
 }
