@@ -151,7 +151,6 @@ int RGWMongoose::complete_header(RGWClientIO& controller)
 {
   const char CONN_KEEP_ALIVE[] = "Connection: Keep-Alive\r\n";
   const char CONN_CLOSE[] = "Connection: close\r\n";
-  size_t len = 0;
   ssize_t rc;
 
   if (!has_content_length) {
@@ -160,9 +159,9 @@ int RGWMongoose::complete_header(RGWClientIO& controller)
 
   rc = dump_date_header(controller);
   if (rc < 0) {
+    dout(3) << "dump_date_header() returned " << rc << dendl;
     return rc;
   }
-  len += rc;
 
   if (explicit_keepalive) {
     rc = controller.write(CONN_KEEP_ALIVE, sizeof(CONN_KEEP_ALIVE) - 1);
@@ -170,10 +169,9 @@ int RGWMongoose::complete_header(RGWClientIO& controller)
     rc = controller.write(CONN_CLOSE, sizeof(CONN_CLOSE) - 1);
   }
   if (rc < 0) {
+    dout(3) << "sending conn state returned " << rc << dendl;
     return rc;
   }
-  len += rc;
-
   /* Change state in order to immediately send everything we get. */
   phase = RGW_CIVETWEB_DATA;
 
@@ -190,13 +188,13 @@ int RGWMongoose::complete_header(RGWClientIO& controller)
   }
   early_header_data.clear();
 
-  rc = controller.print("\r\n");
-  return rc < 0 ? rc : len + rc;
+  return controller.print("\r\n");
 }
 
 int RGWMongoose::send_content_length(RGWClientIO& controller,
                                      const uint64_t len)
 {
   has_content_length = true;
+
   return controller.print("Content-Length: %" PRIu64 "\r\n", len);
 }
