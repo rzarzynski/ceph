@@ -3361,9 +3361,11 @@ void Monitor::remove_all_sessions()
   while (!session_map.sessions.empty()) {
     MonSession *s = session_map.sessions.front();
     remove_session(s);
-    logger->inc(l_mon_session_rm);
+    if (logger)
+      logger->inc(l_mon_session_rm);
   }
-  logger->set(l_mon_num_sessions, session_map.get_size());
+  if (logger)
+    logger->set(l_mon_num_sessions, session_map.get_size());
 }
 
 void Monitor::send_command(const entity_inst_t& inst,
@@ -3463,6 +3465,7 @@ void Monitor::dispatch(MonOpRequestRef op)
 
     dout(10) << "do not have session, making new one" << dendl;
     s = session_map.new_session(m->get_source_inst(), m->get_connection().get());
+    assert(s);
     m->get_connection()->set_priv(s->get());
     dout(10) << "ms_dispatch new session " << s << " for " << s->inst << dendl;
     op->set_session(s);
@@ -3667,6 +3670,7 @@ void Monitor::dispatch_op(MonOpRequestRef op)
 
     // monmap
     case MSG_MON_JOIN:
+      op->set_type_service();
       paxos_service[PAXOS_MONMAP]->dispatch(op);
       break;
 
@@ -4175,6 +4179,10 @@ void Monitor::handle_subscribe(MonOpRequestRef op)
       }
     } else if (p->first == "osdmap") {
       if ((int)s->is_capable("osd", MON_CAP_R)) {
+	if (s->osd_epoch > p->second.start) {
+	  // client needs earlier osdmaps on purpose, so reset the sent epoch
+	  s->osd_epoch = 0;
+	}
         osdmon()->check_sub(s->sub_map["osdmap"]);
       }
     } else if (p->first == "osd_pg_creates") {

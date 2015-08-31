@@ -92,58 +92,6 @@ add_executable(test_keys
   )
 target_link_libraries(test_keys mon global ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS})
 
-## dencoder
-set(dencoder_srcs
-  encoding/ceph_dencoder.cc
-  ${CMAKE_SOURCE_DIR}/src/krbd.cc
-  ${CMAKE_SOURCE_DIR}/src/common/secret.c
-  ${CMAKE_SOURCE_DIR}/src/common/TextTable.cc
-  )
-if(${WITH_RADOSGW})
-  list(APPEND dencoder_srcs
-    ${CMAKE_SOURCE_DIR}/src/rgw/rgw_dencoder.cc
-    ${CMAKE_SOURCE_DIR}/src/rgw/rgw_acl.cc
-    ${CMAKE_SOURCE_DIR}/src/rgw/rgw_common.cc
-    ${CMAKE_SOURCE_DIR}/src/rgw/rgw_env.cc
-    ${CMAKE_SOURCE_DIR}/src/rgw/rgw_json_enc.cc
-  )
-endif(${WITH_RADOSGW})
-add_executable(dencoder ${dencoder_srcs} $<TARGET_OBJECTS:heap_profiler_objs>)
-if(${WITH_RADOSGW})
-  set(DENCODER_EXTRALIBS
-    rgw_a
-    cls_rgw_client
-    curl
-    expat
-    fcgi
-    resolv
-  )
-endif(${WITH_RADOSGW})
-target_link_libraries(dencoder
-  librados
-  librbd
-  global
-  osd
-  mds
-  mon
-  osdc
-  cls_lock_client
-  cls_refcount_client
-  cls_log_client
-  cls_statelog_client
-  cls_version_client
-  cls_replica_log_client
-  cls_kvs
-  cls_user_client
-  ${DENCODER_EXTRALIBS}
-  blkid
-  udev
-  keyutils
-  ${EXTRALIBS}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  )
-
 # get_command_descriptions
 add_executable(get_command_descriptions
   common/get_command_descriptions.cc
@@ -206,31 +154,33 @@ target_link_libraries(smalliobenchdumb librados boost_program_options os global
   ${BLKID_LIBRARIES} ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS})
 
 # smalliobenchrbd
-set(smalliobenchrbd_srcs
-  bench/small_io_bench_rbd.cc
-  bench/rbd_backend.cc
-  bench/detailed_stat_collector.cc
-  bench/bencher.cc
-  ${CMAKE_SOURCE_DIR}/src/common/TextTable.cc
-  ${CMAKE_SOURCE_DIR}/src/common/secret.c
-)
-add_executable(smalliobenchrbd
-  ${smalliobenchrbd_srcs}
-  $<TARGET_OBJECTS:heap_profiler_objs>
+if (${WITH_RBD})
+  set(smalliobenchrbd_srcs
+    bench/small_io_bench_rbd.cc
+    bench/rbd_backend.cc
+    bench/detailed_stat_collector.cc
+    bench/bencher.cc
+    ${CMAKE_SOURCE_DIR}/src/common/TextTable.cc
+    ${CMAKE_SOURCE_DIR}/src/common/secret.c
   )
-target_link_libraries(smalliobenchrbd
-  librbd
-  librados
-  os
-  global
-  boost_program_options
-  blkid
-  udev
-  ${BLKID_LIBRARIES}
-  ${CMAKE_DL_LIBS}
-  ${TCMALLOC_LIBS}
-  keyutils
-  )
+  add_executable(smalliobenchrbd
+    ${smalliobenchrbd_srcs}
+    $<TARGET_OBJECTS:heap_profiler_objs>
+    )
+  target_link_libraries(smalliobenchrbd
+    librbd
+    librados
+    os
+    global
+    boost_program_options
+    blkid
+    udev
+    ${BLKID_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+    ${TCMALLOC_LIBS}
+    keyutils
+    )
+endif (${WITH_RBD})
 
 # tpbench
 set(tpbench_srcs
@@ -764,24 +714,6 @@ target_link_libraries(unittest_chain_xattr
   ${UNITTEST_LIBS}
   )
 
-# unittest_flatindex
-set(unittest_flatindex_srcs
-  os/TestFlatIndex.cc
-  )
-add_executable(unittest_flatindex
-  ${unittest_flatindex_srcs}
-  $<TARGET_OBJECTS:heap_profiler_objs>
-  )
-target_link_libraries(unittest_flatindex
-  os
-  global
-  ${CMAKE_DL_LIBS}
-  ${TCMALLOC_LIBS}
-  ${UNITTEST_LIBS}
-  )
-set_target_properties(unittest_flatindex PROPERTIES COMPILE_FLAGS
-  ${UNITTEST_CXX_FLAGS})
-
 # unittest_strtol
 set(unittest_strtol_srcs strtol.cc)
 add_executable(unittest_strtol
@@ -980,7 +912,6 @@ if(${WITH_RADOSGW})
     rgw_a
     global
     curl
-    uuid
     expat
     ${BLKID_LIBRARIES}
     ${CMAKE_DL_LIBS} ${TCMALLOC_LIBS} ${UNITTEST_LIBS})
@@ -1007,7 +938,6 @@ if(${WITH_RADOSGW})
     librados
     global
     curl
-    uuid
     expat
     ${BLKID_LIBRARIES}
     ${CMAKE_DL_LIBS}
@@ -1029,7 +959,6 @@ if(${WITH_RADOSGW})
     rgw_a
     global
     curl
-    uuid
     expat
     cls_version_client
     cls_log_client
@@ -1057,7 +986,6 @@ if(${WITH_RADOSGW})
     rgw_a
     global
     curl
-    uuid
     expat
     cls_version_client
     cls_log_client
@@ -1095,7 +1023,6 @@ if(${WITH_RADOSGW})
     cls_lock_client
     global
     curl
-    uuid
     expat
     ${BLKID_LIBRARIES}
     ${CMAKE_DL_LIBS}
@@ -1364,14 +1291,7 @@ add_executable(test_rados_api_cmd
 set_target_properties(test_rados_api_cmd PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_cmd
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest)
+  librados global ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_io
   librados/io.cc
@@ -1380,15 +1300,7 @@ add_executable(test_rados_api_io
 set_target_properties(test_rados_api_io PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_io
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_c_write_operations
   librados/c_write_operations.cc
@@ -1397,14 +1309,7 @@ add_executable(test_rados_api_c_write_operations
 set_target_properties(test_rados_api_c_write_operations PROPERTIES
   COMPILE_FLAGS ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_c_write_operations
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest)
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_c_read_operations
   librados/c_read_operations.cc
@@ -1413,15 +1318,7 @@ add_executable(test_rados_api_c_read_operations
 set_target_properties(test_rados_api_c_read_operations PROPERTIES COMPILE_FLAGS 
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_c_read_operations
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_aio
   librados/aio.cc
@@ -1430,15 +1327,7 @@ add_executable(test_rados_api_aio
 set_target_properties(test_rados_api_aio PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_aio
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_list
   librados/list.cc
@@ -1447,14 +1336,16 @@ add_executable(test_rados_api_list
 set_target_properties(test_rados_api_list PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_list
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest)
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
+
+add_executable(test_rados_api_nlist
+  librados/nlist.cc
+  $<TARGET_OBJECTS:heap_profiler_objs>
+  )
+set_target_properties(test_rados_api_nlist PROPERTIES COMPILE_FLAGS
+  ${UNITTEST_CXX_FLAGS})
+target_link_libraries(test_rados_api_nlist
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_pool
   librados/pool.cc
@@ -1464,15 +1355,7 @@ set_target_properties(test_rados_api_pool PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS}
   )
 target_link_libraries(test_rados_api_pool
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_stat
   librados/stat.cc
@@ -1481,15 +1364,7 @@ add_executable(test_rados_api_stat
 set_target_properties(test_rados_api_stat PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_stat
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_watch_notify
   librados/watch_notify.cc
@@ -1498,15 +1373,7 @@ add_executable(test_rados_api_watch_notify
 set_target_properties(test_rados_api_watch_notify PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_watch_notify
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_cls
   librados/cls.cc
@@ -1515,15 +1382,7 @@ add_executable(test_rados_api_cls
 set_target_properties(test_rados_api_cls PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_cls
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_misc
   librados/misc.cc
@@ -1532,15 +1391,7 @@ add_executable(test_rados_api_misc
 set_target_properties(test_rados_api_misc PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_misc
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados global ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 add_executable(test_rados_api_lock
   librados/lock.cc
@@ -1549,15 +1400,7 @@ add_executable(test_rados_api_lock
 set_target_properties(test_rados_api_lock PROPERTIES COMPILE_FLAGS
   ${UNITTEST_CXX_FLAGS})
 target_link_libraries(test_rados_api_lock
-  librados
-  global
-  ${UNITTEST_LIBS}
-  ${EXTRALIBS}
-  ${BLKID_LIBRARIES}
-  ${TCMALLOC_LIBS}
-  ${CMAKE_DL_LIBS}
-  radostest
-  )
+  librados ${UNITTEST_LIBS} ${TCMALLOC_LIBS} radostest)
 
 if(${WITH_CEPHFS})
   add_executable(test_libcephfs
@@ -1571,7 +1414,7 @@ if(${WITH_CEPHFS})
   set_target_properties(test_libcephfs PROPERTIES COMPILE_FLAGS
     ${UNITTEST_CXX_FLAGS})
   target_link_libraries(test_libcephfs
-    libcephfs
+    cephfs
     ${UNITTEST_LIBS}
     ${EXTRALIBS}
     ${TCMALLOC_LIBS}
@@ -1776,9 +1619,9 @@ if(${WITH_CEPHFS})
   )
   target_link_libraries(test_c_headers
     librados
-    rados
-    libcephfs
+    cephfs
     ${EXTRALIBS}
+    ${BLKID_LIBRARIES}
     ${TCMALLOC_LIBS}
     ${CMAKE_DL_LIBS}
     )

@@ -2189,6 +2189,7 @@ void OSD::create_logger()
   osd_plb.add_u64_counter(l_osd_tier_clean, "tier_clean", "Dirty tier flag cleaned");
   osd_plb.add_u64_counter(l_osd_tier_delay, "tier_delay", "Tier delays (agent waiting)");
   osd_plb.add_u64_counter(l_osd_tier_proxy_read, "tier_proxy_read", "Tier proxy reads");
+  osd_plb.add_u64_counter(l_osd_tier_proxy_write, "tier_proxy_write", "Tier proxy writes");
 
   osd_plb.add_u64_counter(l_osd_agent_wake, "agent_wake", "Tiering agent wake up");
   osd_plb.add_u64_counter(l_osd_agent_skip, "agent_skip", "Objects skipped by agent");
@@ -2506,10 +2507,9 @@ void OSD::clear_temp_objects()
     ghobject_t next;
     while (1) {
       vector<ghobject_t> objects;
-      store->collection_list_partial(*p, next,
-				     store->get_ideal_list_min(),
-				     store->get_ideal_list_max(),
-				     0, &objects, &next);
+      store->collection_list(*p, next, ghobject_t::get_max(), true,
+			     store->get_ideal_list_max(),
+			     &objects, &next);
       if (objects.empty())
 	break;
       vector<ghobject_t>::iterator q;
@@ -2547,7 +2547,8 @@ void OSD::recursive_remove_collection(ObjectStore *store, spg_t pgid, coll_t tmp
   SnapMapper mapper(&driver, 0, 0, 0, pgid.shard);
 
   vector<ghobject_t> objects;
-  store->collection_list(tmp, objects);
+  store->collection_list(tmp, ghobject_t(), ghobject_t::get_max(), true,
+			 INT_MAX, &objects, 0);
 
   // delete them.
   unsigned removed = 0;
@@ -4227,12 +4228,12 @@ bool remove_dir(
   ObjectStore::Transaction *t = new ObjectStore::Transaction;
   ghobject_t next;
   handle.reset_tp_timeout();
-  store->collection_list_partial(
+  store->collection_list(
     coll,
     next,
-    store->get_ideal_list_min(),
+    ghobject_t::get_max(),
+    true,
     store->get_ideal_list_max(),
-    0,
     &olist,
     &next);
   for (vector<ghobject_t>::iterator i = olist.begin();
@@ -4447,6 +4448,9 @@ void OSD::_maybe_boot(epoch_t oldest, epoch_t newest)
   // if our map within recent history, try to add ourselves to the osdmap.
   if (osdmap->test_flag(CEPH_OSDMAP_NOUP)) {
     dout(5) << "osdmap NOUP flag is set, waiting for it to clear" << dendl;
+  } else if (!osdmap->test_flag(CEPH_OSDMAP_SORTBITWISE) &&
+	     !store->can_sort_nibblewise()) {
+    dout(1) << "osdmap SORTBITWISE flag is NOT set but our backend does not support nibblewise sort" << dendl;
   } else if (is_waiting_for_healthy() || !_is_healthy()) {
     // if we are not healthy, do not mark ourselves up (yet)
     dout(1) << "not healthy; waiting to boot" << dendl;
@@ -5189,9 +5193,9 @@ void OSD::do_command(Connection *con, ceph_tid_t tid, vector<string>& cmd, buffe
       pg->lock();
 
       fout << *pg << std::endl;
-      std::map<hobject_t, pg_missing_t::item>::const_iterator mend =
+      std::map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator mend =
 	pg->pg_log.get_missing().missing.end();
-      std::map<hobject_t, pg_missing_t::item>::const_iterator mi =
+      std::map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator mi =
 	pg->pg_log.get_missing().missing.begin();
       for (; mi != mend; ++mi) {
 	fout << mi->first << " -> " << mi->second << std::endl;
@@ -5793,11 +5797,12 @@ void OSD::_dispatch(Message *m)
   default:
     {
       OpRequestRef op = op_tracker.create_request<OpRequest, Message*>(m);
-      op->mark_event("waiting_for_osdmap");
       // no map?  starting up?
       if (!osdmap) {
         dout(7) << "no OSDMap, not booted" << dendl;
+	logger->inc(l_osd_waiting_for_map);
         waiting_for_osdmap.push_back(op);
+	op->mark_delayed("no osdmap");
         break;
       }
       
@@ -7592,7 +7597,7 @@ void OSD::handle_pg_query(OpRequestRef op)
      * before the pg is recreated, we'll just start it off backfilling
      * instead of just empty */
     if (service.deleting_pgs.lookup(pgid))
-      empty.last_backfill = hobject_t();
+      empty.set_last_backfill(hobject_t(), true);
     if (it->second.type == pg_query_t::LOG ||
 	it->second.type == pg_query_t::FULLLOG) {
       ConnectionRef con = service.get_con_osd_cluster(from, osdmap->get_epoch());
@@ -8635,11 +8640,15 @@ int OSD::init_op_flags(OpRequestRef& op)
       }
 
     case CEPH_OSD_OP_DELETE:
-      // if we get a delete with FAILOK we can skip promote.  without
+      // if we get a delete with FAILOK we can skip handle cache. without
       // FAILOK we still need to promote (or do something smarter) to
       // determine whether to return ENOENT or 0.
       if (iter == m->ops.begin() &&
 	  iter->op.flags == CEPH_OSD_OP_FLAG_FAILOK) {
+	op->set_skip_handle_cache();
+      }
+      // skip promotion when proxying a delete op
+      if (m->ops.size() == 1) {
 	op->set_skip_promote();
       }
       break;
@@ -8647,10 +8656,28 @@ int OSD::init_op_flags(OpRequestRef& op)
     case CEPH_OSD_OP_CACHE_TRY_FLUSH:
     case CEPH_OSD_OP_CACHE_FLUSH:
     case CEPH_OSD_OP_CACHE_EVICT:
-      // If try_flush/flush/evict is the only op, no need to promote.
+      // If try_flush/flush/evict is the only op, can skip handle cache.
       if (m->ops.size() == 1) {
-	op->set_skip_promote();
+	op->set_skip_handle_cache();
       }
+      break;
+
+    case CEPH_OSD_OP_WRITE:
+    case CEPH_OSD_OP_ZERO:
+    case CEPH_OSD_OP_TRUNCATE:
+      // always force promotion for object overwrites on a ec base pool
+      {
+        int64_t poolid = m->get_pg().pool();
+        const pg_pool_t *pool = osdmap->get_pg_pool(poolid);
+        if (pool->is_tier()) {
+          const pg_pool_t *base_pool = osdmap->get_pg_pool(pool->tier_of);
+          assert(base_pool);
+          if (base_pool->is_erasure()) {
+            op->set_promote();
+          }
+        }
+      }
+      break;
 
     default:
       break;

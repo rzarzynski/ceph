@@ -4,7 +4,7 @@
 #include <set>
 #include <map>
 #include <string>
-#include <tr1/memory>
+#include <memory>
 #include <errno.h>
 
 #include "rocksdb/db.h"
@@ -77,7 +77,7 @@ int RocksDBStore::ParseOptionsFromString(const string opt_str, rocksdb::Options 
   if (r < 0)
     return r;
   map<string, string>::iterator it;
-  for(it = str_map.begin(); it != str_map.end(); it++) {
+  for(it = str_map.begin(); it != str_map.end(); ++it) {
     string this_opt = it->first + "=" + it->second;
     rocksdb::Status status = rocksdb::GetOptionsFromString(opt, this_opt , &opt); 
     if (!status.ok()) {
@@ -491,7 +491,7 @@ string RocksDBStore::past_prefix(const string &prefix)
 
 RocksDBStore::WholeSpaceIterator RocksDBStore::_get_iterator()
 {
-  return std::tr1::shared_ptr<KeyValueDB::WholeSpaceIteratorImpl>(
+  return std::shared_ptr<KeyValueDB::WholeSpaceIteratorImpl>(
     new RocksDBWholeSpaceIteratorImpl(
       db->NewIterator(rocksdb::ReadOptions())
     )
@@ -506,7 +506,7 @@ RocksDBStore::WholeSpaceIterator RocksDBStore::_get_snapshot_iterator()
   snapshot = db->GetSnapshot();
   options.snapshot = snapshot;
 
-  return std::tr1::shared_ptr<KeyValueDB::WholeSpaceIteratorImpl>(
+  return std::shared_ptr<KeyValueDB::WholeSpaceIteratorImpl>(
     new RocksDBSnapshotIteratorImpl(db, snapshot,
       db->NewIterator(options))
   );

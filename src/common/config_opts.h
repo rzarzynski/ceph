@@ -487,6 +487,9 @@ OPTION(mds_max_purge_ops, OPT_U32, 8192)
 // Maximum number of concurrent RADOS ops to issue in purging, scaled by PG count
 OPTION(mds_max_purge_ops_per_pg, OPT_FLOAT, 0.5)
 
+OPTION(mds_root_ino_uid, OPT_INT, 0) // The UID of / on new filesystems
+OPTION(mds_root_ino_gid, OPT_INT, 0) // The GID of / on new filesystems
+
 // If true, compact leveldb store on mount
 OPTION(osd_compact_leveldb_on_mount, OPT_BOOL, false)
 
@@ -576,6 +579,7 @@ OPTION(osd_tier_default_cache_hit_set_count, OPT_INT, 4)
 OPTION(osd_tier_default_cache_hit_set_period, OPT_INT, 1200)
 OPTION(osd_tier_default_cache_hit_set_type, OPT_STR, "bloom")
 OPTION(osd_tier_default_cache_min_read_recency_for_promote, OPT_INT, 1) // number of recent HitSets the object must appear in to be promoted (on read)
+OPTION(osd_tier_default_cache_min_write_recency_for_promote, OPT_INT, 1) // number of recent HitSets the object must appear in to be promoted (on write)
 
 OPTION(osd_map_dedup, OPT_BOOL, true)
 OPTION(osd_map_max_advance, OPT_INT, 200) // make this < cache_size!
@@ -690,6 +694,7 @@ OPTION(osd_debug_verify_stray_on_activate, OPT_BOOL, false)
 OPTION(osd_debug_skip_full_check_in_backfill_reservation, OPT_BOOL, false)
 OPTION(osd_debug_reject_backfill_probability, OPT_DOUBLE, 0)
 OPTION(osd_debug_inject_copyfrom_error, OPT_BOOL, false)  // inject failure during copyfrom completion
+OPTION(osd_debug_randomize_hobject_sort_order, OPT_BOOL, false)
 OPTION(osd_enable_op_tracker, OPT_BOOL, true) // enable/disable OSD op tracking
 OPTION(osd_num_op_tracker_shard, OPT_U32, 32) // The number of shards for holding the ops
 OPTION(osd_op_history_size, OPT_U32, 20)    // Max number of completed ops to track
