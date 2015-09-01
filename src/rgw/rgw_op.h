@@ -434,8 +434,6 @@ protected:
   const char *obj_manifest;
   time_t mtime;
 
-  MD5 *user_manifest_parts_hash;
-
   uint64_t olh_epoch;
   string version_id;
 
@@ -450,7 +448,6 @@ public:
     chunked_upload = false;
     obj_manifest = NULL;
     mtime = 0;
-    user_manifest_parts_hash = NULL;
     olh_epoch = 0;
   }
 
@@ -583,10 +580,12 @@ protected:
   RGWAccessControlPolicy policy;
   string placement_rule;
   utime_t delete_at;
+  const char *obj_manifest;
 
 public:
   RGWPutMetadataObject()
-    : ret(0)
+    : ret(0),
+      obj_manifest(NULL)
   {}
 
   virtual void init(RGWRados *store, struct req_state *s, RGWHandler *h) {

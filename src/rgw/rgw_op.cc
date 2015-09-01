@@ -1807,6 +1807,28 @@ static int get_system_versioning_params(req_state *s, uint64_t *olh_epoch, strin
   return 0;
 }
 
+static int encode_obj_manifest_attr(const char * const obj_manifest,
+                                    map<string, bufferlist>& attrs)
+{
+    string om = obj_manifest;
+
+    if (om.find('/') == string::npos) {
+      return -EINVAL;
+    }
+
+    string dom;
+    url_decode(om, dom);
+    if (dom.find('?') != string::npos || dom.find('&') != string::npos) {
+      return -EINVAL;
+    }
+
+    bufferlist manifest_bl;
+    manifest_bl.append(obj_manifest, strlen(obj_manifest) + 1);
+    attrs[RGW_ATTR_USER_MANIFEST] = manifest_bl;
+
+    return 0;
+}
+
 void RGWPutObj::execute()
 {
   RGWPutObjProcessor *processor = NULL;
@@ -1948,48 +1970,29 @@ void RGWPutObj::execute()
 
   if (need_calc_md5) {
     processor->complete_hash(&hash);
-    hash.Final(m);
+  }
+  hash.Final(m);
 
-    buf_to_hex(m, CEPH_CRYPTO_MD5_DIGESTSIZE, calc_md5);
-    etag = calc_md5;
+  buf_to_hex(m, CEPH_CRYPTO_MD5_DIGESTSIZE, calc_md5);
+  etag = calc_md5;
 
-    if (supplied_md5_b64 && strcmp(calc_md5, supplied_md5)) {
-      ret = -ERR_BAD_DIGEST;
-      goto done;
-    }
+  if (supplied_md5_b64 && strcmp(calc_md5, supplied_md5)) {
+    ret = -ERR_BAD_DIGEST;
+    goto done;
   }
 
   policy.encode(aclbl);
 
   attrs[RGW_ATTR_ACL] = aclbl;
+
   if (obj_manifest) {
-    bufferlist manifest_bl;
-    string manifest_obj_prefix;
-    string manifest_bucket;
-
-    char etag_buf[CEPH_CRYPTO_MD5_DIGESTSIZE];
-    char etag_buf_str[CEPH_CRYPTO_MD5_DIGESTSIZE * 2 + 16];
-
-    manifest_bl.append(obj_manifest, strlen(obj_manifest) + 1);
-    attrs[RGW_ATTR_USER_MANIFEST] = manifest_bl;
-    user_manifest_parts_hash = &hash;
-    string prefix_str = obj_manifest;
-    int pos = prefix_str.find('/');
-    if (pos < 0) {
-      ldout(s->cct, 0) << "bad user manifest, missing slash separator: " << obj_manifest << dendl;
+    ret = encode_obj_manifest_attr(obj_manifest, attrs);
+    if (ret < 0) {
+      ldout(s->cct, 0) << "bad user manifest: " << obj_manifest << dendl;
       goto done;
     }
-
-    manifest_bucket = prefix_str.substr(0, pos);
-    manifest_obj_prefix = prefix_str.substr(pos + 1);
-
-    hash.Final((byte *)etag_buf);
-    buf_to_hex((const unsigned char *)etag_buf, CEPH_CRYPTO_MD5_DIGESTSIZE, etag_buf_str);
-
-    ldout(s->cct, 0) << __func__ << ": calculated md5 for user manifest: " << etag_buf_str << dendl;
-
-    etag = etag_buf_str;
   }
+
   if (supplied_etag && etag.compare(supplied_etag) != 0) {
     ret = -ERR_UNPROCESSABLE_ENTITY;
     goto done;
@@ -2396,6 +2399,14 @@ void RGWPutMetadataObject::execute()
     bufferlist delatbl;
     ::encode(delete_at, delatbl);
     attrs[RGW_ATTR_DELETE_AT] = delatbl;
+  }
+
+  if (obj_manifest) {
+    ret = encode_obj_manifest_attr(obj_manifest, attrs);
+    if (ret < 0) {
+      ldout(s->cct, 0) << "bad user manifest: " << obj_manifest << dendl;
+      return;
+    }
   }
 
   ret = store->set_attrs(s->obj_ctx, obj, attrs, &rmattrs, NULL);
