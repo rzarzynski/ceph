@@ -41,6 +41,7 @@ static struct rgw_http_attr rgw_to_http_attr_list[] = {
   { RGW_ATTR_CONTENT_ENC, "Content-Encoding"},
   { RGW_ATTR_USER_MANIFEST, "X-Object-Manifest"},
   { RGW_ATTR_SLO_INDICATOR, "X-Static-Large-Object"},
+  { RGW_ATTR_VERS_LOCATION, "X-Versions-Location"},
   { NULL, NULL},
 };
 
@@ -61,6 +62,7 @@ struct generic_attr generic_attrs[] = {
   { "HTTP_CONTENT_DISPOSITION", RGW_ATTR_CONTENT_DISP },
   { "HTTP_CONTENT_ENCODING", RGW_ATTR_CONTENT_ENC },
   { "HTTP_X_STATIC_LARGE_OBJECT", RGW_ATTR_SLO_INDICATOR },
+  { "HTTP_X_VERSIONS_LOCATION", RGW_ATTR_VERS_LOCATION },
   { "HTTP_X_CONTAINER_READ", RGW_ATTR_CONT_RACL },
   { "HTTP_X_CONTAINER_WRITE", RGW_ATTR_CONT_WACL },
   { NULL, NULL },

@@ -71,6 +71,7 @@ using ceph::crypto::MD5;
 #define RGW_ATTR_MANIFEST    	RGW_ATTR_PREFIX "manifest"
 #define RGW_ATTR_USER_MANIFEST  RGW_ATTR_PREFIX "user_manifest"
 #define RGW_ATTR_SLO_INDICATOR  RGW_ATTR_PREFIX "slo_indicator"
+#define RGW_ATTR_VERS_LOCATION  RGW_ATTR_PREFIX "versions_location"
 #define RGW_ATTR_CONT_RACL      RGW_ATTR_PREFIX "cont_racl"
 #define RGW_ATTR_CONT_WACL      RGW_ATTR_PREFIX "cont_wacl"
 

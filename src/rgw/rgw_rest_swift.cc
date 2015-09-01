@@ -340,6 +340,13 @@ static void dump_container_metadata(struct req_state *s, RGWBucketEnt& bucket)
         s->cio->print("X-Container-Read: %s\r\n", iter->second.c_str());
       } else if (strcmp(name, RGW_ATTR_CONT_WACL) == 0) {
         s->cio->print("X-Container-Write: %s\r\n", iter->second.c_str());
+      } else {
+        map<string, string>::const_iterator aiter = rgw_to_http_attrs.find(name);
+        if (aiter != rgw_to_http_attrs.end() &&
+            aiter->first.compare(RGW_ATTR_CONTENT_TYPE) != 0) {
+          /* Filter out Content-Type. It must be treated separately. */
+          s->cio->print("%s: %s\r\n", aiter->second.c_str(), iter->second.c_str());
+        }
       }
     }
   }
