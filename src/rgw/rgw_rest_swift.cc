@@ -484,13 +484,16 @@ void RGWDeleteBucket_ObjStore_SWIFT::send_response()
 
 int RGWPutObj_ObjStore_SWIFT::get_params()
 {
-  if (s->has_bad_meta)
+  if (s->has_bad_meta) {
     return -EINVAL;
+  }
 
   if (!s->length) {
     const char *encoding = s->info.env->get("HTTP_TRANSFER_ENCODING");
-    if (!encoding || strcmp(encoding, "chunked") != 0)
+    if (!encoding || strcmp(encoding, "chunked") != 0) {
+      ldout(s->cct, 20) << "neither length nor chunked encoding" << dendl;
       return -ERR_LENGTH_REQUIRED;
+    }
 
     chunked_upload = true;
   }
@@ -498,7 +501,7 @@ int RGWPutObj_ObjStore_SWIFT::get_params()
   supplied_etag = s->info.env->get("HTTP_ETAG");
 
   if (!s->generic_attrs.count(RGW_ATTR_CONTENT_TYPE)) {
-    dout(5) << "content type wasn't provided, trying to guess" << dendl;
+    ldout(s->cct, 5) << "content type wasn't provided, trying to guess" << dendl;
     const char *suffix = strrchr(s->object.name.c_str(), '.');
     if (suffix) {
       suffix++;
