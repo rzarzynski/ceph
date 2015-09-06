@@ -1069,7 +1069,6 @@ struct req_state {
    const char *os_auth_token;
    string swift_user;
    string swift_groups;
-   string swift_account;
 
    utime_t time;
 
