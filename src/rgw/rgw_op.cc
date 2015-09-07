@@ -373,7 +373,8 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
 
     RGWBucketInfo source_info;
 
-    ret = store->get_bucket_info(obj_ctx, tenant_name, copy_source_str, source_info, NULL);
+    ret = store->get_bucket_info(obj_ctx, tenant, copy_source_str,
+            source_info, NULL);
     if (ret == 0) {
       string& region = source_info.region;
       s->local_source = store->region.equals(region);
@@ -383,9 +384,11 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
   if (!s->bucket_name_str.empty()) {
     s->bucket_exists = true;
     if (s->bucket_instance_id.empty()) {
-      ret = store->get_bucket_info(obj_ctx, tenant_name, s->bucket_name_str, s->bucket_info, NULL, &s->bucket_attrs);
+      ret = store->get_bucket_info(obj_ctx, tenant, s->bucket_name_str,
+              s->bucket_info, NULL, &s->bucket_attrs);
     } else {
-      ret = store->get_bucket_instance_info(obj_ctx, s->bucket_instance_id, s->bucket_info, NULL, &s->bucket_attrs);
+      ret = store->get_bucket_instance_info(obj_ctx, s->bucket_instance_id,
+              s->bucket_info, NULL, &s->bucket_attrs);
     }
     if (ret < 0) {
       if (ret != -ENOENT) {
