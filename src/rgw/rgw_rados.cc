@@ -7615,6 +7615,7 @@ int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx,
                               time_t *pmtime, map<string, bufferlist> *pattrs)
 {
   bucket_info_entry e;
+  /* XXX: do we need to rework cache mechanism in order to accomodate tenants? */
   if (binfo_cache.find(bucket_name, &e)) {
     info = e.info;
     if (pattrs)
