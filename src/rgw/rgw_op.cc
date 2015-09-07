@@ -356,8 +356,8 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
     }
   }
 
-  // XXX do something about the conflict with the '/' syntax below
-  string tenant_name = "";
+  /* FIXME: add support for Swift's X-Copy-From-Account header. */
+  const string& tenant = false /* X-Copy-From Account */ ? "" : s->tenant;
 
   s->bucket_acl = new RGWAccessControlPolicy(s->cct);
 
