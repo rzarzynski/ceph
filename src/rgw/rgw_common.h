@@ -504,7 +504,6 @@ struct RGWUserInfo
      ::encode(bucket_quota, bl);
      ::encode(temp_url_keys, bl);
      ::encode(user_quota, bl);
-     ::encode(user_id.tenant, bl);
      ::encode(user_id.has_own_bns, bl);
      ENCODE_FINISH(bl);
   }
@@ -571,10 +570,8 @@ struct RGWUserInfo
       ::decode(user_quota, bl);
     }
     if (struct_v >= 17) {
-      ::decode(user_id.tenant, bl);
       ::decode(user_id.has_own_bns, bl);
     } else {
-      user_id.tenant.clear();
       user_id.has_own_bns = false;
     }
     DECODE_FINISH(bl);
