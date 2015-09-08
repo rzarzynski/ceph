@@ -504,7 +504,7 @@ struct RGWUserInfo
      ::encode(bucket_quota, bl);
      ::encode(temp_url_keys, bl);
      ::encode(user_quota, bl);
-     ::encode(user_id.tenant, bl);
+     ::encode(user_id.default_tenant, bl);
      ENCODE_FINISH(bl);
   }
   void decode(bufferlist::iterator& bl) {
@@ -570,9 +570,9 @@ struct RGWUserInfo
       ::decode(user_quota, bl);
     }
     if (struct_v >= 17) {
-      ::decode(user_id.tenant, bl);
+      ::decode(user_id.default_tenant, bl);
     } else {
-      user_id.tenant.clear();
+      user_id.default_tenant.clear();
     }
     DECODE_FINISH(bl);
   }

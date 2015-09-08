@@ -6,7 +6,7 @@
 #include "include/types.h"
 
 struct rgw_user {
-  std::string tenant;
+  std::string default_tenant;
   std::string id;
 
   rgw_user() {}
@@ -16,27 +16,27 @@ struct rgw_user {
 
   void encode(bufferlist& bl) const {
     ENCODE_START(1, 1, bl);
-    ::encode(tenant, bl);
+    ::encode(default_tenant, bl);
     ::encode(id, bl);
     ENCODE_FINISH(bl);
   }
   void decode(bufferlist::iterator& bl) {
     DECODE_START(1, bl);
-    ::decode(tenant, bl);
+    ::decode(default_tenant, bl);
     ::decode(id, bl);
     DECODE_FINISH(bl);
   }
 
   void to_str(std::string& str) const {
-    if (!tenant.empty()) {
-      str = tenant + ':' + id;
+    if (!default_tenant.empty()) {
+      str = default_tenant + ':' + id;
     } else {
       str = id;
     }
   }
 
   void clear() {
-    tenant.clear();
+    default_tenant.clear();
     id.clear();
   }
 
@@ -53,10 +53,10 @@ struct rgw_user {
   void from_str(const std::string& str) {
     ssize_t pos = str.find(':');
     if (pos >= 0) {
-      tenant = str.substr(0, pos);
+      default_tenant = str.substr(0, pos);
       id = str.substr(pos + 1);
     } else {
-      tenant.clear();
+      default_tenant.clear();
       id = str;
     }
   }
@@ -67,7 +67,7 @@ struct rgw_user {
   }
 
   int compare(const rgw_user& u) const {
-    int r = tenant.compare(u.tenant);
+    int r = default_tenant.compare(u.default_tenant);
     if (r != 0)
       return r;
 
@@ -85,9 +85,9 @@ struct rgw_user {
     return (compare(rhs) == 0);
   }
   bool operator<(const rgw_user& rhs) const {
-    if (tenant < rhs.tenant) {
+    if (default_tenant < rhs.default_tenant) {
       return true;
-    } else if (tenant > rhs.tenant) {
+    } else if (default_tenant > rhs.default_tenant) {
       return false;
     }
     return (id < rhs.id);

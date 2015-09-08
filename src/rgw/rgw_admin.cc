@@ -1364,13 +1364,13 @@ int main(int argc, char **argv)
     }
   }
   if (tenant.empty()) {
-    tenant = user_id.tenant;
+    tenant = user_id.default_tenant;
   } else {
     if (user_id.empty()) {
-      cerr << "ERROR: --tennant is set, but there's no user ID" << std::endl;
+      cerr << "ERROR: --tenant is set, but there's no user ID" << std::endl;
       return EINVAL;
     }
-    user_id.tenant = tenant;
+    user_id.default_tenant = tenant;
   }
 
   if (args.empty()) {
