@@ -5,9 +5,12 @@
 
 #include "include/types.h"
 
+typedef std::string rgw_tenant;
+
 struct rgw_user {
-  std::string default_tenant;
   std::string id;
+
+  rgw_tenant default_tenant;
 
   rgw_user() {}
   rgw_user(const std::string& s) {

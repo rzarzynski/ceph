@@ -205,14 +205,14 @@ int rgw_store_user_info(RGWRados *store,
 }
 
 int rgw_store_user_attrs(RGWRados *const store,
-                         string& user_id,
+                         const rgw_tenant& tenant,
                          map<string, bufferlist>& attrs,
                          map<string, bufferlist>* const rmattrs,
                          RGWObjVersionTracker * const objv_tracker)
 {
-  rgw_obj obj(store->zone.user_uid_pool, user_id);
+  rgw_obj obj(store->zone.user_uid_pool, tenant);
 
-  return store->meta_mgr->set_attrs(user_meta_handler, user_id, obj,
+  return store->meta_mgr->set_attrs(user_meta_handler, tenant, obj,
                                     attrs, rmattrs, objv_tracker);
 }
 

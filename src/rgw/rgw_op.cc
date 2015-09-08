@@ -1051,6 +1051,20 @@ int RGWListBuckets::verify_permission()
   return 0;
 }
 
+static inline rgw_tenant get_compat_tenant(const rgw_user user,
+                                           const rgw_tenant selected)
+{
+  if (!selected.empty()) {
+    return selected;
+  } else if (!user.default_tenant.empty()) {
+    return user.default_tenant;
+  } else {
+    /* Older radosgw versions lack multi-tenancy support. RADOS object
+     * containing user's buckets list was called after UID. */
+    return rgw_tenant(user.id);
+  }
+}
+
 void RGWListBuckets::execute()
 {
   bool done;
@@ -2277,26 +2291,24 @@ void RGWPutMetadataAccount::filter_out_temp_url(map<string, bufferlist>& add_att
 
 void RGWPutMetadataAccount::execute()
 {
-  rgw_obj obj;
   map<string, bufferlist> attrs, orig_attrs, rmattrs;
   RGWObjVersionTracker acct_op_tracker;
-
-  /* Get the name of raw object which stores the metadata in its xattrs.
-   * We need to go here through s->tenant because selection of metadata
-   * source should base on specified account, not currently logged user.
-   * It could be that a given user has privileges to access an account
-   * other than his default one. */
-  string buckets_obj_id;
-  rgw_get_buckets_obj(s->tenant, buckets_obj_id);
-  obj = rgw_obj(store->zone.user_uid_pool, buckets_obj_id);
 
   ret = get_params();
   if (ret < 0) {
     return;
   }
 
+
+  /* Get the name of raw object which stores the metadata in its xattrs.
+   * We need to go here through s->tenant because selection of metadata
+   * source should base on specified account, not currently logged user.
+   * It could be that a given user has privileges to access an account
+   * other than his default one. */
+  const rgw_tenant tenant = get_compat_tenant(s->user.user_id, s->tenant);
+
   rgw_get_request_metadata(s->cct, s->info, attrs, false);
-  rgw_get_user_attrs_by_uid(store, s->tenant, orig_attrs, &acct_op_tracker);
+  rgw_get_user_attrs_by_uid(store, tenant, orig_attrs, &acct_op_tracker);
   prepare_add_del_attrs(orig_attrs, rmattr_names, attrs, rmattrs);
   populate_with_generic_attrs(s, attrs);
 
@@ -2310,7 +2322,7 @@ void RGWPutMetadataAccount::execute()
     }
   }
 
-  ret = rgw_store_user_attrs(store, s->tenant, attrs, &rmattrs, &acct_op_tracker);
+  ret = rgw_store_user_attrs(store, tenant, attrs, &rmattrs, &acct_op_tracker);
   if (ret < 0) {
     return;
   }
