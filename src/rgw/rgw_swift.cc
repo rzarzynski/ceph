@@ -374,6 +374,7 @@ int RGWSwift::check_revoked()
 static void rgw_set_keystone_token_auth_info(KeystoneToken& token, struct rgw_swift_auth_info *info)
 {
   info->user = token.token.tenant.id;
+  info->user.default_tenant = token.token.tenant.id;
   info->display_name = token.token.tenant.name;
   info->status = 200;
 }
@@ -646,6 +647,8 @@ bool RGWSwift::verify_swift_token(RGWRados *store, req_state *s)
   } else {
     s->perm_mask = RGW_PERM_FULL_CONTROL;
   }
+
+  s->tenant = s->user.user_id.get_tenant().get_bucket_namespace().get_id();
 
   return true;
 

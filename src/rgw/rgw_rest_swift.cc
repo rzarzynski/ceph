@@ -1165,12 +1165,14 @@ int RGWHandler_ObjStore_SWIFT::init_from_header(struct req_state *s)
 
   next_tok(req, ver, '/');
 
+#if 0
   if (!tenant_path.empty() || g_conf->rgw_swift_tenant_in_url) {
     next_tok(req, s->tenant, '/');
     if (s->tenant.empty()) {
       return -ERR_PRECONDITION_FAILED;
     }
   }
+#endif
 
   s->os_auth_token = s->info.env->get("HTTP_X_AUTH_TOKEN");
   next_tok(req, first, '/');
