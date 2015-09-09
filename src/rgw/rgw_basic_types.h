@@ -5,16 +5,57 @@
 
 #include "include/types.h"
 
-typedef std::string rgw_tenant;
+class rgw_bucket_namespace {
+  std::string bucket_namespace_id;
+
+public:
+  rgw_bucket_namespace(const std::string& bnsid)
+    : bucket_namespace_id(bnsid) {
+  }
+
+  std::string get_id() const {
+    return bucket_namespace_id;
+  }
+};
+
+class rgw_tenant {
+  std::string tenant_id;
+  bool compat_mode;
+
+public:
+  rgw_tenant(const std::string& tid, const bool cm)
+    : tenant_id(tid),
+      compat_mode(cm) {
+  }
+
+  rgw_bucket_namespace get_bucket_namespace() const {
+    return compat_mode ? string() : tenant_id;
+  }
+
+  std::string get_id() const {
+    return tenant_id;
+  }
+};
 
 struct rgw_user {
   std::string id;
-
-  rgw_tenant default_tenant;
+  std::string default_tenant;
 
   rgw_user() {}
   rgw_user(const std::string& s) {
     from_str(s);
+  }
+
+  rgw_tenant get_tenant() const {
+    if (!default_tenant.empty()) {
+      return rgw_tenant(default_tenant, false);
+    } else {
+      return rgw_tenant(id, true);
+    }
+  }
+
+  std::string get_id() const {
+    return id;
   }
 
   void encode(bufferlist& bl) const {

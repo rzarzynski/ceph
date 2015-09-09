@@ -112,7 +112,7 @@ extern int rgw_get_user_info_by_access_key(RGWRados *store, string& access_key, 
  * Returns: 0 on success, -ERR# on failure.
  */
 extern int rgw_get_user_attrs_by_uid(RGWRados *store,
-                                     const rgw_tenant& tenant,
+                                     const rgw_user& user_id,
                                      map<string, bufferlist>& attrs,
                                      RGWObjVersionTracker *objv_tracker = NULL);
 /**

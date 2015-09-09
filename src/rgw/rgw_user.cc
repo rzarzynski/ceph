@@ -156,9 +156,7 @@ int rgw_store_user_info(RGWRados *store,
   ::encode(ui, data_bl);
   ::encode(info, data_bl);
 
-  string key;
-  info.user_id.to_str(key);
-
+  const string key = info.user_id.get_tenant().get_id();
   ret = store->meta_mgr->put_entry(user_meta_handler, key, data_bl, exclusive, &ot, mtime, pattrs);
   if (ret < 0)
     return ret;
@@ -210,10 +208,10 @@ int rgw_store_user_attrs(RGWRados *const store,
                          map<string, bufferlist>* const rmattrs,
                          RGWObjVersionTracker * const objv_tracker)
 {
-  rgw_obj obj(store->zone.user_uid_pool, tenant);
+  rgw_obj obj(store->zone.user_uid_pool, tenant.get_id());
 
-  return store->meta_mgr->set_attrs(user_meta_handler, tenant, obj,
-                                    attrs, rmattrs, objv_tracker);
+  return store->meta_mgr->set_attrs(user_meta_handler, tenant.get_id(),
+                                    obj, attrs, rmattrs, objv_tracker);
 }
 
 struct user_info_entry {
@@ -289,8 +287,9 @@ int rgw_get_user_info_by_uid(RGWRados *store,
   RGWUID user_id;
 
   RGWObjectCtx obj_ctx(store);
-  string oid = uid.to_str();
-  int ret = rgw_get_system_obj(store, obj_ctx, store->zone.user_uid_pool, oid, bl, objv_tracker, pmtime, pattrs, cache_info);
+  int ret = rgw_get_system_obj(store, obj_ctx, store->zone.user_uid_pool,
+                               uid.get_tenant().get_id(), bl, objv_tracker,
+                               pmtime, pattrs, cache_info);
   if (ret < 0) {
     return ret;
   }
@@ -344,12 +343,12 @@ extern int rgw_get_user_info_by_access_key(RGWRados *store, string& access_key, 
 }
 
 int rgw_get_user_attrs_by_uid(RGWRados *store,
-                              const string& user_id,
+                              const rgw_user& user_id,
                               map<string, bufferlist>& attrs,
                               RGWObjVersionTracker *objv_tracker)
 {
   RGWObjectCtx obj_ctx(store);
-  rgw_obj obj(store->zone.user_uid_pool, user_id);
+  rgw_obj obj(store->zone.user_uid_pool, user_id.get_tenant().get_id());
   RGWRados::SystemObject src(store, obj_ctx, obj);
   RGWRados::SystemObject::Read rop(&src);
 

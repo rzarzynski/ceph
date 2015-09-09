@@ -1051,20 +1051,6 @@ int RGWListBuckets::verify_permission()
   return 0;
 }
 
-static inline rgw_tenant get_compat_tenant(const rgw_user user,
-                                           const rgw_tenant selected)
-{
-  if (!selected.empty()) {
-    return selected;
-  } else if (!user.default_tenant.empty()) {
-    return user.default_tenant;
-  } else {
-    /* Older radosgw versions lack multi-tenancy support. RADOS object
-     * containing user's buckets list was called after UID. */
-    return rgw_tenant(user.id);
-  }
-}
-
 void RGWListBuckets::execute()
 {
   bool done;
@@ -1073,14 +1059,15 @@ void RGWListBuckets::execute()
 
   uint64_t max_buckets = s->cct->_conf->rgw_list_buckets_max_chunk;
 
+  const rgw_tenant tenant = s->user.user_id.get_tenant();
+
   ret = get_params();
   if (ret < 0) {
     goto send_end;
   }
 
   if (supports_account_metadata()) {
-    /* XXX tenant needed? */
-    ret = rgw_get_user_attrs_by_uid(store, s->user.user_id.id, attrs);
+    ret = rgw_get_user_attrs_by_uid(store, s->user.user_id, attrs);
     if (ret < 0) {
       goto send_end;
     }
@@ -1101,7 +1088,7 @@ void RGWListBuckets::execute()
     if (ret < 0) {
       /* hmm.. something wrong here.. the user was authenticated, so it
          should exist */
-      ldout(s->cct, 10) << "WARNING: failed on rgw_get_user_buckets uid=" << s->user.user_id << dendl;
+      //ldout(s->cct, 10) << "WARNING: failed on rgw_get_user_buckets uid=" << tenant << dendl;
       break;
     }
     map<string, RGWBucketEnt>& m = buckets.get_buckets();
@@ -2305,10 +2292,10 @@ void RGWPutMetadataAccount::execute()
    * source should base on specified account, not currently logged user.
    * It could be that a given user has privileges to access an account
    * other than his default one. */
-  const rgw_tenant tenant = get_compat_tenant(s->user.user_id, s->tenant);
+  const rgw_tenant tenant = s->user.user_id.get_tenant();
 
   rgw_get_request_metadata(s->cct, s->info, attrs, false);
-  rgw_get_user_attrs_by_uid(store, tenant, orig_attrs, &acct_op_tracker);
+  rgw_get_user_attrs_by_uid(store, s->user.user_id, orig_attrs, &acct_op_tracker);
   prepare_add_del_attrs(orig_attrs, rmattr_names, attrs, rmattrs);
   populate_with_generic_attrs(s, attrs);
 

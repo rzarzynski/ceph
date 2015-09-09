@@ -34,7 +34,7 @@ static RGWMetadataHandler *bucket_instance_meta_handler = NULL;
 // define as static when RGWBucket implementation compete
 void rgw_get_buckets_obj(const rgw_user& user_id, string& buckets_obj_id)
 {
-  buckets_obj_id = user_id.to_str();
+  buckets_obj_id = user_id.get_tenant().get_id();
   buckets_obj_id += RGW_BUCKETS_OBJ_SUFFIX;
 }
 
