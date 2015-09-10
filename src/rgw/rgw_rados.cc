@@ -7611,12 +7611,17 @@ void RGWRados::make_bucket_entry_name(const string& tenant_name, const string& b
 }
 
 int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx,
-                              const string& tenant, const string& bucket_name, RGWBucketInfo& info,
-                              time_t *pmtime, map<string, bufferlist> *pattrs)
+                              const string& tenant,
+                              const string& bucket_name,
+                              RGWBucketInfo& info,                      /* out */
+                              time_t * const pmtime,                    /* out */
+                              map<string, bufferlist> * const pattrs)   /* out */
 {
   bucket_info_entry e;
-  /* XXX: do we need to rework cache mechanism in order to accomodate tenants? */
-  if (binfo_cache.find(bucket_name, &e)) {
+  string bucket_entry;
+  make_bucket_entry_name(tenant, bucket_name, bucket_entry);
+
+  if (binfo_cache.find(bucket_entry, &e)) {
     info = e.info;
     if (pattrs)
       *pattrs = e.attrs;
@@ -7687,7 +7692,7 @@ int RGWRados::get_bucket_info(RGWObjectCtx& obj_ctx,
 
 
   /* chain to both bucket entry point and bucket instance */
-  if (!binfo_cache.put(this, bucket_name, &e, cache_info_entries)) {
+  if (!binfo_cache.put(this, bucket_entry, &e, cache_info_entries)) {
     ldout(cct, 20) << "couldn't put binfo cache entry, might have raced with data changes" << dendl;
   }
 
