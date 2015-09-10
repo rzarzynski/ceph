@@ -39,7 +39,8 @@ struct rgw_user {
   bool has_own_bns;
 
   rgw_user() {}
-  rgw_user(const std::string& s) {
+  rgw_user(const std::string& s, const bool h = false) {
+    has_own_bns = h;
     from_str(s);
   }
 
