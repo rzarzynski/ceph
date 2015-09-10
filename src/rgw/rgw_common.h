@@ -1053,7 +1053,6 @@ struct req_state {
    bool has_bad_meta;
 
    RGWUserInfo user; 
-   string tenant;
    RGWAccessControlPolicy *bucket_acl;
    RGWAccessControlPolicy *object_acl;
 

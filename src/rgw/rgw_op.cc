@@ -356,8 +356,7 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
     }
   }
 
-  // XXX do something about the conflict with the '/' syntax below
-  string tenant_name = "";
+  const string& bns = s->user.user_id.get_bns().get_id();
 
   s->bucket_acl = new RGWAccessControlPolicy(s->cct);
 
@@ -373,7 +372,7 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
 
     RGWBucketInfo source_info;
 
-    ret = store->get_bucket_info(obj_ctx, tenant, copy_source_str,
+    ret = store->get_bucket_info(obj_ctx, bns, copy_source_str,
             source_info, NULL);
     if (ret == 0) {
       string& region = source_info.region;
@@ -384,7 +383,7 @@ static int rgw_build_policies(RGWRados *store, struct req_state *s, bool only_bu
   if (!s->bucket_name_str.empty()) {
     s->bucket_exists = true;
     if (s->bucket_instance_id.empty()) {
-      ret = store->get_bucket_info(obj_ctx, tenant, s->bucket_name_str,
+      ret = store->get_bucket_info(obj_ctx, bns, s->bucket_name_str,
               s->bucket_info, NULL, &s->bucket_attrs);
     } else {
       ret = store->get_bucket_instance_info(obj_ctx, s->bucket_instance_id,
@@ -831,7 +830,7 @@ int RGWGetObj::handle_user_manifest(const char *prefix)
     RGWBucketInfo bucket_info;
     map<string, bufferlist> bucket_attrs;
     RGWObjectCtx obj_ctx(store);
-    int r = store->get_bucket_info(obj_ctx, s->tenant, bucket_name, bucket_info, NULL, &bucket_attrs);
+    int r = store->get_bucket_info(obj_ctx, s->user.user_id.get_bns().get_id(), bucket_name, bucket_info, NULL, &bucket_attrs);
     if (r < 0) {
       ldout(s->cct, 0) << "could not get bucket info for bucket=" << bucket_name << dendl;
       return r;
@@ -1065,8 +1064,7 @@ void RGWListBuckets::execute()
   }
 
   if (supports_account_metadata()) {
-    /* XXX tenant needed? */
-    ret = rgw_get_user_attrs_by_uid(store, s->user.user_id.id, attrs);
+    ret = rgw_get_user_attrs_by_uid(store, s->user.user_id.get_id(), attrs);
     if (ret < 0) {
       goto send_end;
     }
@@ -1401,7 +1399,7 @@ void RGWCreateBucket::execute()
 
   /* we need to make sure we read bucket info, it's not read before for this specific request */
   RGWObjectCtx& obj_ctx = *static_cast<RGWObjectCtx *>(s->obj_ctx);
-  ret = store->get_bucket_info(obj_ctx, s->tenant, s->bucket_name_str, s->bucket_info, NULL, &s->bucket_attrs);
+  ret = store->get_bucket_info(obj_ctx, s->user.user_id.get_bns().get_id(), s->bucket_name_str, s->bucket_info, NULL, &s->bucket_attrs);
   if (ret < 0 && ret != -ENOENT)
     return;
   s->bucket_exists = (ret != -ENOENT);
@@ -1478,7 +1476,7 @@ void RGWCreateBucket::execute()
     attrs[RGW_ATTR_CORS] = corsbl;
   }
   s->bucket.name = s->bucket_name_str;
-  s->bucket.tenant = s->tenant;
+  s->bucket.tenant = s->user.user_id.get_bns().get_id();
   ret = store->create_bucket(s->user, s->bucket, region_name, placement_rule, attrs, info, pobjv,
                              &ep_objv, creation_time, pmaster_bucket, true);
   /* continue if EEXIST and create_bucket will fail below.  this way we can recover
@@ -2277,14 +2275,8 @@ void RGWPutMetadataAccount::filter_out_temp_url(map<string, bufferlist>& add_att
 
 void RGWPutMetadataAccount::execute()
 {
-  rgw_obj obj;
   map<string, bufferlist> attrs, orig_attrs, rmattrs;
   RGWObjVersionTracker acct_op_tracker;
-
-  /* Get the name of raw object which stores the metadata in its xattrs. */
-  string buckets_obj_id;
-  rgw_get_buckets_obj(s->user.user_id, buckets_obj_id);
-  obj = rgw_obj(store->zone.user_uid_pool, buckets_obj_id);
 
   ret = get_params();
   if (ret < 0) {
@@ -2292,8 +2284,8 @@ void RGWPutMetadataAccount::execute()
   }
 
   rgw_get_request_metadata(s->cct, s->info, attrs, false);
-  /* XXX tenant needed? */
-  rgw_get_user_attrs_by_uid(store, s->user.user_id.id, orig_attrs, &acct_op_tracker);
+  rgw_get_user_attrs_by_uid(store, s->user.user_id.get_id(), orig_attrs,
+          &acct_op_tracker);
   prepare_add_del_attrs(orig_attrs, rmattr_names, attrs, rmattrs);
   populate_with_generic_attrs(s, attrs);
 
@@ -2307,8 +2299,8 @@ void RGWPutMetadataAccount::execute()
     }
   }
 
-  /* XXX tenant needed? */
-  ret = rgw_store_user_attrs(store, s->user.user_id.id, attrs, &rmattrs, &acct_op_tracker);
+  ret = rgw_store_user_attrs(store, s->user.user_id.get_id(), attrs, &rmattrs,
+          &acct_op_tracker);
   if (ret < 0) {
     return;
   }
@@ -2523,8 +2515,7 @@ int RGWCopyObj::verify_permission()
 
   RGWObjectCtx& obj_ctx = *static_cast<RGWObjectCtx *>(s->obj_ctx);
 
-  // XXX Using the requestor's tenant improperly
-  ret = store->get_bucket_info(obj_ctx, s->tenant, src_bucket_name, src_bucket_info, NULL, &src_attrs);
+  ret = store->get_bucket_info(obj_ctx, s->user.user_id.get_bns().get_id(), src_bucket_name, src_bucket_info, NULL, &src_attrs);
   if (ret < 0)
     return ret;
 
@@ -2553,8 +2544,7 @@ int RGWCopyObj::verify_permission()
     dest_bucket_info = src_bucket_info;
     dest_attrs = src_attrs;
   } else {
-    // XXX Using the requestor's tenant improperly
-    ret = store->get_bucket_info(obj_ctx, s->tenant, dest_bucket_name, dest_bucket_info, NULL, &dest_attrs);
+    ret = store->get_bucket_info(obj_ctx, s->user.user_id.get_bns().get_id(), dest_bucket_name, dest_bucket_info, NULL, &dest_attrs);
     if (ret < 0)
       return ret;
   }
