@@ -49,7 +49,10 @@ extern int rgw_user_sync_all_stats(RGWRados *store, const rgw_user& user_id);
 /**
  * Get the anonymous (ie, unauthenticated) user info.
  */
-extern void rgw_get_anon_user(RGWUserInfo& info, rgw_user& auth_user);
+extern void rgw_get_anon_user(RGWUserInfo& info,
+                              rgw_user& auth_user,
+                              RGWRados * store = NULL,
+                              const std::string& account_name = std::string());
 
 /**
  * verify that user is an actual user, and not the anonymous user
