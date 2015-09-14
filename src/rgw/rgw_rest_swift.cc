@@ -1171,6 +1171,12 @@ int RGWHandler_ObjStore_SWIFT::init_from_header(struct req_state *s)
 
   if (!tenant_path.empty() || g_conf->rgw_swift_tenant_in_url) {
     next_tok(req, s->swift_account, '/');
+
+    size_t pos = s->swift_account.find('_');
+    if (pos != string::npos) {
+      s->swift_account = s->swift_account.substr(pos + 1);
+    }
+
     if (s->swift_account.empty()) {
       return -ERR_PRECONDITION_FAILED;
     }
