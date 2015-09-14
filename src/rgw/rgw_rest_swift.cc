@@ -1054,7 +1054,10 @@ int RGWHandler_ObjStore_SWIFT::authorize()
     return -EPERM;
   }
 
-  s->auth_user = s->user.user_id;
+  if (s->auth_user.empty()) {
+    s->auth_user = s->user.user_id;
+  }
+
   return 0;
 }
 
