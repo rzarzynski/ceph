@@ -561,12 +561,6 @@ int authenticate_temp_url(RGWRados *store, req_state *s)
   if (s->bucket_name_str.empty())
     return -EPERM;
 
-  /* FIXME, XXX: TempURL case is completely different than the one related
-   * to Keystone auth - you have no way to obtain the information about
-   * requested account (and thus the bucket namespace) than extracting it
-   * directly from URL. */
-  string tenant_name = "";  /* XXX Swift TempUrl bucket */
-
   if (s->object.empty())
     return -EPERM;
 
@@ -578,10 +572,15 @@ int authenticate_temp_url(RGWRados *store, req_state *s)
   if (temp_url_expires.empty())
     return -EPERM;
 
-  /* need to get user info of bucket owner */
+  /* Need to get user info of bucket owner.
+   * NOTE: TempURL case is completely different than the one related
+   * to Keystone auth - you have no way to obtain the information about
+   * requested account (and thus the bucket namespace) than extracting it
+   * directly from URL. */
   RGWBucketInfo bucket_info;
 
-  int ret = store->get_bucket_info(*static_cast<RGWObjectCtx *>(s->obj_ctx), tenant_name, s->bucket_name_str, bucket_info, NULL);
+  int ret = store->get_bucket_info(*static_cast<RGWObjectCtx *>(s->obj_ctx),
+          s->swift_account, s->bucket_name_str, bucket_info, NULL);
   if (ret < 0)
     return -EPERM;
 
