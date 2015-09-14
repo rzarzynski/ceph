@@ -547,6 +547,10 @@ int authenticate_temp_url(RGWRados *store, req_state *s)
   if (s->bucket_name_str.empty())
     return -EPERM;
 
+  /* FIXME, XXX: TempURL case is completely different than the one related
+   * to Keystone auth - you have no way to obtain the information about
+   * requested account (and thus the bucket namespace) than extracting it
+   * directly from URL. */
   string tenant_name = "";  /* XXX Swift TempUrl bucket */
 
   if (s->object.empty())
