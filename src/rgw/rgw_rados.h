@@ -2052,8 +2052,8 @@ public:
   int get_user_stats(const rgw_user& user, RGWStorageStats& stats);
   int get_user_stats_async(const rgw_user& user, RGWGetUserStats_CB *cb);
   void get_bucket_instance_obj(rgw_bucket& bucket, rgw_obj& obj);
-  void get_bucket_instance_entry(rgw_bucket& bucket, string& entry);
-  void get_bucket_meta_oid(rgw_bucket& bucket, string& oid);
+  void get_bucket_instance_entry(const rgw_bucket& bucket, string& entry);
+  void get_bucket_meta_oid(const rgw_bucket& bucket, string& oid);
 
   int put_bucket_entrypoint_info(const string& tenant_name, const string& bucket_name, RGWBucketEntryPoint& entry_point,
                                  bool exclusive, RGWObjVersionTracker& objv_tracker, time_t mtime,

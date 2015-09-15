@@ -7453,16 +7453,14 @@ int RGWRados::get_user_stats_async(const rgw_user& user, RGWGetUserStats_CB *ctx
   return 0;
 }
 
-void RGWRados::get_bucket_instance_entry(rgw_bucket& bucket, string& entry)
+void RGWRados::get_bucket_instance_entry(const rgw_bucket& bucket,
+                                         string& entry)
 {
-  if (bucket.tenant.empty()) {
-    entry = bucket.name + ":" + bucket.bucket_id;
-  } else {
-    entry = bucket.tenant + ":" + bucket.name + ":" + bucket.bucket_id;
-  }
+  entry = bucket.name + ":" + bucket.bucket_id;
 }
 
-void RGWRados::get_bucket_meta_oid(rgw_bucket& bucket, string& oid)
+void RGWRados::get_bucket_meta_oid(const rgw_bucket& bucket,
+                                   string& oid)
 {
   string entry;
   get_bucket_instance_entry(bucket, entry);
