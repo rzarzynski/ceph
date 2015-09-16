@@ -572,6 +572,17 @@ int authenticate_temp_url(RGWRados *store, req_state *s)
   if (temp_url_expires.empty())
     return -EPERM;
 
+  rgw_bucket_namespace bns;
+  if (g_conf->rgw_swift_tenant_in_url) {
+    RGWUserInfo ui_bns;
+
+    if (rgw_get_user_info_by_uid(store, s->swift_account, ui_bns) < 0) {
+      return -EPERM;
+    }
+
+    bns = ui_bns.user_id.get_bns();
+  }
+
   /* Need to get user info of bucket owner.
    * NOTE: TempURL case is completely different than the one related
    * to Keystone auth - you have no way to obtain the information about
@@ -579,8 +590,10 @@ int authenticate_temp_url(RGWRados *store, req_state *s)
    * directly from URL. */
   RGWBucketInfo bucket_info;
 
+  /* FIXME: you don't know whether BNS is empty or not here! Need to load
+   * RGWUserInfo first and then resolve BNS. */
   int ret = store->get_bucket_info(*static_cast<RGWObjectCtx *>(s->obj_ctx),
-          s->swift_account, s->bucket_name_str, bucket_info, NULL);
+          bns.get_id(), s->bucket_name_str, bucket_info, NULL);
   if (ret < 0)
     return -EPERM;
 
