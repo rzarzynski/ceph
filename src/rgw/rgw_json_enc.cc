@@ -502,6 +502,7 @@ void RGWQuotaInfo::decode_json(JSONObj *obj)
 
 void rgw_bucket::dump(Formatter *f) const
 {
+  encode_json("namespace", tenant, f);
   encode_json("name", name, f);
   encode_json("pool", data_pool, f);
   encode_json("data_extra_pool", data_extra_pool, f);
@@ -511,6 +512,7 @@ void rgw_bucket::dump(Formatter *f) const
 }
 
 void rgw_bucket::decode_json(JSONObj *obj) {
+  JSONDecoder::decode_json("namespace", tenant, obj);
   JSONDecoder::decode_json("name", name, obj);
   JSONDecoder::decode_json("pool", data_pool, obj);
   JSONDecoder::decode_json("data_extra_pool", data_extra_pool, obj);
