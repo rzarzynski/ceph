@@ -127,6 +127,7 @@ void _usage()
   cout << "                             of read, write, readwrite, full\n";
   cout << "   --display-name=<name>\n";
   cout << "   --max_buckets             max number of buckets for a user\n";
+  cout << "   --own-bucket-namespace    all buckets of the user will stored in a separated namespace\n";
   cout << "   --system                  set the system flag on the user\n";
   cout << "   --bucket=<bucket>\n";
   cout << "   --pool=<pool>\n";
