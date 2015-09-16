@@ -420,6 +420,7 @@ void RGWUserInfo::dump(Formatter *f) const
   encode_json("bucket_quota", bucket_quota, f);
   encode_json("user_quota", user_quota, f);
   encode_json("temp_url_keys", temp_url_keys, f);
+  encode_json("buckets_namespace", user_id.get_bns().get_id(), f);
 }
 
 
@@ -477,6 +478,12 @@ void RGWUserInfo::decode_json(JSONObj *obj)
   JSONDecoder::decode_json("bucket_quota", bucket_quota, obj);
   JSONDecoder::decode_json("user_quota", user_quota, obj);
   JSONDecoder::decode_json("temp_url_keys", temp_url_keys, obj);
+
+  string bns;
+  JSONDecoder::decode_json("buckets namespace", bns, obj);
+  if (bns.compare(user_id.id) == 0) {
+    user_id.has_own_bns = true;
+  }
 }
 
 void RGWQuotaInfo::dump(Formatter *f) const
