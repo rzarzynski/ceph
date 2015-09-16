@@ -553,7 +553,7 @@ void RGWBucketInfo::dump(Formatter *f) const
 {
   encode_json("bucket", bucket, f);
   encode_json("creation_time", creation_time, f);
-  encode_json("owner", owner.to_str(), f);
+  encode_json("owner", owner, f);
   encode_json("flags", flags, f);
   encode_json("region", region, f);
   encode_json("placement_rule", placement_rule, f);
