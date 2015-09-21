@@ -21,6 +21,7 @@
 #define dout_subsys ceph_subsys_rgw
 
 static list<string> roles_list;
+static list<string> admin_roles_list;
 
 class RGWValidateSwiftToken : public RGWHTTPClient {
   struct rgw_swift_auth_info *info;
@@ -371,8 +372,8 @@ int RGWSwift::check_revoked()
   return 0;
 }
 
-static void rgw_set_keystone_token_auth_info(KeystoneToken& token,
-                                             struct rgw_swift_auth_info *info)
+static void rgw_set_keystone_token_auth_info(const KeystoneToken& token,
+                                             struct rgw_swift_auth_info * const info)
 {
   /* If the requested account currently doesn't exist, it may be created with
    * its own namespace for buckets depending on the configuration option. */
@@ -713,9 +714,11 @@ bool RGWSwift::do_verify_swift_token(RGWRados *store, req_state *s)
       return false;
     }
 
-    if (!s->account_name.empty() && info.user.to_str() != s->account_name) {
+    if (!s->account_name.empty() && info.user.to_str() != s->account_name
+        && !info.is_admin) {
       /* Authentication succeeded but completely different account (tenant
-       * in Keystone terminology) has been requested. */
+       * in Keystone terminology) has been requested and the user is not
+       * a reseller admin. */
       return false;
     }
 
@@ -751,8 +754,14 @@ bool RGWSwift::do_verify_swift_token(RGWRados *store, req_state *s)
 void RGWSwift::init()
 {
   get_str_list(cct->_conf->rgw_keystone_accepted_roles, roles_list);
-  if (supports_keystone())
-      init_keystone();
+  get_str_list(cct->_conf->rgw_keystone_accepted_admin_roles, admin_roles_list);
+
+  roles_list.insert(roles_list.end(), admin_roles_list.begin(),
+          admin_roles_list.end());
+
+  if (supports_keystone()) {
+    init_keystone();
+  }
 }
 
 
