@@ -171,9 +171,9 @@ deploy_keystone()
 {
   keystone_download
 
-#  if [[ -n "${KESTONE_DEPLOY_VENV}" ]]; then
+  if [[ -z "${KESTONE_SKIP_VENV}" ]]; then
     keystone_make_venv
-#  fi
+  fi
 
   keystone_configure
   keystone_start
@@ -218,7 +218,6 @@ deploy_tempest()
   tempest_configure
 }
 
-#keystone_put_authinfo
 deploy_keystone
 deploy_tempest
 
