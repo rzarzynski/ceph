@@ -52,16 +52,35 @@ keystone_configure()
   tools/with_venv.sh keystone-manage db_sync
 }
 
+keystone_stop()
+{
+  if [[ -n "${KEYSTONE_PID}" ]]; then
+    kill -HUP ${KEYSTONE_PID}
+  fi
+}
+
 keystone_start()
 {
   cd ${KEYSTONE_HOME_DIR}
 
-  tools/with_venv.sh keystone-all &
+  trap keystone_stop EXIT
 
-  # FIXME: the sentance below isn't entirely true...
+  # tools/with_env.sh cannot be used here due to problems with
+  # tearing down Keystone instance. We need to start a new shell
+  # instead, activate the venv in its context and run keystone-all.
+  (
+    source .venv/bin/activate
+    trap 'kill $(jobs -p)' EXIT
+    keystone-all &
+    wait
+  ) &
+
   # save the child's PID - it safe to relay on $! because we deal here
   # with a foreground process - there is no double fork.
-  KEYSTONE_PID=$1
+  KEYSTONE_PID=$!
+
+  # FIXME: a dirty hack
+  sleep 2
 }
 
 get_id()
