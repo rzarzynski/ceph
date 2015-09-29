@@ -54,8 +54,8 @@ keystone_configure()
 
 keystone_stop()
 {
-  if [[ -n "${KEYSTONE_PID}" ]]; then
-    kill -HUP ${KEYSTONE_PID}
+  if [[ -n "${KEYSTONE_SHELL_PID}" ]]; then
+    kill -HUP ${KEYSTONE_SHELL_PID}
   fi
 }
 
@@ -66,8 +66,8 @@ keystone_start()
   trap keystone_stop EXIT
 
   # tools/with_env.sh cannot be used here due to problems with
-  # tearing down Keystone instance. We need to start a new shell
-  # instead, activate the venv in its context and run keystone-all.
+  # tearing down Keystone. We need to start a new shell instead,
+  # activate the venv in its context and run keystone-all.
   (
     source .venv/bin/activate
     trap 'kill $(jobs -p)' EXIT
@@ -75,9 +75,8 @@ keystone_start()
     wait
   ) &
 
-  # save the child's PID - it safe to relay on $! because we deal here
-  # with a foreground process - there is no double fork.
-  KEYSTONE_PID=$!
+  # Save PID of the subshell spawned for Keystone controll.
+  KEYSTONE_SHELL_PID=$!
 
   # FIXME: a dirty hack
   sleep 2
@@ -224,7 +223,3 @@ deploy_keystone
 deploy_tempest
 
 tempest_start
-
-if [[ -n ${KEYSTONE_PID} ]]; then
-  killall keystone-all
-fi
