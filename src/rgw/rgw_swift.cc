@@ -231,57 +231,13 @@ static int decode_b64_cms(CephContext *cct, const string& signed_b64, bufferlist
 
 int	RGWSwift::get_keystone_url(std::string& url)
 {
-  bufferlist bl;
-  RGWGetRevokedTokens req(cct, &bl);
-
-  url = cct->_conf->rgw_keystone_url;
-  if (url.empty()) {
-    ldout(cct, 0) << "ERROR: keystone url is not configured" << dendl;
-    return -EINVAL;
-  }
-  if (url[url.size() - 1] != '/')
-    url.append("/");
-  return 0;
+  return RGWSwift::get_keystone_url(cct, url);
 }
 
-int	RGWSwift::get_keystone_admin_token(std::string& token)
+int	RGWSwift::get_keystone_admin_token(std::string& token_id)
 {
-  std::string token_url;
-
-  if (get_keystone_url(token_url) < 0)
-    return -EINVAL;
-  if (cct->_conf->rgw_keystone_admin_token.empty()) {
-    token_url.append("v2.0/tokens");
-    KeystoneToken t;
-    bufferlist token_bl;
-    RGWGetKeystoneAdminToken token_req(cct, &token_bl);
-    token_req.append_header("Content-Type", "application/json");
-    JSONFormatter jf;
-    jf.open_object_section("token_request");
-    jf.open_object_section("auth");
-    jf.open_object_section("passwordCredentials");
-    encode_json("username", cct->_conf->rgw_keystone_admin_user, &jf);
-    encode_json("password", cct->_conf->rgw_keystone_admin_password, &jf);
-    jf.close_section();
-    encode_json("tenantName", cct->_conf->rgw_keystone_admin_tenant, &jf);
-    jf.close_section();
-    jf.close_section();
-    std::stringstream ss;
-    jf.flush(ss);
-    token_req.set_post_data(ss.str());
-    token_req.set_send_length(ss.str().length());
-    int ret = token_req.process("POST", token_url.c_str());
-    if (ret < 0)
-      return ret;
-    if (t.parse(cct, token_bl) != 0)
-      return -EINVAL;
-    token = t.token.id;
-  } else {
-    token = cct->_conf->rgw_keystone_admin_token;
-  }
-  return 0; 
+  return RGWSwift::get_keystone_admin_token_id(cct, token_id);
 }
-
 
 int RGWSwift::check_revoked()
 {
@@ -780,3 +736,68 @@ void RGWSwift::KeystoneRevokeThread::stop()
   cond.Signal();
 }
 
+int RGWSwift::get_keystone_url(CephContext * const cct,
+                               std::string& url)
+{
+  url = cct->_conf->rgw_keystone_url;
+  if (url.empty()) {
+    ldout(cct, 0) << "ERROR: keystone url is not configured" << dendl;
+    return -EINVAL;
+  }
+
+  if (url[url.size() - 1] != '/') {
+    url.append("/");
+  }
+
+  return 0;
+}
+
+int RGWSwift::get_keystone_admin_token_id(CephContext * const cct,
+                                          std::string& token_id)
+{
+  if (cct->_conf->rgw_keystone_admin_token.empty()) {
+    std::string token_url;
+    if (get_keystone_url(cct, token_url) < 0) {
+      return -EINVAL;
+    }
+    token_url.append("v2.0/tokens");
+
+    /* Prepare the JSON object with admin credentials. */
+    JSONFormatter jf;
+    jf.open_object_section("token_request");
+    jf.open_object_section("auth");
+    jf.open_object_section("passwordCredentials");
+    encode_json("username", cct->_conf->rgw_keystone_admin_user, &jf);
+    encode_json("password", cct->_conf->rgw_keystone_admin_password, &jf);
+    jf.close_section();
+    encode_json("tenantName", cct->_conf->rgw_keystone_admin_tenant, &jf);
+    jf.close_section();
+    jf.close_section();
+    std::stringstream ss;
+    jf.flush(ss);
+
+    /* Prepare HTTP request. */
+    bufferlist token_bl;
+    RGWGetKeystoneAdminToken token_req(cct, &token_bl);
+    token_req.append_header("Content-Type", "application/json");
+    token_req.set_post_data(ss.str());
+    token_req.set_send_length(ss.str().length());
+
+    /* Send it. */
+    int ret = token_req.process("POST", token_url.c_str());
+    if (ret < 0) {
+      return ret;
+    }
+
+    /* Process response from Keystone. Extract token ID for admin access. */
+    KeystoneToken t;
+    if (t.parse(cct, token_bl) != 0) {
+      return -EINVAL;
+    }
+    token_id = t.token.id;
+  } else {
+    token_id = cct->_conf->rgw_keystone_admin_token;
+  }
+
+  return 0;
+}
