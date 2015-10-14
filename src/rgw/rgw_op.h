@@ -62,6 +62,7 @@ enum RGWOpType {
   RGW_OP_LIST_MULTIPART,
   RGW_OP_LIST_BUCKET_MULTIPARTS,
   RGW_OP_DELETE_MULTI_OBJ,
+  RGW_OP_BULK_DELETE
 };
 
 /**
@@ -1044,6 +1045,26 @@ public:
   virtual const string name() { return "list_bucket_multiparts"; }
   virtual RGWOpType get_type() { return RGW_OP_LIST_BUCKET_MULTIPARTS; }
   virtual uint32_t op_mask() { return RGW_OP_TYPE_READ; }
+};
+
+class RGWBulkDelete : public RGWOp {
+protected:
+  int ret;
+
+public:
+  RGWBulkDelete()
+    : ret(0) {
+  }
+
+  int verify_permission();
+  void execute();
+
+  virtual int get_params() = 0;
+  virtual void send_response() = 0;
+
+  virtual const string name() { return "bulk_delete"; }
+  virtual RGWOpType get_type() { return RGW_OP_BULK_DELETE; }
+  virtual uint32_t op_mask() { return RGW_OP_TYPE_DELETE; }
 };
 
 class RGWDeleteMultiObj : public RGWOp {

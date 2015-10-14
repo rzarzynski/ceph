@@ -270,6 +270,12 @@ public:
   int get_params();
 };
 
+class RGWBulkDelete_ObjStore : public RGWBulkDelete {
+public:
+  RGWBulkDelete_ObjStore() {}
+  ~RGWBulkDelete_ObjStore() {}
+};
+
 class RGWDeleteMultiObj_ObjStore : public RGWDeleteMultiObj {
 public:
   RGWDeleteMultiObj_ObjStore() {}

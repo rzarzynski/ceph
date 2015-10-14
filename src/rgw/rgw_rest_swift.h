@@ -164,6 +164,15 @@ public:
   void send_response();
 };
 
+class RGWBulkDelete_ObjStore_SWIFT : public RGWBulkDelete_ObjStore {
+public:
+  RGWBulkDelete_ObjStore_SWIFT() {}
+  ~RGWBulkDelete_ObjStore_SWIFT() {}
+
+  int get_params();
+  void send_response();
+};
+
 class RGWHandler_ObjStore_SWIFT : public RGWHandler_ObjStore {
   friend class RGWRESTMgr_SWIFT;
 protected:
