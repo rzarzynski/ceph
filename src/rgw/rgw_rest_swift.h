@@ -169,7 +169,7 @@ public:
   RGWBulkDelete_ObjStore_SWIFT() {}
   ~RGWBulkDelete_ObjStore_SWIFT() {}
 
-  int get_params();
+  int get_data(bool& is_truncated);
   void send_response();
 };
 
@@ -199,6 +199,7 @@ protected:
   RGWOp *op_get();
   RGWOp *op_head();
   RGWOp *op_post();
+  RGWOp *op_delete();
 public:
   RGWHandler_ObjStore_Service_SWIFT() {}
   virtual ~RGWHandler_ObjStore_Service_SWIFT() {}

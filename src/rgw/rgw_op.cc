@@ -3682,6 +3682,32 @@ error:
 
 }
 
+int RGWBulkDelete::verify_permission()
+{
+//  if (!verify_bucket_permission(s, RGW_PERM_WRITE))
+//    return -EACCES;
+
+  return 0;
+}
+
+void RGWBulkDelete::pre_exec()
+{
+  rgw_bucket_object_pre_exec(s);
+}
+
+void RGWBulkDelete::execute()
+{
+  bool is_truncated = false;
+  int ret = get_data(is_truncated);
+  if (ret < 0) {
+    return;
+  }
+
+  send_response();
+
+  return;
+}
+
 RGWHandler::~RGWHandler()
 {
 }

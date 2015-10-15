@@ -914,6 +914,21 @@ void RGWOptionsCORS_ObjStore_SWIFT::send_response()
   end_header(s, NULL);
 }
 
+int RGWBulkDelete_ObjStore_SWIFT::get_data(bool& is_truncated)
+{
+  return 0;
+}
+
+void RGWBulkDelete_ObjStore_SWIFT::send_response()
+{
+  set_req_state_err(s, ret);
+  dump_errno(s);
+
+  end_header(s, NULL, NULL, 0,  true);
+
+  dump_start(s);
+}
+
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_get()
 {
   return new RGWListBuckets_ObjStore_SWIFT;
@@ -927,6 +942,11 @@ RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_head()
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_post()
 {
   return new RGWPutMetadataAccount_ObjStore_SWIFT;
+}
+
+RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_delete()
+{
+  return new RGWBulkDelete_ObjStore_SWIFT;
 }
 
 RGWOp *RGWHandler_ObjStore_Bucket_SWIFT::get_obj_op(bool get_data)

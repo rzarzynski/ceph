@@ -1057,9 +1057,10 @@ public:
   }
 
   int verify_permission();
+  void pre_exec();
   void execute();
 
-  virtual int get_params() = 0;
+  virtual int get_data(bool &is_truncated) = 0;
   virtual void send_response() = 0;
 
   virtual const string name() { return "bulk_delete"; }
