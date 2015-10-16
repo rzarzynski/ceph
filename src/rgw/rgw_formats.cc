@@ -21,8 +21,12 @@
 
 #define dout_subsys ceph_subsys_rgw
 
-RGWFormatter_Plain::RGWFormatter_Plain()
-  : buf(NULL), len(0), max_len(0), min_stack_level(0)
+RGWFormatter_Plain::RGWFormatter_Plain(const bool _bulk_del)
+  : buf(NULL),
+    len(0),
+    max_len(0),
+    min_stack_level(0),
+    bulk_del(_bulk_del)
 {
 }
 
@@ -112,7 +116,7 @@ void RGWFormatter_Plain::dump_float(const char *name, double d)
 
 void RGWFormatter_Plain::dump_string(const char *name, const std::string& s)
 {
-  dump_format(name, "%s", s.c_str());
+  dump_format(name, "%s", name, s.c_str());
 }
 
 std::ostream& RGWFormatter_Plain::dump_stream(const char *name)
@@ -131,7 +135,7 @@ void RGWFormatter_Plain::dump_format_va(const char *name, const char *ns, bool q
   if (!min_stack_level)
     min_stack_level = stack.size();
 
-  bool should_print = (stack.size() == min_stack_level && !entry.size);
+  bool should_print = (stack.size() == min_stack_level && !entry.size || bulk_del);
 
   entry.size++;
 
@@ -139,12 +143,17 @@ void RGWFormatter_Plain::dump_format_va(const char *name, const char *ns, bool q
     return;
 
   vsnprintf(buf, LARGE_SIZE, fmt, ap);
-  if (len)
-    format = "\n%s";
-  else
-    format = "%s";
 
-  write_data(format, buf);
+  const char *eol;
+  if (len)
+    eol = "\n";
+  else
+    eol = "";
+
+  if (bulk_del)
+    write_data("%s%s: %s", eol, name, buf);
+  else
+    write_data("%s%s", eol, buf);
 }
 
 int RGWFormatter_Plain::get_len() const
@@ -233,7 +242,7 @@ void RGWFormatter_Plain::dump_value_int(const char *name, const char *fmt, ...)
     min_stack_level = stack.size();
 
   struct plain_stack_entry& entry = stack.back();
-  bool should_print = (stack.size() == min_stack_level && !entry.size);
+  bool should_print = (stack.size() == min_stack_level && !entry.size || bulk_del);
 
   entry.size++;
 
@@ -250,5 +259,9 @@ void RGWFormatter_Plain::dump_value_int(const char *name, const char *fmt, ...)
   else
     eol = "";
 
-  write_data("%s%s", eol, buf);
+  if (bulk_del)
+    write_data("%s%s: %s", eol, name, buf);
+  else
+    write_data("%s%s", eol, buf);
+
 }

@@ -49,6 +49,7 @@ private:
   char *buf;
   int len;
   int max_len;
+  bool bulk_del;
 
   std::list<struct plain_stack_entry> stack;
   size_t min_stack_level;
