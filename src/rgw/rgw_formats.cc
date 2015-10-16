@@ -116,7 +116,7 @@ void RGWFormatter_Plain::dump_float(const char *name, double d)
 
 void RGWFormatter_Plain::dump_string(const char *name, const std::string& s)
 {
-  dump_format(name, "%s", name, s.c_str());
+  dump_format(name, "%s", s.c_str());
 }
 
 std::ostream& RGWFormatter_Plain::dump_stream(const char *name)
