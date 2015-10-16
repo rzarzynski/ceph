@@ -19,6 +19,8 @@
 #include "rgw_xml.h"
 #include "rgw_common.h"
 
+#define dout_subsys ceph_subsys_rgw
+
 class RGWBulkDeleter {
 public:
   struct acct_path_t {
@@ -27,24 +29,24 @@ public:
   };
 
   struct fail_desc_t {
-    int errno;
-    rgw_obj_key object;
+    int err;
+    acct_path_t path;
   };
 
 protected:
   unsigned int num_deleted;
   unsigned int num_unfound;
-  std::list<acct_path_t> failures;
+  std::list<fail_desc_t> failures;
 
   RGWRados * const store;
-  RGWObjectCtx * const obj_ctx
+  RGWObjectCtx& obj_ctx;
 
 public:
   RGWBulkDeleter(RGWRados * const s, RGWObjectCtx * const c)
     : num_deleted(0),
       num_unfound(0),
       store(s),
-      obj_ctx(c) {
+      obj_ctx(*c) {
   }
 
   unsigned int get_num_deleted() {
@@ -56,19 +58,28 @@ public:
   }
 
   bool delete_chunk(const std::list<acct_path_t> paths) {
+    ldout(store->ctx(), 20) << "in delete_chunk" << dendl;
     for (auto path : paths) {
+      ldout(store->ctx(), 20) << "iteration for path: " << path.bucket_name << dendl;
       RGWBucketInfo binfo;
-      ret = store->get_bucket_info(obj_ctx, path.bucket_name, binfo, NULL);
+      int ret = store->get_bucket_info(obj_ctx, path.bucket_name, binfo, NULL);
       if (ret == -ENOENT) {
+        ldout(store->ctx(), 20) << "cannot find bucket = " << path.bucket_name << dendl;
         num_unfound++;
         continue;
       } else if (ret < 0) {
-        failures.append({ ret, path });
+        ldout(store->ctx(), 20) << "cannot get bucket info, ret = " << ret << dendl;
+
+        fail_desc_t failed_item = {
+          .err  = ret,
+          .path = path
+        };
+        failures.push_back(failed_item);
         continue;
       }
 
       rgw_obj obj(binfo.bucket, path.obj_key);
-      obj_ctx->set_atomic(obj);
+      obj_ctx.set_atomic(obj);
 
       RGWRados::Object del_target(store, binfo, obj_ctx, obj);
       RGWRados::Object::Delete del_op(&del_target);
@@ -79,9 +90,14 @@ public:
 
       ret = del_op.delete_obj();
       if (ret == -ENOENT) {
+        ldout(store->ctx(), 20) << "cannot find obj = " << obj << dendl;
         num_unfound++;
       } else if (ret < 0) {
-        failures.append({ ret, path });
+        fail_desc_t failed_item = {
+          .err  = ret,
+          .path = path
+        };
+        failures.push_back(failed_item);
       } else {
         num_deleted++;
       }
