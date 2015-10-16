@@ -3697,13 +3697,21 @@ void RGWBulkDelete::pre_exec()
 
 void RGWBulkDelete::execute()
 {
-  bool is_truncated = false;
-  int ret = get_data(is_truncated);
-  if (ret < 0) {
-    return;
-  }
+  RGWBulkDeleter dltr(store, static_cast<RGWObjectCtx *>(s->obj_ctx));
+  deleter = &dltr;
 
-  send_response();
+  bool is_truncated = false;
+
+  do {
+    list<RGWBulkDeleter::acct_path_t> items;
+
+    int ret = get_data(items, is_truncated);
+    if (ret < 0) {
+      return;
+    }
+
+    ret = deleter->delete_chunk(items);
+  } while (is_truncated);
 
   return;
 }

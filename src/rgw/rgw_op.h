@@ -1047,20 +1047,25 @@ public:
   virtual uint32_t op_mask() { return RGW_OP_TYPE_READ; }
 };
 
+#include "rgw_bulk.h"
+
 class RGWBulkDelete : public RGWOp {
 protected:
   int ret;
+  RGWBulkDeleter * deleter;
 
 public:
   RGWBulkDelete()
-    : ret(0) {
+    : ret(0),
+      deleter(nullptr) {
   }
 
   int verify_permission();
   void pre_exec();
   void execute();
 
-  virtual int get_data(bool &is_truncated) = 0;
+  virtual int get_data(std::list<RGWBulkDeleter::acct_path_t>& items,
+                       bool &is_truncated) = 0;
   virtual void send_response() = 0;
 
   virtual const string name() { return "bulk_delete"; }

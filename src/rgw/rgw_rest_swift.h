@@ -169,7 +169,8 @@ public:
   RGWBulkDelete_ObjStore_SWIFT() {}
   ~RGWBulkDelete_ObjStore_SWIFT() {}
 
-  int get_data(bool& is_truncated);
+  int get_data(std::list<RGWBulkDeleter::acct_path_t>& items,
+               bool& is_truncated);
   void send_response();
 };
 

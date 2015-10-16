@@ -914,8 +914,32 @@ void RGWOptionsCORS_ObjStore_SWIFT::send_response()
   end_header(s, NULL);
 }
 
-int RGWBulkDelete_ObjStore_SWIFT::get_data(bool& is_truncated)
+int RGWBulkDelete_ObjStore_SWIFT::get_data(list<RGWBulkDeleter::acct_path_t>& items,
+                                           bool& is_truncated)
 {
+  RGWClientIOStreamBuf ciosb(*s->cio, (size_t)s->cct->_conf->rgw_max_chunk_size);
+  istream cioin(&ciosb);
+
+  char item[1024];
+  while (cioin.getline(item, sizeof(item))) {
+    string path_str(item);
+
+    ldout(s->cct, 20) << "got: " << item << dendl;
+
+    const size_t sep_pos = path_str.find('/');
+    if (string::npos == sep_pos) {
+      ldout(s->cct, 20) << "wrongle formatted item: " << path_str << dendl;
+      continue;
+    }
+
+    RGWBulkDeleter::acct_path_t path;
+    path.bucket_name = path_str.substr(0, sep_pos);
+    path.obj_key     = path_str.substr(sep_pos + 1);
+
+    items.push_back(path);
+  }
+
+  is_truncated = false;
   return 0;
 }
 
@@ -924,9 +948,19 @@ void RGWBulkDelete_ObjStore_SWIFT::send_response()
   set_req_state_err(s, ret);
   dump_errno(s);
 
-  end_header(s, NULL, NULL, 0,  true);
+  // end_header(s, NULL, NULL, 0,  true);
+  end_header(s, this);
 
-  dump_start(s);
+  //s->formatter->open_object_section("object");
+  s->formatter->open_object_section_with_attrs("subdir", FormatterAttrs("name", "bla", NULL));
+
+  s->formatter->dump_string("name", "fail");
+  s->formatter->dump_string("hash", "ok");
+  s->formatter->dump_int("bytes", 10);
+
+  s->formatter->close_section();
+
+  rgw_flush_formatter_and_reset(s, s->formatter);
 }
 
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_get()
@@ -941,12 +975,18 @@ RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_head()
 
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_post()
 {
+  if (s->info.args.exists("bulk-delete")) {
+    return new RGWBulkDelete_ObjStore_SWIFT;
+  }
   return new RGWPutMetadataAccount_ObjStore_SWIFT;
 }
 
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_delete()
 {
-  return new RGWBulkDelete_ObjStore_SWIFT;
+  if (s->info.args.exists("bulk-delete")) {
+    return new RGWBulkDelete_ObjStore_SWIFT;
+  }
+  return NULL;
 }
 
 RGWOp *RGWHandler_ObjStore_Bucket_SWIFT::get_obj_op(bool get_data)
