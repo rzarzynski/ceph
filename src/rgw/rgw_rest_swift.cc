@@ -951,16 +951,21 @@ void RGWBulkDelete_ObjStore_SWIFT::send_response()
   // end_header(s, NULL, NULL, 0,  true);
   end_header(s, this);
 
-  //s->formatter->open_object_section("object");
-  s->formatter->open_object_section_with_attrs("subdir", FormatterAttrs("name", "bla", NULL));
+  s->formatter->open_object_section("delete");
 
-  s->formatter->dump_string("name", "fail");
-  s->formatter->dump_string("hash", "ok");
-  s->formatter->dump_int("bytes", 10);
+  s->formatter->dump_int("Number Deleted", deleter->get_num_deleted());
+  s->formatter->dump_int("Number Not Found", deleter->get_num_unfound());
+  s->formatter->dump_string("Response Body", "");
+  s->formatter->dump_string("Response Status", "200 OK");
+  s->formatter->open_array_section("Errors");
+  s->formatter->close_section();
 
   s->formatter->close_section();
 
   rgw_flush_formatter_and_reset(s, s->formatter);
+
+  delete deleter;
+  deleter = nullptr;
 }
 
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_get()

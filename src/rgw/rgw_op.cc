@@ -3697,8 +3697,7 @@ void RGWBulkDelete::pre_exec()
 
 void RGWBulkDelete::execute()
 {
-  RGWBulkDeleter dltr(store, static_cast<RGWObjectCtx *>(s->obj_ctx));
-  deleter = &dltr;
+  deleter = new RGWBulkDeleter(store, static_cast<RGWObjectCtx *>(s->obj_ctx));
 
   bool is_truncated = false;
 
