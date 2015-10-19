@@ -21,12 +21,12 @@
 
 #define dout_subsys ceph_subsys_rgw
 
-RGWFormatter_Plain::RGWFormatter_Plain(const bool _bulk_del)
+RGWFormatter_Plain::RGWFormatter_Plain(const bool ukv)
   : buf(NULL),
     len(0),
     max_len(0),
     min_stack_level(0),
-    bulk_del(_bulk_del)
+    use_kv(ukv)
 {
 }
 
@@ -69,6 +69,9 @@ void RGWFormatter_Plain::open_array_section(const char *name)
   new_entry.is_array = true;
   new_entry.size = 0;
   stack.push_back(new_entry);
+
+  if (use_kv && min_stack_level > 0)
+    dump_format(name, "");
 }
 
 void RGWFormatter_Plain::open_array_section_in_ns(const char *name, const char *ns)
@@ -84,6 +87,9 @@ void RGWFormatter_Plain::open_object_section(const char *name)
   new_entry.is_array = false;
   new_entry.size = 0;
   stack.push_back(new_entry);
+
+  if (use_kv && min_stack_level > 0)
+    dump_format(name, "");
 }
 
 void RGWFormatter_Plain::open_object_section_in_ns(const char *name,
@@ -135,7 +141,7 @@ void RGWFormatter_Plain::dump_format_va(const char *name, const char *ns, bool q
   if (!min_stack_level)
     min_stack_level = stack.size();
 
-  bool should_print = (stack.size() == min_stack_level && !entry.size || bulk_del);
+  bool should_print = ((stack.size() == min_stack_level && !entry.size) || use_kv);
 
   entry.size++;
 
@@ -150,7 +156,7 @@ void RGWFormatter_Plain::dump_format_va(const char *name, const char *ns, bool q
   else
     eol = "";
 
-  if (bulk_del)
+  if (use_kv)
     write_data("%s%s: %s", eol, name, buf);
   else
     write_data("%s%s", eol, buf);
@@ -242,7 +248,7 @@ void RGWFormatter_Plain::dump_value_int(const char *name, const char *fmt, ...)
     min_stack_level = stack.size();
 
   struct plain_stack_entry& entry = stack.back();
-  bool should_print = (stack.size() == min_stack_level && !entry.size || bulk_del);
+  bool should_print = ((stack.size() == min_stack_level && !entry.size) || use_kv);
 
   entry.size++;
 
@@ -259,7 +265,7 @@ void RGWFormatter_Plain::dump_value_int(const char *name, const char *fmt, ...)
   else
     eol = "";
 
-  if (bulk_del)
+  if (use_kv)
     write_data("%s%s: %s", eol, name, buf);
   else
     write_data("%s%s", eol, buf);

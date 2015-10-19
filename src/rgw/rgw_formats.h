@@ -22,7 +22,7 @@ struct plain_stack_entry {
 class RGWFormatter_Plain : public Formatter {
   void reset_buf();
 public:
-  RGWFormatter_Plain(bool bulk_del = false);
+  RGWFormatter_Plain(bool use_kv = false);
   virtual ~RGWFormatter_Plain();
 
   virtual void flush(ostream& os);
@@ -52,7 +52,7 @@ private:
 
   std::list<struct plain_stack_entry> stack;
   size_t min_stack_level;
-  bool bulk_del;
+  bool use_kv;
 };
 
 class RGWFormatterFlusher {
