@@ -17,6 +17,7 @@ librgw_la_SOURCES =  \
 	rgw/rgw_acl.cc \
 	rgw/rgw_acl_s3.cc \
 	rgw/rgw_acl_swift.cc \
+	rgw/rgw_cms.cc \
 	rgw/rgw_client_io.cc \
 	rgw/rgw_fcgi.cc \
 	rgw/rgw_xml.cc \
@@ -84,6 +85,7 @@ libcivetweb_la_CFLAGS = -I$(srcdir)/civetweb/include ${CIVETWEB_INCLUDE}
 noinst_LTLIBRARIES += libcivetweb.la
 
 radosgw_SOURCES = \
+	rgw/rgw_cms.cc \
 	rgw/rgw_resolve.cc \
 	rgw/rgw_rest.cc \
 	rgw/rgw_rest_swift.cc \
@@ -135,6 +137,7 @@ noinst_HEADERS += \
 	rgw/rgw_xml.h \
 	rgw/rgw_basic_types.h \
 	rgw/rgw_cache.h \
+	rgw/rgw_cms.h \
 	rgw/rgw_common.h \
 	rgw/rgw_cors.h \
 	rgw/rgw_cors_s3.h \
