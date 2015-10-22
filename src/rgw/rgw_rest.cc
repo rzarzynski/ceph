@@ -278,31 +278,47 @@ void rgw_flush_formatter(struct req_state *s, Formatter *formatter)
   }
 }
 
-void set_req_state_err(struct req_state *s, int err_no)
+void set_req_state_err(struct rgw_err& err,
+                       int err_no,
+                       const int prot_flags)
 {
   const struct rgw_http_errors *r;
 
   if (err_no < 0)
     err_no = -err_no;
-  s->err.ret = -err_no;
-  if (s->prot_flags & RGW_REST_SWIFT) {
+  err.ret = -err_no;
+  if (prot_flags & RGW_REST_SWIFT) {
     r = search_err(err_no, RGW_HTTP_SWIFT_ERRORS, ARRAY_LEN(RGW_HTTP_SWIFT_ERRORS));
     if (r) {
-      s->err.http_ret = r->http_ret;
-      s->err.s3_code = r->s3_code;
+      err.http_ret = r->http_ret;
+      err.s3_code = r->s3_code;
       return;
     }
   }
   r = search_err(err_no, RGW_HTTP_ERRORS, ARRAY_LEN(RGW_HTTP_ERRORS));
   if (r) {
-    s->err.http_ret = r->http_ret;
-    s->err.s3_code = r->s3_code;
+    err.http_ret = r->http_ret;
+    err.s3_code = r->s3_code;
     return;
   }
   dout(0) << "WARNING: set_req_state_err err_no=" << err_no << " resorting to 500" << dendl;
 
-  s->err.http_ret = 500;
-  s->err.s3_code = "UnknownError";
+  err.http_ret = 500;
+  err.s3_code = "UnknownError";
+}
+
+void set_req_state_err(struct req_state * const s, const int err_no)
+{
+  if (s) {
+    set_req_state_err(s->err, err_no, s->prot_flags);
+  }
+}
+
+void dump_errno(const struct rgw_err &err, string& out) {
+  stringstream ss;
+
+  ss <<  err.http_ret << " " << http_status_names[err.http_ret];
+  out = ss.str();
 }
 
 void dump_errno(struct req_state *s)
