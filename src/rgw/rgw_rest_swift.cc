@@ -914,7 +914,7 @@ void RGWOptionsCORS_ObjStore_SWIFT::send_response()
   end_header(s, NULL);
 }
 
-int RGWBulkDelete_ObjStore_SWIFT::get_data(list<RGWBulkDeleter::acct_path_t>& items,
+int RGWBulkDelete_ObjStore_SWIFT::get_data(list<RGWBulkDelete::acct_path_t>& items,
                                            bool& is_truncated)
 {
   RGWClientIOStreamBuf ciosb(*s->cio, (size_t)s->cct->_conf->rgw_max_chunk_size);
@@ -932,7 +932,7 @@ int RGWBulkDelete_ObjStore_SWIFT::get_data(list<RGWBulkDeleter::acct_path_t>& it
       continue;
     }
 
-    RGWBulkDeleter::acct_path_t path;
+    RGWBulkDelete::acct_path_t path;
     path.bucket_name = path_str.substr(0, sep_pos);
     path.obj_key     = path_str.substr(sep_pos + 1);
 
@@ -958,14 +958,25 @@ void RGWBulkDelete_ObjStore_SWIFT::send_response()
   s->formatter->dump_string("Response Body", "");
   s->formatter->dump_string("Response Status", "200 OK");
   s->formatter->open_array_section("Errors");
+  for (const auto fail_desc : deleter->get_failures()) {
+    rgw_err err;
+    set_req_state_err(err, fail_desc.err, s->prot_flags);
+    string status;
+    dump_errno(err, status);
+
+    stringstream ss_name;
+    ss_name << fail_desc.path;
+
+    s->formatter->open_array_section("object");
+    s->formatter->dump_string("Name", ss_name.str());
+    s->formatter->dump_string("Status", status);
+    s->formatter->close_section();
+  }
   s->formatter->close_section();
 
   s->formatter->close_section();
 
   rgw_flush_formatter_and_reset(s, s->formatter);
-
-  delete deleter;
-  deleter = nullptr;
 }
 
 RGWOp *RGWHandler_ObjStore_Service_SWIFT::op_get()

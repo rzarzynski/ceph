@@ -13,6 +13,7 @@
 
 #include <limits.h>
 
+#include <memory>
 #include <string>
 #include <set>
 #include <map>
@@ -1047,12 +1048,60 @@ public:
   virtual uint32_t op_mask() { return RGW_OP_TYPE_READ; }
 };
 
-#include "rgw_bulk.h"
 
 class RGWBulkDelete : public RGWOp {
+public:
+  struct acct_path_t {
+    std::string bucket_name;
+    rgw_obj_key obj_key;
+  };
+
+  struct fail_desc_t {
+    int err;
+    acct_path_t path;
+  };
+
+  class Deleter {
+  protected:
+    unsigned int num_deleted;
+    unsigned int num_unfound;
+    std::list<fail_desc_t> failures;
+
+    RGWRados * const store;
+    req_state * const s;
+
+  public:
+    Deleter(RGWRados * const str, req_state * const s)
+      : num_deleted(0),
+        num_unfound(0),
+        store(str),
+        s(s) {
+    }
+
+    unsigned int get_num_deleted() const {
+      return num_deleted;
+    }
+
+    unsigned int get_num_unfound() const {
+      return num_unfound;
+    }
+
+    const std::list<fail_desc_t> get_failures() const {
+      return failures;
+    }
+
+    bool verify_permission(RGWBucketInfo& binfo,
+                           map<string, bufferlist>& battrs,
+                           rgw_obj& obj,
+                           ACLOwner& bucket_owner /* out */);
+    bool delete_single(const acct_path_t& path);
+    bool delete_chunk(const std::list<acct_path_t>& paths);
+  };
+  /* End of Deleter subclass */
+
 protected:
   int ret;
-  RGWBulkDeleter * deleter;
+  std::unique_ptr<Deleter> deleter;
 
 public:
   RGWBulkDelete()
@@ -1064,7 +1113,7 @@ public:
   void pre_exec();
   void execute();
 
-  virtual int get_data(std::list<RGWBulkDeleter::acct_path_t>& items,
+  virtual int get_data(std::list<acct_path_t>& items,
                        bool &is_truncated) = 0;
   virtual void send_response() = 0;
 
@@ -1072,6 +1121,10 @@ public:
   virtual RGWOpType get_type() { return RGW_OP_BULK_DELETE; }
   virtual uint32_t op_mask() { return RGW_OP_TYPE_DELETE; }
 };
+
+inline ostream& operator<<(ostream& out, const RGWBulkDelete::acct_path_t &o) {
+  return out << o.bucket_name << "/" << o.obj_key;
+}
 
 class RGWDeleteMultiObj : public RGWOp {
 protected:
