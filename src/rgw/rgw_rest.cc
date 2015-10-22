@@ -1168,8 +1168,11 @@ int RGWHandler_ObjStore::allocate_formatter(struct req_state *s, int default_typ
         break;
       }
     case RGW_FORMAT_XML:
-      s->formatter = new XMLFormatter(false);
-      break;
+      {
+        const bool lowercase_underscore =s->info.args.exists("bulk-delete");
+        s->formatter = new XMLFormatter(false, lowercase_underscore);
+        break;
+      }
     case RGW_FORMAT_JSON:
       s->formatter = new JSONFormatter(false);
       break;
