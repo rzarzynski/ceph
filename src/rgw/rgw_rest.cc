@@ -1162,8 +1162,11 @@ int RGWHandler_ObjStore::allocate_formatter(struct req_state *s, int default_typ
 
   switch (s->format) {
     case RGW_FORMAT_PLAIN:
-      s->formatter = new RGWFormatter_Plain;
-      break;
+      {
+        const bool use_kv_syntax =s->info.args.exists("bulk-delete");
+        s->formatter = new RGWFormatter_Plain(use_kv_syntax);
+        break;
+      }
     case RGW_FORMAT_XML:
       s->formatter = new XMLFormatter(false);
       break;
