@@ -65,13 +65,16 @@ void RGWFormatter_Plain::reset()
 
 void RGWFormatter_Plain::open_array_section(const char *name)
 {
+  struct plain_stack_entry& entry = stack.back();
+
   struct plain_stack_entry new_entry;
   new_entry.is_array = true;
   new_entry.size = 0;
-  stack.push_back(new_entry);
 
-  if (use_kv && min_stack_level > 0)
+  if (use_kv && min_stack_level > 0 && !entry.is_array)
     dump_format(name, "");
+
+  stack.push_back(new_entry);
 }
 
 void RGWFormatter_Plain::open_array_section_in_ns(const char *name, const char *ns)
@@ -86,10 +89,11 @@ void RGWFormatter_Plain::open_object_section(const char *name)
   struct plain_stack_entry new_entry;
   new_entry.is_array = false;
   new_entry.size = 0;
-  stack.push_back(new_entry);
 
   if (use_kv && min_stack_level > 0)
     dump_format(name, "");
+
+  stack.push_back(new_entry);
 }
 
 void RGWFormatter_Plain::open_object_section_in_ns(const char *name,
@@ -151,12 +155,15 @@ void RGWFormatter_Plain::dump_format_va(const char *name, const char *ns, bool q
   vsnprintf(buf, LARGE_SIZE, fmt, ap);
 
   const char *eol;
-  if (len)
-    eol = "\n";
-  else
+  if (len) {
+    if (use_kv && entry.is_array && entry.size > 1)
+      eol = ", ";
+    else
+      eol = "\n";
+  } else
     eol = "";
 
-  if (use_kv)
+  if (use_kv && !entry.is_array)
     write_data("%s%s: %s", eol, name, buf);
   else
     write_data("%s%s", eol, buf);
@@ -265,7 +272,7 @@ void RGWFormatter_Plain::dump_value_int(const char *name, const char *fmt, ...)
   else
     eol = "";
 
-  if (use_kv)
+  if (use_kv && !entry.is_array)
     write_data("%s%s: %s", eol, name, buf);
   else
     write_data("%s%s", eol, buf);
