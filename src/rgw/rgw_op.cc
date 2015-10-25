@@ -3800,10 +3800,6 @@ bool RGWBulkDelete::Deleter::delete_chunk(const std::list<acct_path_t>& paths)
 
 int RGWBulkDelete::verify_permission()
 {
-  if (!rgw_user_is_authenticated(s->user)) {
-    return -EACCES;
-  }
-
   return 0;
 }
 
