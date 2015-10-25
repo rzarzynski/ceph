@@ -3682,8 +3682,8 @@ bool RGWBulkDelete::Deleter::verify_permission(RGWBucketInfo& binfo,
 bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
 {
   int ret = 0;
-
   auto& obj_ctx = *static_cast<RGWObjectCtx *>(s->obj_ctx);
+
   RGWBucketInfo binfo;
   map<string, bufferlist> battrs;
   ret = store->get_bucket_info(obj_ctx, path.bucket_name, binfo, NULL, &battrs);
@@ -3692,7 +3692,7 @@ bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
   }
 
   /* We do need a new scope due to goto. */
-  {
+  if (!path.obj_key.empty()) {
     rgw_obj obj(binfo.bucket, path.obj_key);
     obj_ctx.set_atomic(obj);
 
@@ -3712,6 +3712,34 @@ bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
     ret = del_op.delete_obj();
     if (ret < 0) {
       goto delop_fail;
+    }
+  } else {
+    RGWObjVersionTracker ot;
+    ot.read_version = binfo.ep_objv;
+
+    ret = store->delete_bucket(binfo.bucket, ot);
+    if (0 == ret) {
+      ret = rgw_unlink_bucket(store, binfo.owner, binfo.bucket.name, false);
+      if (ret < 0) {
+        ldout(s->cct, 0) << "WARNING: failed to unlink bucket: ret=" << ret << dendl;
+      }
+    }
+
+    if (ret < 0) {
+      return false;
+    }
+
+    if (!store->region.is_master) {
+      bufferlist in_data;
+      JSONParser jp;
+      ret = forward_request_to_master(s, &ot.read_version, store, in_data, &jp);
+      if (ret < 0) {
+        if (ret == -ENOENT) { /* adjust error,
+                               we want to return with NoSuchBucket and not NoSuchKey */
+          ret = -ERR_NO_SUCH_BUCKET;
+        }
+        return false;
+      }
     }
   }
 
