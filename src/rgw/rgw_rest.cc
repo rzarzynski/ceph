@@ -278,9 +278,9 @@ void rgw_flush_formatter(struct req_state *s, Formatter *formatter)
   }
 }
 
-void set_req_state_err(struct rgw_err& err,
-                       int err_no,
-                       const int prot_flags)
+void set_req_state_err(struct rgw_err& err,     /* out */
+                       int err_no,              /* in  */
+                       const int prot_flags)    /* in  */
 {
   const struct rgw_http_errors *r;
 
@@ -314,11 +314,15 @@ void set_req_state_err(struct req_state * const s, const int err_no)
   }
 }
 
-void dump_errno(const struct rgw_err &err, string& out) {
+void dump_errno(int http_ret, string& out) {
   stringstream ss;
 
-  ss <<  err.http_ret << " " << http_status_names[err.http_ret];
+  ss <<  http_ret << " " << http_status_names[http_ret];
   out = ss.str();
+}
+
+void dump_errno(const struct rgw_err &err, string& out) {
+  dump_errno(err.http_ret, out);
 }
 
 void dump_errno(struct req_state *s)
@@ -328,11 +332,11 @@ void dump_errno(struct req_state *s)
   dump_status(s, buf, http_status_names[s->err.http_ret]);
 }
 
-void dump_errno(struct req_state *s, int err)
+void dump_errno(struct req_state *s, int http_ret)
 {
   char buf[32];
-  snprintf(buf, sizeof(buf), "%d", err);
-  dump_status(s, buf, http_status_names[s->err.http_ret]);
+  snprintf(buf, sizeof(buf), "%d", http_ret);
+  dump_status(s, buf, http_status_names[http_ret]);
 }
 
 void dump_string_header(struct req_state *s, const char *name, const char *val)
