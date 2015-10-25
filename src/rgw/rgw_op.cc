@@ -3679,6 +3679,21 @@ bool RGWBulkDelete::Deleter::verify_permission(RGWBucketInfo& binfo,
   return verify_object_permission(s, &bacl, &oacl, RGW_PERM_WRITE);
 }
 
+bool RGWBulkDelete::Deleter::verify_permission(RGWBucketInfo& binfo,
+                                               map<string, bufferlist>& battrs)
+{
+  int ret = 0;
+
+  RGWAccessControlPolicy bacl(store->ctx());
+  rgw_obj_key no_obj;
+  ret = read_policy(store, s, binfo, battrs, &bacl, binfo.bucket, no_obj);
+  if (ret < 0) {
+    return false;
+  }
+
+  return verify_bucket_permission(s, &bacl, RGW_PERM_WRITE);
+}
+
 bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
 {
   int ret = 0;
@@ -3717,6 +3732,11 @@ bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
     RGWObjVersionTracker ot;
     ot.read_version = binfo.ep_objv;
 
+    if (!verify_permission(binfo, battrs)) {
+      ret = -EACCES;
+      goto auth_fail;
+    }
+
     ret = store->delete_bucket(binfo.bucket, ot);
     if (0 == ret) {
       ret = rgw_unlink_bucket(store, binfo.owner, binfo.bucket.name, false);
@@ -3724,9 +3744,8 @@ bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
         ldout(s->cct, 0) << "WARNING: failed to unlink bucket: ret=" << ret << dendl;
       }
     }
-
     if (ret < 0) {
-      return false;
+      goto delop_fail;
     }
 
     if (!store->region.is_master) {
@@ -3738,7 +3757,7 @@ bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
                                we want to return with NoSuchBucket and not NoSuchKey */
           ret = -ERR_NO_SUCH_BUCKET;
         }
-        return false;
+        goto delop_fail;
       }
     }
   }
