@@ -920,11 +920,11 @@ int RGWBulkDelete_ObjStore_SWIFT::get_data(list<RGWBulkDelete::acct_path_t>& ite
   RGWClientIOStreamBuf ciosb(*s->cio, (size_t)s->cct->_conf->rgw_max_chunk_size);
   istream cioin(&ciosb);
 
-  char item[1024];
-  while (cioin.getline(item, sizeof(item))) {
-    string path_str(item);
+  char buf[1024];
+  while (cioin.getline(buf, sizeof(buf))) {
+    string path_str(buf);
 
-    ldout(s->cct, 20) << "got: " << item << dendl;
+    ldout(s->cct, 20) << "extracted Bulk Delete entry: " << path_str << dendl;
 
     RGWBulkDelete::acct_path_t path;
 
