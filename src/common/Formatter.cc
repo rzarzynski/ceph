@@ -32,9 +32,8 @@
 #include <boost/format.hpp>
 
 
-static char tolower_underscore(char b) {
-  const char lower = tolower(b);
-  return ' ' == lower ? '_' : lower;
+static char tolower_underscore(const char b) {
+  return ' ' == b ? '_' : std::tolower(b);
 }
 
 // -----------------------
