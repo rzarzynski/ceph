@@ -943,6 +943,11 @@ int RGWBulkDelete_ObjStore_SWIFT::get_data(list<RGWBulkDelete::acct_path_t>& ite
     }
 
     items.push_back(path);
+
+    if (items.size() == MAX_CHUNK_ENTRIES) {
+      is_truncated = true;
+      return 0;
+    }
   }
 
   is_truncated = false;
