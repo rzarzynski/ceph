@@ -2890,6 +2890,12 @@ void RGWPutMetadataAccount::execute()
     return;
   }
 
+  if (has_policy) {
+    bufferlist acl_bl;
+    policy.encode(acl_bl);
+    attrs.emplace(RGW_ATTR_ACL, std::move(acl_bl));
+  }
+
   rgw_get_request_metadata(s->cct, s->info, attrs, false);
   prepare_add_del_attrs(orig_attrs, rmattr_names, attrs);
   populate_with_generic_attrs(s, attrs);
