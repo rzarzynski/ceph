@@ -676,10 +676,12 @@ protected:
   int ret;
   set<string> rmattr_names;
   RGWAccessControlPolicy policy;
+  bool has_policy;
 
 public:
   RGWPutMetadataAccount()
-    : ret(0)
+    : ret(0),
+      has_policy(false)
   {}
 
   virtual void init(RGWRados *store, struct req_state *s, RGWHandler *h) {
