@@ -1079,6 +1079,7 @@ struct req_state {
    bool has_bad_meta;
 
    RGWUserInfo user; 
+   std::unique_ptr<RGWAccessControlPolicy> user_acl;
    RGWAccessControlPolicy *bucket_acl;
    RGWAccessControlPolicy *object_acl;
 
