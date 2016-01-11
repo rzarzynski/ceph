@@ -27,16 +27,16 @@ public:
 class RGWAccessControlPolicy_SWIFTAcct : public RGWAccessControlPolicy
 {
 public:
-  RGWAccessControlPolicy_SWIFTAcct(CephContext *_cct)
-    : RGWAccessControlPolicy(_cct) {}
+  RGWAccessControlPolicy_SWIFTAcct(CephContext * const _cct)
+    : RGWAccessControlPolicy(_cct)
+  {}
   ~RGWAccessControlPolicy_SWIFTAcct() {}
 
-  void add_grants(RGWRados *store, list<string>& uids, int perm);
+  void add_grants(RGWRados *store, const list<string>& uids, int perm);
   bool create(RGWRados *store,
-              rgw_user& id,
-              string& name,
-              string& read_list,
-              string& write_list);
+              const rgw_user& id,
+              const string& name,
+              const string& acl_str);
   void to_str(string& acl) const;
 };
 #endif
