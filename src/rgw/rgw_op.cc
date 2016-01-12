@@ -766,7 +766,8 @@ int RGWGetObj::read_user_manifest_part(rgw_bucket& bucket,
   if (ret < 0)
     return ret;
 
-  if (!verify_object_permission(s, bucket_policy, &obj_policy, RGW_PERM_READ)) {
+  // FIXME
+  if (!verify_object_permission(s, nullptr, bucket_policy, &obj_policy, RGW_PERM_READ)) {
     return -EPERM;
   }
 
@@ -4169,7 +4170,8 @@ bool RGWBulkDelete::Deleter::verify_permission(RGWBucketInfo& binfo,
 
   bucket_owner = bacl.get_owner();
 
-  return verify_object_permission(s, &bacl, &oacl, RGW_PERM_WRITE);
+  // FIXME
+  return verify_object_permission(s, nullptr, &bacl, &oacl, RGW_PERM_WRITE);
 }
 
 bool RGWBulkDelete::Deleter::verify_permission(RGWBucketInfo& binfo,
@@ -4184,7 +4186,8 @@ bool RGWBulkDelete::Deleter::verify_permission(RGWBucketInfo& binfo,
     return false;
   }
 
-  return verify_bucket_permission(s, &bacl, RGW_PERM_WRITE);
+  // FIXME
+  return verify_bucket_permission(s, nullptr, &bacl, RGW_PERM_WRITE);
 }
 
 bool RGWBulkDelete::Deleter::delete_single(const acct_path_t& path)
