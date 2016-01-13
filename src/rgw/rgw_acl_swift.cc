@@ -16,6 +16,9 @@ using namespace std;
 
 #define SWIFT_PERM_READ  RGW_PERM_READ_OBJS
 #define SWIFT_PERM_WRITE RGW_PERM_WRITE_OBJS
+/* FIXME: do we really need separate RW? */
+#define SWIFT_PERM_RWRT  (SWIFT_PERM_READ | SWIFT_PERM_WRITE)
+#define SWIFT_PERM_ADMIN RGW_PERM_FULL_CONTROL
 
 #define SWIFT_GROUP_ALL_USERS ".r:*"
 
@@ -135,18 +138,19 @@ void RGWAccessControlPolicy_SWIFT::to_str(string& read, string& write)
   }
 }
 
-void RGWAccessControlPolicy_SWIFTAcct::to_str(std::string& acl_str)
+void RGWAccessControlPolicy_SWIFTAcct::to_str(std::string& acl_str) const
 {
   list<string> admin;
   list<string> readwrite;
   list<string> readonly;
 
-  multimap<string, ACLGrant>& m = get_acl().get_grant_map();
+  const multimap<string, ACLGrant>& m = get_acl().get_grant_map();
 
   /* Parition the grant map into three not-overlapping groups. */
-  for (auto iter = m.begin(); iter != m.end(); ++iter) {
-    ACLGrant& grant = iter->second;
-    int perm = grant.get_permission().get_permissions();
+  for (auto iter = m.cbegin(); iter != m.cend(); ++iter) {
+    const ACLGrant& grant = iter->second;
+    const int perm = grant.get_permission().get_permissions();
+
     rgw_user id;
     if (!grant.get_id(id)) {
       if (grant.get_group() != ACL_GROUP_ALL_USERS)
