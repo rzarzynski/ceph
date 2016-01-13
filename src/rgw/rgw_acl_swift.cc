@@ -5,6 +5,7 @@
 
 #include <list>
 
+#include "common/ceph_json.h"
 #include "rgw_common.h"
 #include "rgw_user.h"
 #include "rgw_acl_swift.h"
@@ -134,3 +135,45 @@ void RGWAccessControlPolicy_SWIFT::to_str(string& read, string& write)
   }
 }
 
+void RGWAccessControlPolicy_SWIFTAcct::to_str(std::string& acl_str)
+{
+  list<string> admin;
+  list<string> readwrite;
+  list<string> readonly;
+
+  multimap<string, ACLGrant>& m = get_acl().get_grant_map();
+
+  /* Parition the grant map into three not-overlapping groups. */
+  for (auto iter = m.begin(); iter != m.end(); ++iter) {
+    ACLGrant& grant = iter->second;
+    int perm = grant.get_permission().get_permissions();
+    rgw_user id;
+    if (!grant.get_id(id)) {
+      if (grant.get_group() != ACL_GROUP_ALL_USERS)
+        continue;
+      id = SWIFT_GROUP_ALL_USERS;
+    }
+
+    if (perm & SWIFT_PERM_ADMIN) {
+      admin.insert(admin.end(), id.to_str());
+    } else if (perm & SWIFT_PERM_RWRT) {
+      readwrite.insert(readwrite.end(), id.to_str());
+    } else if (perm & SWIFT_PERM_READ) {
+      readonly.insert(readonly.end(), id.to_str());
+    } else {
+      // FIXME: print a warning
+    }
+  }
+
+  /* Serialize the groups. */
+  JSONFormatter formatter;
+
+  encode_json("read-only", readonly, &formatter);
+  encode_json("read-write", readwrite, &formatter);
+  encode_json("admin", admin, &formatter);
+
+  std::ostringstream oss;
+  formatter.flush(oss);
+
+  acl_str = oss.str();
+}

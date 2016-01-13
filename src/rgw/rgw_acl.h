@@ -48,7 +48,7 @@ protected:
 public:
   ACLPermission() : flags(0) {}
   ~ACLPermission() {}
-  int get_permissions() { return flags; }
+  int get_permissions() const { return flags; }
   void set_permissions(int perm) { flags = perm; }
 
   void encode(bufferlist& bl) const {
@@ -74,7 +74,7 @@ public:
   ACLGranteeType() : type(ACL_TYPE_UNKNOWN) {}
   virtual ~ACLGranteeType() {}
 //  virtual const char *to_string() = 0;
-  ACLGranteeTypeEnum get_type() { return (ACLGranteeTypeEnum)type; }
+  ACLGranteeTypeEnum get_type() const { return (ACLGranteeTypeEnum)type; }
   void set(ACLGranteeTypeEnum t) { type = t; }
 //  virtual void set(const char *s) = 0;
   void encode(bufferlist& bl) const {
@@ -116,7 +116,7 @@ public:
 
   /* there's an assumption here that email/uri/id encodings are
      different and there can't be any overlap */
-  bool get_id(rgw_user& _id) {
+  bool get_id(rgw_user& _id) const {
     switch(type.get_type()) {
     case ACL_TYPE_EMAIL_USER:
       _id = email; // implies from_str() that parses the 't:u' syntax
@@ -129,8 +129,10 @@ public:
     }
   }
   ACLGranteeType& get_type() { return type; }
+  const ACLGranteeType& get_type() const { return type; }
   ACLPermission& get_permission() { return permission; }
-  ACLGroupTypeEnum get_group() { return group; }
+  const ACLPermission& get_permission() const { return permission; }
+  ACLGroupTypeEnum get_group() const { return group; }
 
   void encode(bufferlist& bl) const {
     ENCODE_START(4, 3, bl);
@@ -238,6 +240,7 @@ public:
   void add_grant(ACLGrant *grant);
 
   multimap<string, ACLGrant>& get_grant_map() { return grant_map; }
+  const multimap<string, ACLGrant>& get_grant_map() const { return grant_map; }
 
   void create_default(const rgw_user& id, string name) {
     acl_user_map.clear();
@@ -337,6 +340,9 @@ public:
     owner.set_name(name);
   }
   RGWAccessControlList& get_acl() {
+    return acl;
+  }
+  const RGWAccessControlList& get_acl() const {
     return acl;
   }
 
