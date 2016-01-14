@@ -144,25 +144,24 @@ void RGWAccessControlPolicy_SWIFTAcct::to_str(std::string& acl_str) const
   list<string> readwrite;
   list<string> readonly;
 
-  const multimap<string, ACLGrant>& m = get_acl().get_grant_map();
-
   /* Parition the grant map into three not-overlapping groups. */
-  for (auto iter = m.cbegin(); iter != m.cend(); ++iter) {
-    const ACLGrant& grant = iter->second;
+  for (const auto item : get_acl().get_grant_map()) {
+    const ACLGrant& grant = item.second;
     const int perm = grant.get_permission().get_permissions();
 
     rgw_user id;
     if (!grant.get_id(id)) {
-      if (grant.get_group() != ACL_GROUP_ALL_USERS)
+      if (grant.get_group() != ACL_GROUP_ALL_USERS) {
         continue;
+      }
       id = SWIFT_GROUP_ALL_USERS;
     }
 
-    if (perm & SWIFT_PERM_ADMIN) {
+    if (SWIFT_PERM_ADMIN == (perm & SWIFT_PERM_ADMIN)) {
       admin.insert(admin.end(), id.to_str());
-    } else if (perm & SWIFT_PERM_RWRT) {
+    } else if (SWIFT_PERM_RWRT == (perm & SWIFT_PERM_RWRT)) {
       readwrite.insert(readwrite.end(), id.to_str());
-    } else if (perm & SWIFT_PERM_READ) {
+    } else if (SWIFT_PERM_READ == (perm & SWIFT_PERM_READ)) {
       readonly.insert(readonly.end(), id.to_str());
     } else {
       // FIXME: print a warning
@@ -172,9 +171,17 @@ void RGWAccessControlPolicy_SWIFTAcct::to_str(std::string& acl_str) const
   /* Serialize the groups. */
   JSONFormatter formatter;
 
-  encode_json("read-only", readonly, &formatter);
-  encode_json("read-write", readwrite, &formatter);
-  encode_json("admin", admin, &formatter);
+  formatter.open_object_section("acl");
+  if (!readonly.empty()) {
+    encode_json("read-only", readonly, &formatter);
+  }
+  if (!readwrite.empty()) {
+    encode_json("read-write", readwrite, &formatter);
+  }
+  if (!admin.empty()) {
+    encode_json("admin", admin, &formatter);
+  }
+  formatter.close_section();
 
   std::ostringstream oss;
   formatter.flush(oss);
