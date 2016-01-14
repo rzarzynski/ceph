@@ -281,7 +281,7 @@ public:
   void dump(Formatter *f) const;
   static void generate_test_instances(list<ACLOwner*>& o);
   void set_id(const rgw_user& _id) { id = _id; }
-  void set_name(string& name) { display_name = name; }
+  void set_name(const string& name) { display_name = name; }
 
   rgw_user& get_id() { return id; }
   string& get_display_name() { return display_name; }
