@@ -1058,6 +1058,8 @@ struct req_state {
    utime_t header_time;
 
    /* Set once when req_state is initialized and not violated thereafter */
+   string account_name;
+
    string bucket_tenant;
    string bucket_name;
 
