@@ -32,6 +32,7 @@ enum ACLGranteeTypeEnum {
   ACL_TYPE_EMAIL_USER = 1,
   ACL_TYPE_GROUP      = 2,
   ACL_TYPE_UNKNOWN    = 3,
+  ACL_TYPE_REFERER    = 4;
 };
 
 enum ACLGroupTypeEnum {
@@ -192,6 +193,7 @@ protected:
   CephContext *cct;
   map<string, int> acl_user_map;
   map<uint32_t, int> acl_group_map;
+  map<string, int> referer_map;
   multimap<string, ACLGrant> grant_map;
   void _add_grant(ACLGrant *grant);
 public:
@@ -207,16 +209,17 @@ public:
   int get_perm(rgw_user& id, int perm_mask);
   int get_group_perm(ACLGroupTypeEnum group, int perm_mask);
   void encode(bufferlist& bl) const {
-    ENCODE_START(3, 3, bl);
+    ENCODE_START(4, 3, bl);
     bool maps_initialized = true;
     ::encode(maps_initialized, bl);
     ::encode(acl_user_map, bl);
     ::encode(grant_map, bl);
     ::encode(acl_group_map, bl);
+    ::encode(refer_map, bl);
     ENCODE_FINISH(bl);
   }
   void decode(bufferlist::iterator& bl) {
-    DECODE_START_LEGACY_COMPAT_LEN(3, 3, 3, bl);
+    DECODE_START_LEGACY_COMPAT_LEN(4, 3, 3, bl);
     bool maps_initialized;
     ::decode(maps_initialized, bl);
     ::decode(acl_user_map, bl);
@@ -230,6 +233,9 @@ public:
         _add_grant(&grant);
       }
     }
+    if (struct_v >= 4) {
+      ::decode(referer_map, bl);
+    }
     DECODE_FINISH(bl);
   }
   void dump(Formatter *f) const;
@@ -242,6 +248,7 @@ public:
   void create_default(const rgw_user& id, string name) {
     acl_user_map.clear();
     acl_group_map.clear();
+    referer_map.clear();
 
     ACLGrant grant;
     grant.set_canon(id, name, RGW_PERM_FULL_CONTROL);

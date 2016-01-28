@@ -24,6 +24,8 @@ void RGWAccessControlList::_add_grant(ACLGrant *grant)
   ACLPermission& perm = grant->get_permission();
   ACLGranteeType& type = grant->get_type();
   switch (type.get_type()) {
+  case ACL_TYPE_REFERER:
+    acl_refer_map[] |= perm.get_permissions();
   case ACL_TYPE_GROUP:
     acl_group_map[grant->get_group()] |= perm.get_permissions();
     break;
@@ -57,8 +59,11 @@ int RGWAccessControlList::get_perm(rgw_user& id, int perm_mask) {
   return 0;
 }
 
-int RGWAccessControlList::get_group_perm(ACLGroupTypeEnum group, int perm_mask) {
-  ldout(cct, 5) << "Searching permissions for group=" << (int)group << " mask=" << perm_mask << dendl;
+int RGWAccessControlList::get_group_perm(ACLGroupTypeEnum group, int perm_mask)
+{
+  ldout(cct, 5) << "Searching permissions for group=" << (int)group
+                << " mask=" << perm_mask << dendl;
+
   map<uint32_t, int>::iterator iter = acl_group_map.find((uint32_t)group);
   if (iter != acl_group_map.end()) {
     ldout(cct, 5) << "Found permission: " << iter->second << dendl;
@@ -68,7 +73,8 @@ int RGWAccessControlList::get_group_perm(ACLGroupTypeEnum group, int perm_mask) 
   return 0;
 }
 
-int RGWAccessControlPolicy::get_perm(rgw_user& id, int perm_mask) {
+int RGWAccessControlPolicy::get_perm(rgw_user& id, int perm_mask)
+{
   int perm = acl.get_perm(id, perm_mask);
 
   if (id.compare(owner.get_id()) == 0) {
@@ -88,7 +94,9 @@ int RGWAccessControlPolicy::get_perm(rgw_user& id, int perm_mask) {
     }
   }
 
-  ldout(cct, 5) << "Getting permissions id=" << id << " owner=" << owner.get_id() << " perm=" << perm << dendl;
+  ldout(cct, 5) << "Getting permissions id=" << id
+                << " owner=" << owner.get_id()
+                << " perm=" << perm << dendl;
 
   return perm;
 }
@@ -112,7 +120,10 @@ bool RGWAccessControlPolicy::verify_permission(rgw_user& uid, int user_perm_mask
    
   int acl_perm = policy_perm & perm & user_perm_mask;
 
-  ldout(cct, 10) << " uid=" << uid << " requested perm (type)=" << perm << ", policy perm=" << policy_perm << ", user_perm_mask=" << user_perm_mask << ", acl perm=" << acl_perm << dendl;
+  ldout(cct, 10) << " uid=" << uid << " requested perm (type)=" << perm
+                 << ", policy perm=" << policy_perm
+                 << ", user_perm_mask=" << user_perm_mask
+                 << ", acl perm=" << acl_perm << dendl;
 
   return (perm == acl_perm);
 }
