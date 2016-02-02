@@ -466,7 +466,7 @@ void Keystone::init() {
     cache = new RGWKeystoneTokenCache(cct, cct->_conf->rgw_keystone_token_cache_size);
 
     keystone_revoke_thread = new KeystoneRevokeThread(cct, this);
-    keystone_revoke_thread->create();
+    keystone_revoke_thread->create("rgw_keystone_k_rev");
   }
 }
 
