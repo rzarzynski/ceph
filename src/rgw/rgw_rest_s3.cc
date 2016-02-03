@@ -2561,13 +2561,13 @@ int RGWHandler_ObjStore_S3::init(RGWRados *store, struct req_state *s, RGWClient
 int RGW_Auth_S3_Keystone_ValidateToken::validate_s3token(const string& auth_id, const string& auth_token, const string& auth_sign) {
   /* prepare keystone url */
   string keystone_url = cct->_conf->rgw_keystone_url;
-  string keystone_version = cct->_conf->rgw_keystone_api_version;
-  if (keystone_url[keystone_url.size() - 1] != '/')
+  if (keystone_url[keystone_url.size() - 1] != '/') {
     keystone_url.append("/");
+  }
+
   if (KeystoneService::get_api_version() == KeystoneApiVersion::VER_3) {
     keystone_url.append("v3/s3tokens");
-  }
-  else {
+  } else {
     keystone_url.append("v2.0/s3tokens");
   }
 
@@ -2631,7 +2631,9 @@ int RGW_Auth_S3_Keystone_ValidateToken::validate_s3token(const string& auth_id, 
   }
 
   /* everything seems fine, continue with this user */
-  ldout(cct, 5) << "s3 keystone: validated token: " << response.get_project_name() << ":" << response.get_user_name() << " expires: " << response.get_expires() << dendl;
+  ldout(cct, 5) << "s3 keystone: validated token: " << response.get_project_name()
+                << ":" << response.get_user_name()
+                << " expires: " << response.get_expires() << dendl;
   return 0;
 }
 
