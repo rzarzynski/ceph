@@ -961,6 +961,7 @@ void KeystoneAdminTokenRequestVer2::dump(Formatter * const f) const
 
 void KeystoneAdminTokenRequestVer3::dump(Formatter * const f) const
 {
+  f->open_object_section("token_request");
   f->open_object_section("auth");
     f->open_object_section("identity");
       f->open_array_section("methods");
@@ -989,5 +990,6 @@ void KeystoneAdminTokenRequestVer3::dump(Formatter * const f) const
         f->close_section();
       f->close_section();
     f->close_section();
+  f->close_section();
   f->close_section();
 }
