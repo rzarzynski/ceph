@@ -7,7 +7,8 @@ DENCODER_SOURCES += \
 	rgw/rgw_basic_types.cc \
 	rgw/rgw_common.cc \
 	rgw/rgw_env.cc \
-	rgw/rgw_json_enc.cc
+	rgw/rgw_json_enc.cc \
+	rgw/rgw_keystone.cc
 
 if WITH_RADOS
 if WITH_RADOSGW
