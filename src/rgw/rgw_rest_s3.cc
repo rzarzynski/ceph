@@ -1433,7 +1433,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
 
     // deep copy
     *(s->user) = user_info;
-    s->auth_user = s->user.user_id;
+    s->auth_user = s->user->user_id;
     s->owner.set_id(user_info.user_id);
     s->owner.set_name(user_info.display_name);
   } else {
@@ -2850,7 +2850,7 @@ int RGW_Auth_S3::authorize(RGWRados *store, struct req_state *s)
 
   /* populate the owner info */
   if (s->auth_user.empty()) {
-    s->auth_user = s->user.user_id;
+    s->auth_user = s->user->user_id;
   }
   s->owner.set_id(s->user->user_id);
   s->owner.set_name(s->user->display_name);

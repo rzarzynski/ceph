@@ -1300,7 +1300,7 @@ int RGWHandler_REST_SWIFT::authorize()
   }
 
   if (s->auth_user.empty()) {
-    s->auth_user = s->user.user_id;
+    s->auth_user = s->user->user_id;
   }
 
   return 0;
