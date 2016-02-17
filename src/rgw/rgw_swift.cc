@@ -757,20 +757,25 @@ bool RGWSwift::do_verify_swift_token(RGWRados *store, req_state *s)
     return (ret >= 0);
   }
 
+  struct rgw_swift_auth_info auth_info;
+
   if (strncmp(s->os_auth_token, "AUTH_rgwtk", 10) == 0) {
-    int ret = rgw_swift_verify_signed_token(s->cct, store, s->os_auth_token,
-					    *(s->user), &s->swift_user);
-    if (ret < 0)
+    if (rgw_swift_verify_signed_token(s->cct, store, s->os_auth_token,
+                                      auth_info) < 0) {
       return false;
+    }
+
+    if (load_acct_info(store, s->account_name, auth_info, *(s->user)) < 0) {
+      return false;
+    }
+
+    if (load_user_info(store, auth_info, s->auth_user, s->perm_mask,
+                       s->admin_request) < 0) {
+      return false;
+    }
 
     return  true;
   }
-
-  struct rgw_swift_auth_info info;
-
-  info.status = 401; // start with access denied, validate_token might change that
-
-  int ret;
 
   if (supports_keystone()) {
     if (validate_keystone_token(store, s->os_auth_token, &auth_info) < 0) {
