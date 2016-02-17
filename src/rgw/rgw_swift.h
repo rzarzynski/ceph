@@ -37,10 +37,8 @@ class RGWSwift {
                      const char *token,
                      rgw_swift_auth_info& info);
   int validate_keystone_token(RGWRados *store,
-                              const string& account_name,
                               const string& token,
-                              struct rgw_swift_auth_info *info,
-                              RGWUserInfo& rgw_user);
+                              struct rgw_swift_auth_info *info);
 
   int parse_keystone_token_response(const string& token, bufferlist& bl, struct rgw_swift_auth_info *info,
 		                    KeystoneToken& t);
