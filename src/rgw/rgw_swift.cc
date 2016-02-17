@@ -89,28 +89,54 @@ int RGWValidateSwiftToken::receive_header(void *ptr, size_t len)
     if (s != end)
       *p++ = *s++;
   }
+
   return 0;
 }
 
-int RGWSwift::validate_token(const char *token, struct rgw_swift_auth_info *info)
+int RGWSwift::validate_token(RGWRados * const store,
+                             const char *token,
+                             rgw_swift_auth_info& auth_info)    /* out */
 {
-  if (g_conf->rgw_swift_auth_url.empty())
+  if (g_conf->rgw_swift_auth_url.empty()) {
     return -EINVAL;
+  }
 
   string auth_url = g_conf->rgw_swift_auth_url;
-  if (auth_url[auth_url.size() - 1] != '/')
+
+  if (auth_url[auth_url.size() - 1] != '/') {
     auth_url.append("/");
+  }
+
   auth_url.append("token");
   char url_buf[auth_url.size() + 1 + strlen(token) + 1];
   sprintf(url_buf, "%s/%s", auth_url.c_str(), token);
 
-  RGWValidateSwiftToken validate(cct, info);
+  RGWValidateSwiftToken validate(cct, &auth_info);
 
   ldout(cct, 10) << "rgw_swift_validate_token url=" << url_buf << dendl;
 
   int ret = validate.process(url_buf);
-  if (ret < 0)
+  if (ret < 0) {
     return ret;
+  }
+
+  if (auth_info.user.empty()) {
+    ldout(cct, 5) << "swift auth didn't authorize a user" << dendl;
+    return -EPERM;
+  }
+
+  string swift_user = auth_info.user.to_str();
+  ldout(cct, 10) << "swift user=" << swift_user << dendl;
+
+  RGWUserInfo tmp_uinfo;
+  ret = rgw_get_user_info_by_swift(store, swift_user, tmp_uinfo);
+  if (ret < 0) {
+    ldout(cct, 0) << "NOTICE: couldn't map swift user" << dendl;
+    return ret;
+  }
+
+  //auth_info.perm_mask = get_perm_mask(swift_user, tmp_uinfo);
+  auth_info.is_admin = false;
 
   return 0;
 }
@@ -764,24 +790,20 @@ bool RGWSwift::do_verify_swift_token(RGWRados *store, req_state *s)
     return true;
   }
 
-  ret = validate_token(s->os_auth_token, &info);
-  if (ret < 0)
-    return false;
 
-  if (info.user.empty()) {
-    ldout(cct, 5) << "swift auth didn't authorize a user" << dendl;
+  if (validate_token(store, s->os_auth_token, auth_info) < 0) {
     return false;
   }
 
   s->swift_user = info.user.to_str();
   s->swift_groups = info.auth_groups;
+  if (load_acct_info(store, s->account_name, auth_info, *(s->user)) < 0) {
+    return false;
+  }
 
-  string swift_user = s->swift_user;
-
-  ldout(cct, 10) << "swift user=" << s->swift_user << dendl;
-
-  if (rgw_get_user_info_by_swift(store, swift_user, *(s->user)) < 0) {
-    ldout(cct, 0) << "NOTICE: couldn't map swift user" << dendl;
+  uint32_t _junk_perm_mask; // perm mask will be set in verify_swift_token()
+  if (load_user_info(store, auth_info, s->auth_user, _junk_perm_mask,
+                     s->admin_request) < 0) {
     return false;
   }
 
