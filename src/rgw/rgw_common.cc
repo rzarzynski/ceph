@@ -719,7 +719,7 @@ string RGWHTTPArgs::sys_get(const string& name, bool * const exists)
 
 string RGWHTTPArgs::sys_get(const char * const name, bool * const exists)
 {
-  return get(string(name), exists);
+  return sys_get(string(name), exists);
 }
 
 bool verify_requester_payer_permission(struct req_state *s)
