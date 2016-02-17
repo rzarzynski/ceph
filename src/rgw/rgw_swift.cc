@@ -407,6 +407,7 @@ static void rgw_set_keystone_token_auth_info(const KeystoneToken& token,
     }
   }
   info->is_admin = is_admin;
+  info->perm_mask = RGW_PERM_FULL_CONTROL;
 }
 
 int RGWSwift::parse_keystone_token_response(const string& token,
@@ -441,23 +442,23 @@ int RGWSwift::parse_keystone_token_response(const string& token,
   return 0;
 }
 
-int RGWSwift::update_user_info(RGWRados *const store,
-                               const string& account_name,
-                               const struct rgw_swift_auth_info * const info,
-                               RGWUserInfo& user_info)
+int RGWSwift::load_acct_info(RGWRados * const store,
+                             const string& account_name,
+                             const struct rgw_swift_auth_info& info,
+                             RGWUserInfo& user_info)                /* out */
 {
-  const rgw_user ui_owner = !account_name.empty() ? account_name : info->user;
+  const rgw_user ui_owner = !account_name.empty() ? account_name : info.user;
 
   if (rgw_get_user_info_by_uid(store, ui_owner, user_info) < 0) {
     ldout(cct, 0) << "NOTICE: couldn't map swift user" << dendl;
 
-    if (ui_owner != info->user) {
+    if (ui_owner != info.user) {
       ldout(cct, 0) << "ERROR: only owner may create the account" << dendl;
       return -EPERM;
     }
 
-    user_info.user_id = info->user;
-    user_info.display_name = info->display_name;
+    user_info.user_id = info.user;
+    user_info.display_name = info.display_name;
 
     int ret = rgw_store_user_info(store, user_info, NULL, NULL, 0, true);
     if (ret < 0) {
@@ -465,6 +466,23 @@ int RGWSwift::update_user_info(RGWRados *const store,
       return ret;
     }
   }
+  return 0;
+}
+
+int RGWSwift::load_user_info(RGWRados *const store,
+                             const struct rgw_swift_auth_info& auth_info,
+                             rgw_user& auth_user,               /* out */
+                             uint32_t& perm_mask,               /* out */
+                             bool& admin_request)               /* out */
+{
+  if (auth_info.status != 200) {
+    return -EPERM;
+  }
+
+  auth_user = auth_info.user;
+  perm_mask = auth_info.perm_mask;
+  admin_request = auth_info.is_admin;
+
   return 0;
 }
 
@@ -509,10 +527,8 @@ static bool decode_pki_token(CephContext *cct, const string& token, bufferlist& 
 }
 
 int RGWSwift::validate_keystone_token(RGWRados * const store,
-                                      const string& account_name,
                                       const string& token,
-                                      struct rgw_swift_auth_info *info,
-                                      RGWUserInfo& rgw_user)
+                                      struct rgw_swift_auth_info *info) /* out */
 {
   KeystoneToken t;
 
@@ -523,14 +539,8 @@ int RGWSwift::validate_keystone_token(RGWRados * const store,
 
   /* check cache first */
   if (keystone_token_cache->find(token_id, t)) {
-    rgw_set_keystone_token_auth_info(t, info);
-
     ldout(cct, 20) << "cached token.tenant.id=" << t.token.tenant.id << dendl;
-
-    int ret = update_user_info(store, account_name, info, rgw_user);
-    if (ret < 0)
-      return ret;
-
+    rgw_set_keystone_token_auth_info(t, info);
     return 0;
   }
 
@@ -582,10 +592,6 @@ int RGWSwift::validate_keystone_token(RGWRados * const store,
   }
 
   keystone_token_cache->add(token_id, t);
-
-  ret = update_user_info(store, account_name, info, rgw_user);
-  if (ret < 0)
-    return ret;
 
   return 0;
 }
@@ -741,18 +747,17 @@ bool RGWSwift::do_verify_swift_token(RGWRados *store, req_state *s)
   int ret;
 
   if (supports_keystone()) {
-    ret = validate_keystone_token(store, s->account_name, s->os_auth_token,
-            &info, *(s->user));
-    if (ret < 0) {
+    if (validate_keystone_token(store, s->os_auth_token, &auth_info) < 0) {
       /* Authentication failed. */
       return false;
     }
 
-    if (!s->account_name.empty() && info.user.to_str() != s->account_name
-        && !info.is_admin) {
-      /* Authentication succeeded but completely different account (tenant
-       * in Keystone terminology) has been requested and the user is not
-       * a reseller admin. */
+    if (load_acct_info(store, s->account_name, auth_info, *(s->user)) < 0) {
+      return false;
+    }
+
+    if (load_user_info(store, auth_info, s->auth_user, s->perm_mask,
+                       s->admin_request) < 0) {
       return false;
     }
 
