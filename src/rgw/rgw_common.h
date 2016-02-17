@@ -1172,8 +1172,6 @@ struct req_state {
   int prot_flags;
 
   const char *os_auth_token;
-  string swift_user;
-  string swift_groups;
 
   string host_id;
 
