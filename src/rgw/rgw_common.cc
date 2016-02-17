@@ -660,13 +660,6 @@ string& RGWHTTPArgs::get(const string& name, bool *exists)
   return empty_str;
 }
 
-string& RGWHTTPArgs::get(const char *name, bool *exists)
-{
-  string s(name);
-  return get(s, exists);
-}
-
-
 int RGWHTTPArgs::get_bool(const string& name, bool *val, bool *exists)
 {
   map<string, string>::iterator iter;
@@ -715,11 +708,6 @@ string RGWHTTPArgs::sys_get(const string& name, bool * const exists)
   }
 
   return e ? iter->second : string();
-}
-
-string RGWHTTPArgs::sys_get(const char * const name, bool * const exists)
-{
-  return sys_get(string(name), exists);
 }
 
 bool verify_requester_payer_permission(struct req_state *s)
