@@ -2627,10 +2627,11 @@ int RGW_Auth_S3_Keystone_ValidateToken::validate_s3token(
 
   /* check if we have a valid role */
   bool found = false;
-  list<string>::iterator iter;
-  for (iter = roles_list.begin(); iter != roles_list.end(); ++iter) {
-    if ((found=response.user.has_role(*iter))==true)
+  for (const auto role : accepted_roles) {
+    if (response.user.has_role(role) == true) {
+      found = true;
       break;
+    }
   }
 
   if (!found) {
