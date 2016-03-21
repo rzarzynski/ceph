@@ -825,15 +825,108 @@ uint32_t RGWSwift::get_perm_mask(const string& swift_user,
   return perm_mask;
 }
 
+/* TempURL */
+bool RGWTempURLAuthEngine::is_applicable() const
+{
+  return false;
+}
+
+std::unique_ptr<RGWAuthLoader> RGWTempURLAuthEngine::verify_identity() const
+{
+  return nullptr;
+}
+
+/* AUTH_rgwtk - signed token */
+bool RGWSignedTokenAuthEngine::is_applicable() const noexcept
+{
+  return false;
+}
+
+std::unique_ptr<RGWAuthLoader> RGWSignedTokenAuthEngine::authenticate() const
+{
+  return nullptr;
+}
+
+/* Keystone */
+bool RGWKeystoneAuthEngine::is_applicable() const noexcept
+{
+  return false;
+}
+
+std::unique_ptr<RGWAuthLoader> RGWKeystoneAuthEngine::authenticate() const
+{
+  return nullptr;
+}
+
+/* External token */
+bool RGWExternalTokenAuthEngine::is_applicable() const noexcept
+{
+  return false;
+}
+
+std::unique_ptr<RGWAuthLoader> RGWExternalTokenAuthEngine::authenticate() const
+{
+  return nullptr;
+}
+
 bool RGWSwift::verify_swift_token(RGWRados *store, req_state *s)
 {
-  if (!do_verify_swift_token(store, s)) {
-    return false;
+  RGWTempURLAuthLoader::Factory tempurl_fact;
+  RGWTempURLAuthEngine tempurl(s, store, tempurl_fact);
+
+  RGWSignedTokenAuthEngine rgwtk(s, s->os_auth_token);
+  RGWKeystoneAuthEngine keystone(s, s->os_auth_token);
+  RGWExternalTokenAuthEngine ext(s, s->os_auth_token);
+
+  const std::vector<const RGWAuthEngine *> engines = {
+    &tempurl, &rgwtk, &keystone, &ext
+  };
+
+  for (const auto engine : engines) {
+    if (!engine->is_applicable()) {
+      /* Engine said it isn't suitable for handling this particular
+       * request. Let's try a next one. */
+      continue;
+    }
+
+    try {
+      const auto loader = engine->authenticate();
+      if (!loader) {
+        /* Access denied is acknowledged by returning a std::unique_ptr with
+         * nullptr inside. */
+        ldout(cct, 5) << "auth engine refused to authenicate" << dendl;
+        return false;
+      }
+
+      try {
+        /* Account used by a given RGWOp is decoupled from identity employed
+         * in the authorization phase (RGWOp::verify_permissions). */
+        loader->load_acct_info(*s->user);
+        loader->load_user_info(s->auth_user, s->perm_mask, s->admin_request);
+
+        /* This is the signle place where we pass req_state as a pointer
+         * to non-const and thus its modification is allowed. In the time
+         * of writing only RGWTempURLEngine needed that feature. */
+        loader->modify_request_state(s);
+      } catch (int err) {
+        ldout(cct, 5) << "loader throwed err=" << err << dendl;
+        return false;
+      }
+    } catch (int err) {
+      ldout(cct, 5) << "auth engine throwed err=" << err << dendl;
+      return false;
+    }
+
+    return true;
   }
 
-  return true;
-
+  /* All engines refused to handle this authentication request by
+   * returning RGWAuthEngine::Status::UNKKOWN. Rather rare case. */
+  return false;
 }
+
+
+
 
 bool RGWSwift::do_verify_swift_token(RGWRados *store, req_state *s)
 {
