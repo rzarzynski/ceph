@@ -84,7 +84,7 @@ protected:
   };
 
 public:
-  virtual ~Factory();
+  virtual ~Factory() {};
 };
 
 /* Abstract interface for authentication backends (auth engines) in RadosGW.
@@ -122,7 +122,7 @@ public:
    * An error may be signalised by throwing an exception. */
   virtual std::unique_ptr<RGWAuthLoader> authenticate() const = 0;
 
-  virtual ~RGWAuthEngine() = 0;
+  virtual ~RGWAuthEngine() {};
 };
 
 
