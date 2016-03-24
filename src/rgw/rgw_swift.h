@@ -30,6 +30,11 @@ struct rgw_swift_auth_info {
   }
 };
 
+/* Interface for classes applying changes to request state/RADOS store imposed
+ * by a particular RGWAuthEngine.
+ *
+ * In contrast to RGWAuthEngine, implementations of this interface are allowed
+ * to handle req_state or RGWRados in read-write manner. */
 class RGWAuthLoader {
 public:
   virtual ~RGWAuthLoader() {};
@@ -39,11 +44,13 @@ public:
   virtual void load_acct_info(RGWUserInfo& user_info) const = 0; /* out */
 
   /* Load information about identity that will be used by RGWOp to authorize
-   * any operation that comes from authenticated user. */
+   * any operation that comes from an authenticated user. */
   virtual void load_user_info(rgw_user& auth_user,               /* out */
                               uint32_t& perm_mask,               /* out */
                               bool& admin_request) const = 0;    /* out */
 
+  /* Apply any changes to request state. This method will be most useful for
+   * TempURL of Swift API or AWSv4. */
   virtual void modify_request_state(req_state * s) const {}      /* in/out */
 };
 
@@ -110,7 +117,7 @@ protected:
   }
 
 public:
-  typedef std::unique_ptr<RGWAuthLoader> ldr_t;
+  typedef std::unique_ptr<RGWAuthLoader> ldrptr_t;
 
   /* Fast, non-throwing method for screening whether a concrete engine may
    * be interested in handling a specific request. */
@@ -120,7 +127,7 @@ public:
    * an implementation should return std::unique_ptr containing a non-null
    * pointer. Otherwise, the authentication is treated as failed.
    * An error may be signalised by throwing an exception. */
-  virtual std::unique_ptr<RGWAuthLoader> authenticate() const = 0;
+  virtual ldrptr_t authenticate() const = 0;
 
   virtual ~RGWAuthEngine() {};
 };
@@ -150,7 +157,7 @@ public:
 
   /* Interface implementations. */
   bool is_applicable() const noexcept override;
-  std::unique_ptr<RGWAuthLoader> authenticate() const override;
+  ldrptr_t authenticate() const override;
 };
 
 /* Virtual class for all token-based auth engines. */
