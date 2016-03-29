@@ -644,22 +644,22 @@ uint32_t RGWSwift::get_perm_mask(const string& swift_user,
   return perm_mask;
 }
 
-void RGWLocalAuthLoader::load_acct_info(RGWUserInfo& user_info) const      /* out */
+void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
   user_info = this->user_info;
 }
 
-void RGWLocalAuthLoader::load_user_info(rgw_user& auth_user,               /* out */
-                                        uint32_t& perm_mask,               /* out */
-                                        bool& admin_request) const         /* out */
+void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
+                                         uint32_t& perm_mask,               /* out */
+                                         bool& admin_request) const         /* out */
 {
   auth_user = user_info.user_id;
   perm_mask = RGW_PERM_FULL_CONTROL;
   admin_request = false;
 }
 
-/* TempURL: loader */
-void RGWTempURLAuthLoader::modify_request_state(req_state * s) const         /* in/out */
+/* TempURL: applier */
+void RGWTempURLAuthApplier::modify_request_state(req_state * s) const       /* in/out */
 {
   bool inline_exists = false;
   string filename = s->info.args.get("filename");
@@ -684,7 +684,7 @@ void RGWTempURLAuthLoader::modify_request_state(req_state * s) const         /* 
 
 }
 
-/* TempURL: auth engine */
+/* TempURL: engine */
 bool RGWTempURLAuthEngine::is_applicable() const noexcept
 {
   return s->info.args.exists("temp_url_sig") ||
@@ -772,7 +772,7 @@ std::string RGWTempURLAuthEngine::generate_signature(const string& key,
   return dest_str;
 }
 
-std::unique_ptr<RGWAuthLoader> RGWTempURLAuthEngine::authenticate() const
+RGWAuthApplier::aplptr_t RGWTempURLAuthEngine::authenticate() const
 {
   const string temp_url_sig = s->info.args.get("temp_url_sig");
   const string temp_url_expires = s->info.args.get("temp_url_expires");
@@ -846,19 +846,19 @@ std::unique_ptr<RGWAuthLoader> RGWTempURLAuthEngine::authenticate() const
   return nullptr;
 }
 
-/* AUTH_rgwtk - signed token */
+/* AUTH_rgwtk (signed token): engine */
 bool RGWSignedTokenAuthEngine::is_applicable() const noexcept
 {
   return !strncmp(s->os_auth_token, "AUTH_rgwtk", 10);
 }
 
-std::unique_ptr<RGWAuthLoader> RGWSignedTokenAuthEngine::authenticate() const
+RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
 {
   return nullptr;
 }
 
-void RGWCreatingAuthLoader::create_account(const rgw_user acct_user,
-                                           RGWUserInfo& user_info) const      /* out */
+void RGWCreatingAuthApplier::create_account(const rgw_user acct_user,
+                                            RGWUserInfo& user_info) const      /* out */
 {
   rgw_user new_acct_user = acct_user;
 
@@ -881,10 +881,10 @@ void RGWCreatingAuthLoader::create_account(const rgw_user acct_user,
 }
 
 /* static declaration */
-const rgw_user RGWCreatingAuthLoader::AuthInfo::UNKNOWN_ACCT;
+const rgw_user RGWCreatingAuthApplier::AuthInfo::UNKNOWN_ACCT;
 
 /* TODO(rzarzynski): we need to handle display_name changes. */
-void RGWCreatingAuthLoader::load_acct_info(RGWUserInfo& user_info) const      /* out */
+void RGWCreatingAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
   rgw_user acct_user;
 
@@ -925,9 +925,9 @@ void RGWCreatingAuthLoader::load_acct_info(RGWUserInfo& user_info) const      /*
   /* Succeeded if we are here (create_account() hasn't throwed). */
 }
 
-void RGWCreatingAuthLoader::load_user_info(rgw_user& auth_user,               /* out */
-                                           uint32_t& perm_mask,               /* out */
-                                           bool& admin_request) const         /* out */
+void RGWCreatingAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
+                                            uint32_t& perm_mask,               /* out */
+                                            bool& admin_request) const         /* out */
 {
   auth_user = info.auth_user;
   perm_mask = info.perm_mask;
@@ -1004,7 +1004,8 @@ KeystoneToken RGWKeystoneAuthEngine::get_from_keystone(const std::string token) 
   return token_body;
 }
 
-RGWCreatingAuthLoader::AuthInfo RGWKeystoneAuthEngine::get_creds_info(const KeystoneToken& token) const noexcept
+RGWCreatingAuthApplier::AuthInfo
+RGWKeystoneAuthEngine::get_creds_info(const KeystoneToken& token) const noexcept
 {
   /* Check whether the user has an admin status. */
   bool is_admin = false;
@@ -1023,7 +1024,7 @@ RGWCreatingAuthLoader::AuthInfo RGWKeystoneAuthEngine::get_creds_info(const Keys
   };
 }
 
-RGWAuthLoader::aplptr_t RGWKeystoneAuthEngine::authenticate() const
+RGWAuthApplier::aplptr_t RGWKeystoneAuthEngine::authenticate() const
 {
   KeystoneToken t;
 
@@ -1074,19 +1075,19 @@ bool RGWExternalTokenAuthEngine::is_applicable() const noexcept
   return false;
 }
 
-std::unique_ptr<RGWAuthLoader> RGWExternalTokenAuthEngine::authenticate() const
+std::unique_ptr<RGWAuthApplier> RGWExternalTokenAuthEngine::authenticate() const
 {
   return nullptr;
 }
 
 bool RGWSwift::verify_swift_token(RGWRados *store, req_state *s)
 {
-  RGWTempURLAuthLoader::Factory tempurl_fact;
+  RGWTempURLAuthApplier::Factory tempurl_fact;
   RGWTempURLAuthEngine tempurl(s, store, tempurl_fact);
 
   RGWSignedTokenAuthEngine rgwtk(s, s->os_auth_token);
 
-  RGWCreatingAuthLoader::Factory creating_fact(store);
+  RGWCreatingAuthApplier::Factory creating_fact(store);
   RGWKeystoneAuthEngine keystone(s, creating_fact);
   RGWExternalTokenAuthEngine ext(s, s->os_auth_token);
 
