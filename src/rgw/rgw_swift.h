@@ -10,8 +10,9 @@
 #include "rgw_common.h"
 #include "common/Cond.h"
 
+#include "rgw_keystone.h"
+
 class RGWRados;
-class KeystoneToken;
 
 struct rgw_swift_auth_info {
   int status;
@@ -36,7 +37,12 @@ struct rgw_swift_auth_info {
  * In contrast to RGWAuthEngine, implementations of this interface are allowed
  * to handle req_state or RGWRados in read-write manner. */
 class RGWAuthLoader {
+protected:
+  CephContext * const cct;
 public:
+  typedef std::unique_ptr<RGWAuthLoader> aplptr_t;
+
+  RGWAuthLoader(CephContext * const cct) : cct(cct) {}
   virtual ~RGWAuthLoader() {};
 
   /* Fill provided RGWUserInfo with information about the account that
@@ -54,43 +60,148 @@ public:
   virtual void modify_request_state(req_state * s) const {}      /* in/out */
 };
 
+
+/* RGWCreatingAuthLoader - applier typical for auth engines which don't need
+ * to ask the RADOS store about user credentials but instead obtain them from
+ * an external source-of-truth like Keystone or LDAP.
+ *
+ * In such cases the applier must be able to create internal data structures
+ * for users who log-in for first time. */
 class RGWCreatingAuthLoader : public RGWAuthLoader {
+public:
+  class AuthInfo {
+    friend class RGWCreatingAuthLoader;
+  protected:
+    const rgw_user acct_user;
+    const rgw_user auth_user;
+    const std::string display_name;
+    const uint32_t perm_mask;
+    const bool is_admin;
+
+    static const rgw_user UNKNOWN_ACCT;
+
+  public:
+    AuthInfo(const rgw_user acct_user,
+             const rgw_user auth_user,
+             const std::string display_name,
+             const uint32_t perm_mask,
+             const bool is_admin)
+    : acct_user(acct_user),
+      auth_user(auth_user),
+      display_name(display_name),
+      perm_mask(perm_mask),
+      is_admin(is_admin) {
+    }
+
+    /* Constructor for engines that aren't aware about user account. They know
+     * only user's identity and its associated rights. Account will be deduced
+     * for them. */
+    AuthInfo(const rgw_user auth_user,
+             const std::string display_name,
+             const uint32_t perm_mask,
+             const bool is_admin)
+      : AuthInfo(rgw_user(), auth_user, display_name, perm_mask, is_admin) {
+    }
+  };
+
 protected:
-  using RGWAuthLoader::RGWAuthLoader;
+  /* Read-write is intensional here due to RGWUserInfo creation process.. */
+  RGWRados * const store;
+  const AuthInfo info;
+
+  RGWCreatingAuthLoader(CephContext * const cct,
+                        RGWRados * const store,
+                        const AuthInfo info)
+    : RGWAuthLoader(cct),
+      store(store),
+      info(info) {
+  }
+
+  virtual void create_account(const rgw_user acct_user,
+                              RGWUserInfo& user_info) const;          /* out */
+
+public:
+  virtual void load_acct_info(RGWUserInfo& user_info) const override; /* out */
+  virtual void load_user_info(rgw_user& auth_user,                    /* out */
+                              uint32_t& perm_mask,                    /* out */
+                              bool& admin_request) const override;    /* out */
+  class Factory;
 };
 
-class RGWNonCreatingAuthLoader : public RGWAuthLoader {
+class RGWCreatingAuthLoader::Factory {
 protected:
-  using RGWAuthLoader::RGWAuthLoader;
+  RGWRados * const store;
+
+public:
+  Factory(RGWRados * const store)
+    : store(store) {
+  }
+  virtual ~Factory() {}
+
+  virtual aplptr_t create_loader(CephContext * const cct,
+                                 const AuthInfo info) const {
+    return aplptr_t(new RGWCreatingAuthLoader(cct, store, info));
+  }
 };
 
-/* TempURL loaders. */
-class RGWTempURLAuthLoader : public RGWNonCreatingAuthLoader {
+
+/* Local auth applier targets those auth engines that store user information
+ * in the RADOS store. As a consequence, to perform the authentication, they
+ * already have RGWUserInfo structure loaded.
+ */
+class RGWLocalAuthLoader : public RGWAuthLoader {
 protected:
   const RGWUserInfo user_info;
-  RGWTempURLAuthLoader(const RGWUserInfo& user_info)
-    : user_info(user_info) {
-  };
+
+  RGWLocalAuthLoader(CephContext * const cct,
+                     const RGWUserInfo& user_info)
+    : RGWAuthLoader(cct),
+      user_info(user_info) {
+  }
 
 public:
   virtual void load_acct_info(RGWUserInfo& user_info) const;     /* out */
   virtual void load_user_info(rgw_user& auth_user,               /* out */
                               uint32_t& perm_mask,               /* out */
                               bool& admin_request) const;        /* out */
-  virtual void modify_request_state(req_state * s) const;        /* in/out */
+  class Factory;
+};
+
+class RGWLocalAuthLoader::Factory {
+public:
+  virtual ~Factory() {}
+
+  virtual aplptr_t create_loader(CephContext * const cct,
+                                 const RGWUserInfo& user_info) const {
+    return aplptr_t(new RGWLocalAuthLoader(cct, user_info));
+  }
+};
+
+
+/* TempURL loaders. */
+class RGWTempURLAuthLoader : public RGWLocalAuthLoader {
+protected:
+  RGWTempURLAuthLoader(CephContext * const cct,
+                       const RGWUserInfo& user_info)
+    : RGWLocalAuthLoader(cct, user_info) {
+  };
+
+public:
+  virtual void modify_request_state(req_state * s) const override; /* in/out */
 
   class Factory;
 };
 
-class RGWTempURLAuthLoader::Factory {
+class RGWTempURLAuthLoader::Factory : public RGWLocalAuthLoader::Factory {
   friend class RGWTempURLAuthEngine;
-
 protected:
-  virtual std::unique_ptr<RGWAuthLoader> create_loader(const RGWUserInfo& user_info) const {
-    return std::unique_ptr<RGWAuthLoader>(new RGWTempURLAuthLoader(user_info));
-  };
+  virtual aplptr_t create_loader(CephContext * const cct,
+                                 const RGWUserInfo& user_info) const override {
+    return aplptr_t(new RGWTempURLAuthLoader(cct, user_info));
+  }
 
 public:
+  using RGWLocalAuthLoader::Factory::Factory;
   virtual ~Factory() {};
 };
 
@@ -117,8 +228,6 @@ protected:
   }
 
 public:
-  typedef std::unique_ptr<RGWAuthLoader> ldrptr_t;
-
   /* Fast, non-throwing method for screening whether a concrete engine may
    * be interested in handling a specific request. */
   virtual bool is_applicable() const noexcept = 0;
@@ -127,7 +236,7 @@ public:
    * an implementation should return std::unique_ptr containing a non-null
    * pointer. Otherwise, the authentication is treated as failed.
    * An error may be signalised by throwing an exception. */
-  virtual ldrptr_t authenticate() const = 0;
+  virtual RGWAuthLoader::aplptr_t authenticate() const = 0;
 
   virtual ~RGWAuthEngine() {};
 };
@@ -157,7 +266,7 @@ public:
 
   /* Interface implementations. */
   bool is_applicable() const noexcept override;
-  ldrptr_t authenticate() const override;
+  RGWAuthLoader::aplptr_t authenticate() const override;
 };
 
 /* Virtual class for all token-based auth engines. */
@@ -182,14 +291,29 @@ public:
   std::unique_ptr<RGWAuthLoader> authenticate() const override;
 };
 
+
 /* Keystone */
-class RGWKeystoneAuthEngine : public RGWTokenBasedAuthEngine {
+class RGWKeystoneAuthEngine : public RGWAuthEngine {
+protected:
+  const std::string& token;
+  const RGWCreatingAuthLoader::Factory& factory;
+
+  /* Helper methods. */
+  KeystoneToken decode_pki_token(const std::string token) const;
+  KeystoneToken get_from_keystone(const std::string token) const;
+  RGWCreatingAuthLoader::AuthInfo get_creds_info(const KeystoneToken& token) const noexcept;
 public:
-  using RGWTokenBasedAuthEngine::RGWTokenBasedAuthEngine;
+  RGWKeystoneAuthEngine(const req_state * const s,
+                        const RGWCreatingAuthLoader::Factory& factory)
+    : RGWAuthEngine(s),
+      token(s->os_auth_token),
+      factory(factory) {
+  }
 
   bool is_applicable() const noexcept override;
-  std::unique_ptr<RGWAuthLoader> authenticate() const override;
+  RGWAuthLoader::aplptr_t authenticate() const override;
 };
+
 
 /* External token */
 class RGWExternalTokenAuthEngine : public RGWTokenBasedAuthEngine {

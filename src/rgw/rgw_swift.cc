@@ -644,21 +644,21 @@ uint32_t RGWSwift::get_perm_mask(const string& swift_user,
   return perm_mask;
 }
 
-/* TempURL: loader */
-void RGWTempURLAuthLoader::load_acct_info(RGWUserInfo& user_info) const      /* out */
+void RGWLocalAuthLoader::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
   user_info = this->user_info;
 }
 
-void RGWTempURLAuthLoader::load_user_info(rgw_user& auth_user,               /* out */
-                                          uint32_t& perm_mask,               /* out */
-                                          bool& admin_request) const         /* out */
+void RGWLocalAuthLoader::load_user_info(rgw_user& auth_user,               /* out */
+                                        uint32_t& perm_mask,               /* out */
+                                        bool& admin_request) const         /* out */
 {
   auth_user = user_info.user_id;
   perm_mask = RGW_PERM_FULL_CONTROL;
   admin_request = false;
 }
 
+/* TempURL: loader */
 void RGWTempURLAuthLoader::modify_request_state(req_state * s) const         /* in/out */
 {
   bool inline_exists = false;
@@ -837,7 +837,7 @@ std::unique_ptr<RGWAuthLoader> RGWTempURLAuthEngine::authenticate() const
           ldout(s->cct,  5) << "temp url signature mismatch: " << local_sig
                             << " != " << temp_url_sig  << dendl;
         } else {
-          return ldr_factory.create_loader(owner_info);
+          return ldr_factory.create_loader(cct, owner_info);
         }
       }
     }
@@ -885,7 +885,9 @@ bool RGWSwift::verify_swift_token(RGWRados *store, req_state *s)
   RGWTempURLAuthEngine tempurl(s, store, tempurl_fact);
 
   RGWSignedTokenAuthEngine rgwtk(s, s->os_auth_token);
-  RGWKeystoneAuthEngine keystone(s, s->os_auth_token);
+
+  RGWCreatingAuthLoader::Factory creating_fact(store);
+  RGWKeystoneAuthEngine keystone(s, creating_fact);
   RGWExternalTokenAuthEngine ext(s, s->os_auth_token);
 
   const std::vector<const RGWAuthEngine *> engines = {
