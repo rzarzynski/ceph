@@ -197,12 +197,10 @@ public:
  * all places which can modify underlying structures. */
 class RGWAuthEngine {
 protected:
-  const req_state * const s;
   CephContext * const cct;
 
-  RGWAuthEngine(const req_state * const s)
-    : s(s),
-      cct(s->cct) {
+  RGWAuthEngine(CephContext * const cct)
+    : cct(cct) {
   }
 
 public:
@@ -226,18 +224,18 @@ protected:
   const std::string token;
 
 public:
-  RGWTokenBasedAuthEngine(const req_state * const s,
+  RGWTokenBasedAuthEngine(CephContext * const cct,
                           const std::string token)
-    : RGWAuthEngine(s),
+    : RGWAuthEngine(cct),
       token(token) {
   }
 };
 
+/* TODO: introduce extractors for TokenBased. */
 
 /* Keystone */
-class RGWKeystoneAuthEngine : public RGWAuthEngine {
+class RGWKeystoneAuthEngine : public RGWTokenBasedAuthEngine {
 protected:
-  const std::string& token;
   const RGWRemoteAuthApplier::Factory& factory;
 
   /* Helper methods. */
@@ -245,10 +243,10 @@ protected:
   KeystoneToken get_from_keystone(const std::string token) const;
   RGWRemoteAuthApplier::AuthInfo get_creds_info(const KeystoneToken& token) const noexcept;
 public:
-  RGWKeystoneAuthEngine(const req_state * const s,
+  RGWKeystoneAuthEngine(CepbContext * cct,
+                        const std::string token,
                         const RGWRemoteAuthApplier::Factory& factory)
-    : RGWAuthEngine(s),
-      token(s->os_auth_token),
+    : RGWTokenBasedAuthEngine(cct, token),
       factory(factory) {
   }
 
