@@ -857,8 +857,8 @@ RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
   return nullptr;
 }
 
-void RGWCreatingAuthApplier::create_account(const rgw_user acct_user,
-                                            RGWUserInfo& user_info) const      /* out */
+void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
+                                          RGWUserInfo& user_info) const      /* out */
 {
   rgw_user new_acct_user = acct_user;
 
@@ -881,10 +881,10 @@ void RGWCreatingAuthApplier::create_account(const rgw_user acct_user,
 }
 
 /* static declaration */
-const rgw_user RGWCreatingAuthApplier::AuthInfo::UNKNOWN_ACCT;
+const rgw_user RGWRemoteAuthApplier::AuthInfo::UNKNOWN_ACCT;
 
 /* TODO(rzarzynski): we need to handle display_name changes. */
-void RGWCreatingAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
+void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
   rgw_user acct_user;
 
@@ -925,9 +925,9 @@ void RGWCreatingAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /
   /* Succeeded if we are here (create_account() hasn't throwed). */
 }
 
-void RGWCreatingAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
-                                            uint32_t& perm_mask,               /* out */
-                                            bool& admin_request) const         /* out */
+void RGWRemoteAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
+                                          uint32_t& perm_mask,               /* out */
+                                          bool& admin_request) const         /* out */
 {
   auth_user = info.auth_user;
   perm_mask = info.perm_mask;
@@ -1004,7 +1004,7 @@ KeystoneToken RGWKeystoneAuthEngine::get_from_keystone(const std::string token) 
   return token_body;
 }
 
-RGWCreatingAuthApplier::AuthInfo
+RGWRemoteAuthApplier::AuthInfo
 RGWKeystoneAuthEngine::get_creds_info(const KeystoneToken& token) const noexcept
 {
   /* Check whether the user has an admin status. */
@@ -1087,7 +1087,7 @@ bool RGWSwift::verify_swift_token(RGWRados *store, req_state *s)
 
   RGWSignedTokenAuthEngine rgwtk(s, s->os_auth_token);
 
-  RGWCreatingAuthApplier::Factory creating_fact(store);
+  RGWRemoteAuthApplier::Factory creating_fact(store);
   RGWKeystoneAuthEngine keystone(s, creating_fact);
   RGWExternalTokenAuthEngine ext(s, s->os_auth_token);
 

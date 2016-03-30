@@ -61,16 +61,16 @@ public:
 };
 
 
-/* RGWCreatingAuthApplier - applier typical for auth engines which don't need
+/* RGWRemoteAuthApplier - applier typical for auth engines which don't need
  * to ask the RADOS store about user credentials but instead obtain them from
  * an external source-of-truth like Keystone or LDAP.
  *
  * In such cases the applier must be able to create internal data structures
  * for users who log-in for first time. */
-class RGWCreatingAuthApplier : public RGWAuthApplier {
+class RGWRemoteAuthApplier : public RGWAuthApplier {
 public:
   class AuthInfo {
-    friend class RGWCreatingAuthApplier;
+    friend class RGWRemoteAuthApplier;
   protected:
     const rgw_user acct_user;
     const rgw_user auth_user;
@@ -109,9 +109,9 @@ protected:
   RGWRados * const store;
   const AuthInfo info;
 
-  RGWCreatingAuthApplier(CephContext * const cct,
-                         RGWRados * const store,
-                         const AuthInfo info)
+  RGWRemoteAuthApplier(CephContext * const cct,
+                       RGWRados * const store,
+                       const AuthInfo info)
     : RGWAuthApplier(cct),
       store(store),
       info(info) {
@@ -128,7 +128,7 @@ public:
   class Factory;
 };
 
-class RGWCreatingAuthApplier::Factory {
+class RGWRemoteAuthApplier::Factory {
 protected:
   RGWRados * const store;
 
@@ -140,7 +140,7 @@ public:
 
   virtual aplptr_t create_loader(CephContext * const cct,
                                  const AuthInfo info) const {
-    return aplptr_t(new RGWCreatingAuthApplier(cct, store, info));
+    return aplptr_t(new RGWRemoteAuthApplier(cct, store, info));
   }
 };
 
@@ -296,15 +296,15 @@ public:
 class RGWKeystoneAuthEngine : public RGWAuthEngine {
 protected:
   const std::string& token;
-  const RGWCreatingAuthApplier::Factory& factory;
+  const RGWRemoteAuthApplier::Factory& factory;
 
   /* Helper methods. */
   KeystoneToken decode_pki_token(const std::string token) const;
   KeystoneToken get_from_keystone(const std::string token) const;
-  RGWCreatingAuthApplier::AuthInfo get_creds_info(const KeystoneToken& token) const noexcept;
+  RGWRemoteAuthApplier::AuthInfo get_creds_info(const KeystoneToken& token) const noexcept;
 public:
   RGWKeystoneAuthEngine(const req_state * const s,
-                        const RGWCreatingAuthApplier::Factory& factory)
+                        const RGWRemoteAuthApplier::Factory& factory)
     : RGWAuthEngine(s),
       token(s->os_auth_token),
       factory(factory) {
