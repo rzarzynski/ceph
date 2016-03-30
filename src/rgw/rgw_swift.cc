@@ -644,20 +644,6 @@ uint32_t RGWSwift::get_perm_mask(const string& swift_user,
   return perm_mask;
 }
 
-void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
-{
-  user_info = this->user_info;
-}
-
-void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
-                                         uint32_t& perm_mask,               /* out */
-                                         bool& admin_request) const         /* out */
-{
-  auth_user = user_info.user_id;
-  perm_mask = RGW_PERM_FULL_CONTROL;
-  admin_request = false;
-}
-
 /* TempURL: applier */
 void RGWTempURLAuthApplier::modify_request_state(req_state * s) const       /* in/out */
 {
@@ -855,83 +841,6 @@ bool RGWSignedTokenAuthEngine::is_applicable() const noexcept
 RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
 {
   return nullptr;
-}
-
-void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
-                                          RGWUserInfo& user_info) const      /* out */
-{
-  rgw_user new_acct_user = acct_user;
-
-  /* Administrator may request creating new accounts within their own
-   * tenants. The config parameter name is kept unchanged due to legacy. */
-  if (new_acct_user.tenant.empty() && g_conf->rgw_keystone_implicit_tenants) {
-    new_acct_user.tenant = new_acct_user.id;
-  }
-
-  user_info.user_id = new_acct_user;
-  user_info.display_name = info.display_name;
-
-  int ret = rgw_store_user_info(store, user_info, nullptr, nullptr,
-                                real_time(), true);
-  if (ret < 0) {
-    ldout(cct, 0) << "ERROR: failed to store new user info: user="
-                  << user_info.user_id << " ret=" << ret << dendl;
-    throw ret;
-  }
-}
-
-/* static declaration */
-const rgw_user RGWRemoteAuthApplier::AuthInfo::UNKNOWN_ACCT;
-
-/* TODO(rzarzynski): we need to handle display_name changes. */
-void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
-{
-  rgw_user acct_user;
-
-  /* AuthEngine may leave the acct_user unspecified. In such scenario,
-   * we'll deduce it from auth_user. */
-  if (AuthInfo::UNKNOWN_ACCT == info.acct_user) {
-    acct_user = info.auth_user;
-  } else {
-    acct_user = info.acct_user;
-  }
-
-  /*
-   * Normally once someone parsed the token, the tenant and user are set
-   * in rgw_swift_auth_info. If .tenant is empty in it, the client has
-   * authenticated with the empty legacy tenant. But when we authenticate
-   * with Keystone, we have a special compatibility kludge. First, we try
-   * the same tenant as the user. If that user exists, we use it. This way,
-   * migrated OpenStack users can get their namespaced containers and
-   * nobody's the wiser. If that fails, we look up the user in the empty
-   * tenant. If neither is found, make one, and those migrating can
-   * set a special configurable rgw_keystone_implicit_tenants to create
-   * suitable tenantized users.
-   */
-  if (acct_user.tenant.empty()) {
-    const rgw_user tenanted_uid(acct_user.id, acct_user.id);
-
-    if (rgw_get_user_info_by_uid(store, tenanted_uid, user_info) >= 0) {
-      /* Succeeded. */
-      return;
-    }
-  }
-
-  if (rgw_get_user_info_by_uid(store, acct_user, user_info) < 0) {
-    ldout(cct, 0) << "NOTICE: couldn't map swift user " << acct_user << dendl;
-    create_account(acct_user, user_info);
-  }
-
-  /* Succeeded if we are here (create_account() hasn't throwed). */
-}
-
-void RGWRemoteAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
-                                          uint32_t& perm_mask,               /* out */
-                                          bool& admin_request) const         /* out */
-{
-  auth_user = info.auth_user;
-  perm_mask = info.perm_mask;
-  admin_request = info.is_admin;
 }
 
 /* Keystone */
