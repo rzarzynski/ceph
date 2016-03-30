@@ -40,6 +40,32 @@ public:
 };
 
 
+/* Abstract decorator over any implementation of RGWAuthApplier. */
+class RGWDecoratoringAuthApplier : public RGWAuthApplier {
+protected:
+  aplptr_t decoratee;
+
+public:
+  RGWDecoratoringAuthApplier(aplptr_t&& decoratee)
+    : RGWAuthApplier(decoratee->cct),
+      decoratee(std::move(decoratee)) {
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const {    /* out */
+    return decoratee->load_acct_info(user_info);
+  }
+  virtual void load_user_info(rgw_user& auth_user,               /* out */
+                              uint32_t& perm_mask,               /* out */
+                              bool& admin_request) const {       /* out */
+    return decoratee->load_user_info(auth_user, perm_mask, admin_request);
+  }
+
+  virtual void modify_request_state(req_state * s) const {       /* in/out */
+    return decoratee->modify_request_state(s);
+  }
+};
+
+
 /* RGWRemoteAuthApplier - applier typical for auth engines which don't need
  * to ask the RADOS store about user credentials but instead obtain them from
  * an external source-of-truth like Keystone or LDAP.
