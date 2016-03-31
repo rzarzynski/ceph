@@ -113,13 +113,16 @@ protected:
   /* Read-write is intensional here due to RGWUserInfo creation process.. */
   RGWRados * const store;
   const AuthInfo info;
+  const rgw_user acct_user_override;
 
   RGWRemoteAuthApplier(CephContext * const cct,
                        RGWRados * const store,
-                       const AuthInfo info)
+                       const AuthInfo info,
+                       const rgw_user acct_user_override = rgw_user())
     : RGWAuthApplier(cct),
       store(store),
-      info(info) {
+      info(info),
+      acct_user_override(acct_user_override) {
   }
 
   virtual void create_account(const rgw_user acct_user,
@@ -157,11 +160,14 @@ public:
 class RGWLocalAuthApplier : public RGWAuthApplier {
 protected:
   const RGWUserInfo user_info;
+  const std::string subuser;
 
   RGWLocalAuthApplier(CephContext * const cct,
-                      const RGWUserInfo& user_info)
+                      const RGWUserInfo& user_info,
+                      const std::string subuser = std::string())
     : RGWAuthApplier(cct),
-      user_info(user_info) {
+      user_info(user_info),
+      subuser(subuser) {
   }
 
 public:
@@ -177,8 +183,9 @@ public:
   virtual ~Factory() {}
 
   virtual aplptr_t create_loader(CephContext * const cct,
-                                 const RGWUserInfo& user_info) const {
-    return aplptr_t(new RGWLocalAuthApplier(cct, user_info));
+                                 const RGWUserInfo& user_info,
+                                 std::string subuser) const {
+    return aplptr_t(new RGWLocalAuthApplier(cct, user_info, subuser));
   }
 };
 
@@ -243,7 +250,7 @@ protected:
   KeystoneToken get_from_keystone(const std::string token) const;
   RGWRemoteAuthApplier::AuthInfo get_creds_info(const KeystoneToken& token) const noexcept;
 public:
-  RGWKeystoneAuthEngine(CepbContext * cct,
+  RGWKeystoneAuthEngine(CephContext * const cct,
                         const std::string token,
                         const RGWRemoteAuthApplier::Factory& factory)
     : RGWTokenBasedAuthEngine(cct, token),
