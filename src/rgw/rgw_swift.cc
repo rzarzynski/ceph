@@ -725,8 +725,14 @@ RGWKeystoneAuthEngine::get_creds_info(const KeystoneToken& token) const noexcept
   }
 
   return {
-    token.get_project_id(),
+    /* Suggested account name for the authenticated user. */
+    rgw_user(token.get_project_id()),
+    /* The authenticated identity. */
+    rgw_user(token.get_project_id()),
+    /* User's display name (aka real name). */
     token.get_project_name(),
+    /* Keystone doesn't support RGW's subuser concept, so we cannot cut down
+     * the access rights through the perm_mask. At least at this layer. */
     RGW_PERM_FULL_CONTROL,
     is_admin
   };
