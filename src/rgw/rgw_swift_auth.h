@@ -27,8 +27,11 @@ public:
 class RGWTempURLAuthApplier::Factory : public RGWLocalAuthApplier::Factory {
   friend class RGWTempURLAuthEngine;
 protected:
+  /* We need to unhide other overloads through importing them to our scope.
+   * C++ quirks, sorry. */
+  using RGWLocalAuthApplier::Factory::create_loader;
   virtual aplptr_t create_loader(CephContext * const cct,
-                                 const RGWUserInfo& user_info) const override {
+                                 const RGWUserInfo& user_info) const {
     return aplptr_t(new RGWTempURLAuthApplier(cct, user_info));
   }
 
@@ -41,6 +44,7 @@ public:
 class RGWTempURLAuthEngine : public RGWAuthEngine {
 protected:
   /* const */ RGWRados * const store;
+  const req_state * const s;
   const RGWTempURLAuthApplier::Factory& ldr_factory;
 
   /* Helper methods. */
@@ -54,8 +58,9 @@ public:
   RGWTempURLAuthEngine(const req_state * const s,
                        /*const*/ RGWRados * const store,
                        const RGWTempURLAuthApplier::Factory ldr_factory)
-    : RGWAuthEngine(s),
+    : RGWAuthEngine(s->cct),
       store(store),
+      s(s),
       ldr_factory(ldr_factory) {
   }
 
