@@ -67,8 +67,18 @@ public:
 
 /* AUTH_rgwtk */
 class RGWSignedTokenAuthEngine : public RGWTokenBasedAuthEngine {
+protected:
+  /* const */ RGWRados * const store;
+  const RGWLocalAuthApplier::Factory& apl_factory;
 public:
-  using RGWTokenBasedAuthEngine::RGWTokenBasedAuthEngine;
+  RGWSignedTokenAuthEngine(CephContext * const cct,
+                           /* const */RGWRados * const store,
+                           const std::string token,
+                           const RGWLocalAuthApplier::Factory apl_factory)
+    : RGWTokenBasedAuthEngine(cct, token),
+      store(store),
+      apl_factory(apl_factory) {
+  }
 
   bool is_applicable() const noexcept override;
   RGWAuthApplier::aplptr_t authenticate() const override;

@@ -208,18 +208,6 @@ RGWAuthApplier::aplptr_t RGWTempURLAuthEngine::authenticate() const
 }
 
 
-/* AUTH_rgwtk (signed token): engine */
-bool RGWSignedTokenAuthEngine::is_applicable() const noexcept
-{
-  return !strncmp(s->os_auth_token, "AUTH_rgwtk", 10);
-}
-
-RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
-{
-  return nullptr;
-}
-
-
 /* External token */
 bool RGWExternalTokenAuthEngine::is_applicable() const noexcept
 {
@@ -232,8 +220,11 @@ RGWAuthApplier::aplptr_t RGWExternalTokenAuthEngine::authenticate() const
 }
 
 
-static int build_token(string& swift_user, string& key, uint64_t nonce,
-		       utime_t& expiration, bufferlist& bl)
+static int build_token(const string& swift_user,
+                       const string& key,
+                       const uint64_t nonce,
+                       const utime_t& expiration,
+                       bufferlist& bl)
 {
   ::encode(swift_user, bl);
   ::encode(nonce, bl);
@@ -358,6 +349,108 @@ int rgw_swift_verify_signed_token(CephContext * const cct,
 
   return 0;
 }
+
+
+/* AUTH_rgwtk (signed token): engine */
+bool RGWSignedTokenAuthEngine::is_applicable() const noexcept
+{
+  return !token.compare(0, 10, "AUTH_rgwtk");
+}
+
+RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
+{
+  /* Effective token string is the part after the prefix. */
+  const std::string etoken = token.substr(strlen("AUTH_rgwtk"));
+  const size_t etoken_len = etoken.length();
+
+  if (etoken_len & 1) {
+    ldout(cct, 0) << "NOTICE: failed to verify token: odd token length="
+	          << etoken_len << dendl;
+    throw -EINVAL;
+  }
+
+  bufferptr p(etoken_len/2);
+  int ret = hex_to_buf(token.c_str(), p.c_str(), etoken_len);
+  if (ret < 0) {
+    throw ret;
+  }
+
+  bufferlist tok_bl;
+  tok_bl.append(p);
+
+  uint64_t nonce;
+  utime_t expiration;
+  std::string swift_user;
+
+  try {
+    /*const*/ auto iter = tok_bl.begin();
+
+    ::decode(swift_user, iter);
+    ::decode(nonce, iter);
+    ::decode(expiration, iter);
+  } catch (buffer::error& err) {
+    ldout(cct, 0) << "NOTICE: failed to decode token" << dendl;
+    throw -EINVAL;
+  }
+
+  const utime_t now = ceph_clock_now(cct);
+  if (expiration < now) {
+    ldout(cct, 0) << "NOTICE: old timed out token was used now=" << now
+	          << " token.expiration=" << expiration
+                  << dendl;
+    return nullptr;
+  }
+
+  RGWUserInfo user_info;
+  ret = rgw_get_user_info_by_swift(store, swift_user, user_info);
+  if (ret < 0) {
+    throw ret;
+  }
+
+  ldout(cct, 10) << "swift_user=" << swift_user << dendl;
+
+  const auto siter = user_info.swift_keys.find(swift_user);
+  if (siter == std::end(user_info.swift_keys)) {
+    return nullptr;
+  }
+
+  const auto swift_key = siter->second;
+
+  bufferlist local_tok_bl;
+  ret = build_token(swift_user, swift_key.key, nonce, expiration, local_tok_bl);
+  if (ret < 0) {
+    throw ret;
+  }
+
+  if (local_tok_bl.length() != tok_bl.length()) {
+    ldout(cct, 0) << "NOTICE: tokens length mismatch:"
+                  << " tok_bl.length()=" << tok_bl.length()
+	          << " local_tok_bl.length()=" << local_tok_bl.length()
+                  << dendl;
+    return nullptr;
+  }
+
+  if (memcmp(local_tok_bl.c_str(), tok_bl.c_str(),
+             local_tok_bl.length()) != 0) {
+    char buf[local_tok_bl.length() * 2 + 1];
+
+    buf_to_hex(reinterpret_cast<const unsigned char *>(local_tok_bl.c_str()),
+               local_tok_bl.length(), buf);
+
+    ldout(cct, 0) << "NOTICE: tokens mismatch tok=" << buf << dendl;
+    return nullptr;
+  }
+
+#if 0
+  auth_info.user = info.user_id;
+  auth_info.is_admin = info.admin;
+  auth_info.perm_mask = RGWSwift::get_perm_mask(swift_user, info);
+  auth_info.status = 200;
+#endif
+
+  return apl_factory.create_loader(cct, user_info, swift_user);;
+}
+
 
 void RGW_SWIFT_Auth_Get::execute()
 {
