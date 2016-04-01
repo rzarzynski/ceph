@@ -99,8 +99,8 @@ public:
 
   /* Case insensitive comparator for containers carrying HTTP headers. */
   struct CILess : public std::binary_function<string, string, bool> {
-    bool operator()(const std::string &lhs,
-                    const std::string &rhs) const {
+    bool operator()(const std::string& lhs,
+                    const std::string& rhs) const {
       return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ;
     }
   };
