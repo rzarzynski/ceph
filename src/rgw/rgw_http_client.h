@@ -91,6 +91,45 @@ public:
   int get_req_retcode();
 };
 
+
+class RGWHTTPHeadersCollector : public RGWHTTPClient {
+public:
+  typedef std::string header_name_t;
+  typedef std::string header_value_t;
+
+  /* Case insensitive comparator for containers carrying HTTP headers. */
+  struct CILess : public std::binary_function<string, string, bool> {
+    bool operator()(const std::string &lhs,
+                    const std::string &rhs) const {
+      return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ;
+    }
+  };
+
+  RGWHTTPHeadersCollector(CephContext * const cct,
+                          const std::set<header_name_t, CILess> relevant_headers)
+    : RGWHTTPClient(cct),
+      relevant_headers(relevant_headers) {
+  }
+
+  int receive_header(void *ptr, size_t len);
+  int receive_data(void *ptr, size_t len) {
+    return 0;
+  }
+
+  int send_data(void *ptr, size_t len) {
+    return 0;
+  }
+
+  std::map<header_name_t, header_value_t, CILess> get_headers() const {
+    return found_headers;
+  }
+
+protected:
+  const std::set<header_name_t, CILess> relevant_headers;
+  std::map<header_name_t, header_value_t, CILess> found_headers;
+};
+
+
 class RGWCompletionManager;
 
 class RGWHTTPManager {
