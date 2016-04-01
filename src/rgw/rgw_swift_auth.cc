@@ -11,6 +11,8 @@
 
 #include "rgw_client_io.h"
 #include "rgw_swift.h"
+#include "rgw_http_client.h"
+#include "include/str_list.h"
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -211,12 +213,62 @@ RGWAuthApplier::aplptr_t RGWTempURLAuthEngine::authenticate() const
 /* External token */
 bool RGWExternalTokenAuthEngine::is_applicable() const noexcept
 {
-  return false;
+  return false == g_conf->rgw_swift_auth_url.empty();
 }
 
 RGWAuthApplier::aplptr_t RGWExternalTokenAuthEngine::authenticate() const
 {
-  return nullptr;
+  string auth_url = g_conf->rgw_swift_auth_url;
+  if (auth_url[auth_url.length() - 1] != '/') {
+    auth_url.append("/");
+  }
+
+  auth_url.append("token");
+  char url_buf[auth_url.size() + 1 + token.length() + 1];
+  sprintf(url_buf, "%s/%s", auth_url.c_str(), token.c_str());
+
+  RGWHTTPHeadersCollector validator(cct, { "X-Auth-Groups", "X-Auth-Ttl" });
+
+  ldout(cct, 10) << "rgw_swift_validate_token url=" << url_buf << dendl;
+
+  int ret = validator.process(url_buf);
+  if (ret < 0) {
+    throw ret;
+  }
+
+  rgw_user swift_user;
+  const auto headers = validator.get_headers();
+  const auto grpiter = headers.find("X-Auth-Groups");
+  if (grpiter == std::end(headers)) {
+    return nullptr;
+  } else {
+    std::vector<std::string> swift_groups;
+    get_str_vec(grpiter->second, ",", swift_groups);
+
+    if (0 == swift_groups.size()) {
+      return nullptr;
+    } else {
+      swift_user = swift_groups[0];
+    }
+  }
+
+  if (swift_user.empty()) {
+    return nullptr;
+  }
+
+  ldout(cct, 10) << "swift user=" << swift_user << dendl;
+
+  RGWUserInfo tmp_uinfo;
+  ret = rgw_get_user_info_by_swift(store, swift_user, tmp_uinfo);
+  if (ret < 0) {
+    ldout(cct, 0) << "NOTICE: couldn't map swift user" << dendl;
+    throw ret;
+  }
+
+  auth_info.perm_mask = get_perm_mask(swift_user, tmp_uinfo);
+  auth_info.is_admin = false;
+
+  return 0;
 }
 
 
