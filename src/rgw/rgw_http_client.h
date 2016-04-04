@@ -124,6 +124,12 @@ public:
     return found_headers;
   }
 
+  /* Throws std::out_of_range */
+  const header_value_t& get_header_value(const header_name_t& name) const {
+    return found_headers.at(name);
+  }
+
+
 protected:
   const std::set<header_name_t, CILess> relevant_headers;
   std::map<header_name_t, header_value_t, CILess> found_headers;
