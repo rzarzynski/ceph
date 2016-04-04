@@ -98,10 +98,10 @@ public:
   typedef std::string header_value_t;
 
   /* Case insensitive comparator for containers carrying HTTP headers. */
-  struct CILess : public std::binary_function<string, string, bool> {
+  struct CILess : public std::binary_function<std::string, std::string, bool> {
     bool operator()(const std::string& lhs,
                     const std::string& rhs) const {
-      return strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ;
+      return ::strcasecmp(lhs.c_str(), rhs.c_str()) < 0 ;
     }
   };
 
