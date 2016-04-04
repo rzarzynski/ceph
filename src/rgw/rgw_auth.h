@@ -238,14 +238,18 @@ protected:
   const std::string token;
 
 public:
+  class Extractor {
+  public:
+    virtual ~Extractor() {};
+    virtual std::string get_token() const = 0;
+  };
+
   RGWTokenBasedAuthEngine(CephContext * const cct,
-                          const std::string token)
+                          const Extractor& extr)
     : RGWAuthEngine(cct),
-      token(token) {
+      token(extr.get_token()) {
   }
 };
-
-/* TODO: introduce extractors for TokenBased. */
 
 /* Keystone. */
 class RGWKeystoneAuthEngine : public RGWTokenBasedAuthEngine {
@@ -258,9 +262,9 @@ protected:
   RGWRemoteAuthApplier::AuthInfo get_creds_info(const KeystoneToken& token) const noexcept;
 public:
   RGWKeystoneAuthEngine(CephContext * const cct,
-                        const std::string token,
+                        const Extractor& extr,
                         const RGWRemoteAuthApplier::Factory * const apl_factory)
-    : RGWTokenBasedAuthEngine(cct, token),
+    : RGWTokenBasedAuthEngine(cct, extr),
       apl_factory(apl_factory) {
   }
 
