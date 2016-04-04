@@ -209,6 +209,10 @@ protected:
   RGWAuthEngine(CephContext * const cct)
     : cct(cct) {
   }
+  /* Make the engines noncopyable and nonmoveable due to const-correctness
+   * and making aggregation less costly and error-prone. */
+  RGWAuthEngine(const RGWAuthEngine&) = delete;
+  RGWAuthEngine& operator=(const RGWAuthEngine&) = delete;
 
 public:
   /* Fast, non-throwing method for screening whether a concrete engine may
@@ -240,10 +244,10 @@ public:
 
 /* TODO: introduce extractors for TokenBased. */
 
-/* Keystone */
+/* Keystone. */
 class RGWKeystoneAuthEngine : public RGWTokenBasedAuthEngine {
 protected:
-  const RGWRemoteAuthApplier::Factory& factory;
+  const RGWRemoteAuthApplier::Factory * const apl_factory;
 
   /* Helper methods. */
   KeystoneToken decode_pki_token(const std::string token) const;
@@ -252,9 +256,9 @@ protected:
 public:
   RGWKeystoneAuthEngine(CephContext * const cct,
                         const std::string token,
-                        const RGWRemoteAuthApplier::Factory& factory)
+                        const RGWRemoteAuthApplier::Factory * const apl_factory)
     : RGWTokenBasedAuthEngine(cct, token),
-      factory(factory) {
+      apl_factory(apl_factory) {
   }
 
   bool is_applicable() const noexcept override;

@@ -45,7 +45,7 @@ class RGWTempURLAuthEngine : public RGWAuthEngine {
 protected:
   /* const */ RGWRados * const store;
   const req_state * const s;
-  const RGWTempURLAuthApplier::Factory& ldr_factory;
+  const RGWTempURLAuthApplier::Factory * const apl_factory;
 
   /* Helper methods. */
   void get_owner_info(RGWUserInfo& owner_info) const;
@@ -57,11 +57,11 @@ protected:
 public:
   RGWTempURLAuthEngine(const req_state * const s,
                        /*const*/ RGWRados * const store,
-                       const RGWTempURLAuthApplier::Factory ldr_factory)
+                       const RGWTempURLAuthApplier::Factory * const apl_factory)
     : RGWAuthEngine(s->cct),
       store(store),
       s(s),
-      ldr_factory(ldr_factory) {
+      apl_factory(apl_factory) {
   }
 
   /* Interface implementations. */
@@ -74,12 +74,12 @@ public:
 class RGWSignedTokenAuthEngine : public RGWTokenBasedAuthEngine {
 protected:
   /* const */ RGWRados * const store;
-  const RGWLocalAuthApplier::Factory& apl_factory;
+  const RGWLocalAuthApplier::Factory * apl_factory;
 public:
   RGWSignedTokenAuthEngine(CephContext * const cct,
                            /* const */RGWRados * const store,
                            const std::string token,
-                           const RGWLocalAuthApplier::Factory apl_factory)
+                           const RGWLocalAuthApplier::Factory * const apl_factory)
     : RGWTokenBasedAuthEngine(cct, token),
       store(store),
       apl_factory(apl_factory) {
@@ -92,8 +92,19 @@ public:
 
 /* External token */
 class RGWExternalTokenAuthEngine : public RGWTokenBasedAuthEngine {
+protected:
+  /* const */ RGWRados * const store;
+  const RGWLocalAuthApplier::Factory * const apl_factory;
 public:
-  using RGWTokenBasedAuthEngine::RGWTokenBasedAuthEngine;
+  //using RGWTokenBasedAuthEngine::RGWTokenBasedAuthEngine;
+  RGWExternalTokenAuthEngine(CephContext * const cct,
+                             /* const */RGWRados * const store,
+                             const Extractor& extr,
+                             const RGWLocalAuthApplier::Factory * const apl_factory)
+    : RGWTokenBasedAuthEngine(cct, extr),
+      store(store),
+      apl_factory(apl_factory) {
+  }
 
   bool is_applicable() const noexcept override;
   RGWAuthApplier::aplptr_t authenticate() const override;
