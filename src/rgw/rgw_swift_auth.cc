@@ -274,10 +274,8 @@ RGWAuthApplier::aplptr_t RGWExternalTokenAuthEngine::authenticate() const
     throw ret;
   }
 
-  auth_info.perm_mask = get_perm_mask(swift_user, tmp_uinfo);
-  auth_info.is_admin = false;
-
-  return 0;
+  return apl_factory->create_loader(cct, tmp_uinfo,
+                                    extract_swift_subuser(swift_user));
 }
 
 
