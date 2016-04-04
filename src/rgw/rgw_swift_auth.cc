@@ -236,20 +236,20 @@ RGWAuthApplier::aplptr_t RGWExternalTokenAuthEngine::authenticate() const
     throw ret;
   }
 
-  rgw_user swift_user;
-  const auto headers = validator.get_headers();
-  const auto grpiter = headers.find("X-Auth-Groups");
-  if (grpiter == std::end(headers)) {
-    return nullptr;
-  } else {
+  std::string swift_user;
+  try {
     std::vector<std::string> swift_groups;
-    get_str_vec(grpiter->second, ",", swift_groups);
+    get_str_vec(validator.get_header_value("X-Auth-Groups"),
+                ",", swift_groups);
 
     if (0 == swift_groups.size()) {
       return nullptr;
     } else {
       swift_user = swift_groups[0];
     }
+  } catch (std::out_of_range) {
+    /* The X-Auth-Groups header isn't present in the response. */
+    return nullptr;
   }
 
   if (swift_user.empty()) {
