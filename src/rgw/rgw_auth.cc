@@ -88,6 +88,24 @@ void RGWRemoteAuthApplier::load_user_info(rgw_user& auth_user,               /* 
 }
 
 /* LocalAuthApplier */
+uint32_t RGWLocalAuthApplier::get_perm_mask(const std::string& subuser_name,
+                                            const RGWUserInfo &uinfo) const
+{
+  if (!subuser_name.empty()) {
+    const auto iter = uinfo.subusers.find(subuser_name);
+
+    if (iter != std::end(uinfo.subusers)) {
+      return iter->second.perm_mask;
+    } else {
+      /* Subuser specified but not found. */
+      return RGW_PERM_NONE;
+    }
+  } else {
+    /* Due to backward compatibility. */
+    return RGW_PERM_FULL_CONTROL;
+  }
+}
+
 void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
   user_info = this->user_info;
@@ -98,7 +116,7 @@ void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* o
                                          bool& admin_request) const         /* out */
 {
   auth_user = user_info.user_id;
-  perm_mask = RGW_PERM_FULL_CONTROL;
+  perm_mask = get_perm_mask(subuser, user_info);
   admin_request = false;
 }
 

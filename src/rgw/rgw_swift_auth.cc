@@ -116,6 +116,15 @@ bool RGWTempURLAuthEngine::is_expired(const std::string& expires) const
   return false;
 }
 
+std::string extract_swift_subuser(const std::string& swift_user_name) {
+  size_t pos = swift_user_name.find(':');
+  if (std::string::npos == pos) {
+    return swift_user_name;
+  } else {
+    return swift_user_name.substr(pos + 1);
+  }
+}
+
 std::string RGWTempURLAuthEngine::generate_signature(const string& key,
                                                      const string& method,
                                                      const string& path,
@@ -493,14 +502,8 @@ RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
     return nullptr;
   }
 
-#if 0
-  auth_info.user = info.user_id;
-  auth_info.is_admin = info.admin;
-  auth_info.perm_mask = RGWSwift::get_perm_mask(swift_user, info);
-  auth_info.status = 200;
-#endif
-
-  return apl_factory->create_loader(cct, user_info, swift_user);
+  return apl_factory->create_loader(cct, user_info,
+                                    extract_swift_subuser(swift_user));
 }
 
 

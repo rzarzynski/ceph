@@ -170,6 +170,9 @@ protected:
       subuser(subuser) {
   }
 
+  uint32_t get_perm_mask(const std::string& subuser_name,
+                         const RGWUserInfo &uinfo) const;
+
 public:
   virtual void load_acct_info(RGWUserInfo& user_info) const;     /* out */
   virtual void load_user_info(rgw_user& auth_user,               /* out */
