@@ -748,7 +748,7 @@ RGWAuthApplier::aplptr_t RGWKeystoneAuthEngine::authenticate() const
   /* Check cache first, */
   if (RGWKeystoneTokenCache::get_instance().find(token_id, t)) {
     ldout(cct, 20) << "cached token.project.id=" << t.get_project_id() << dendl;
-    return factory.create_loader(cct, get_creds_info(t));
+    return apl_factory->create_loader(cct, get_creds_info(t));
   }
 
   if (rgw_is_pki_token(token)) {
@@ -773,7 +773,7 @@ RGWAuthApplier::aplptr_t RGWKeystoneAuthEngine::authenticate() const
                     << ":" << t.get_user_name()
                     << " expires: " << t.get_expires() << dendl;
       RGWKeystoneTokenCache::get_instance().add(token_id, t);
-      return factory.create_loader(cct, get_creds_info(t));
+      return apl_factory->create_loader(cct, get_creds_info(t));
     }
   }
 

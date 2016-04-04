@@ -200,7 +200,7 @@ RGWAuthApplier::aplptr_t RGWTempURLAuthEngine::authenticate() const
           ldout(s->cct,  5) << "temp url signature mismatch: " << local_sig
                             << " != " << temp_url_sig  << dendl;
         } else {
-          return ldr_factory.create_loader(cct, owner_info);
+          return apl_factory->create_loader(cct, owner_info);
         }
       }
     }
@@ -500,7 +500,7 @@ RGWAuthApplier::aplptr_t RGWSignedTokenAuthEngine::authenticate() const
   auth_info.status = 200;
 #endif
 
-  return apl_factory.create_loader(cct, user_info, swift_user);;
+  return apl_factory->create_loader(cct, user_info, swift_user);
 }
 
 
