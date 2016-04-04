@@ -299,6 +299,8 @@ void RGWKeystoneTokenCache::invalidate(const string& token_id)
 
 
 #if 0
+//FIXME
+typedef RGWPostHTTPData RGWGetRevokedTokens;
 int RGWSwift::check_revoked()
 {
   string url;
