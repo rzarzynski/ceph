@@ -96,7 +96,6 @@ protected:
   /* const */ RGWRados * const store;
   const RGWLocalAuthApplier::Factory * const apl_factory;
 public:
-  //using RGWTokenBasedAuthEngine::RGWTokenBasedAuthEngine;
   RGWExternalTokenAuthEngine(CephContext * const cct,
                              /* const */RGWRados * const store,
                              const Extractor& extr,
