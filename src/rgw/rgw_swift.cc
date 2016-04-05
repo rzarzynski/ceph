@@ -733,15 +733,21 @@ RGWAuthApplier::aplptr_t RGWKeystoneAuthEngine::authenticate() const
 
 bool RGWSwift::verify_swift_token(RGWRados *store, req_state *s)
 {
+  /* Factories. */
   RGWTempURLAuthApplier::Factory tempurl_fact;
-  RGWTempURLAuthEngine tempurl(s, store, tempurl_fact);
-
-  RGWSignedTokenAuthEngine rgwtk(s, s->os_auth_token);
-
+  RGWLocalAuthApplier::Factory local_fact;
   RGWRemoteAuthApplier::Factory creating_fact(store);
-  RGWKeystoneAuthEngine keystone(s, creating_fact);
-  RGWExternalTokenAuthEngine ext(s, s->os_auth_token);
 
+  /* Extractors. */
+  RGWReqStateTokenExtractor token_extr(s);
+
+  /* Auth engines. */
+  RGWTempURLAuthEngine tempurl(s, store, &tempurl_fact);
+  RGWSignedTokenAuthEngine rgwtk(s->cct, store, token_extr, &local_fact);
+  RGWKeystoneAuthEngine keystone(s->cct,        token_extr, &creating_fact);
+  RGWExternalTokenAuthEngine ext(s->cct, store, token_extr, &local_fact);
+
+  /* Pipeline. */
   const std::vector<const RGWAuthEngine *> engines = {
     &tempurl, &rgwtk, &keystone, &ext
   };
