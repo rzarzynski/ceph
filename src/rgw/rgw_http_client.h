@@ -109,9 +109,6 @@ public:
 
 class RGWHTTPHeadersCollector : public RGWHTTPClient {
 public:
-  typedef std::string header_name_t;
-  typedef std::string header_value_t;
-
   /* Case insensitive comparator for containers carrying HTTP headers. */
   struct CILess : public std::binary_function<std::string, std::string, bool> {
     bool operator()(const std::string& lhs,
@@ -120,8 +117,12 @@ public:
     }
   };
 
+  typedef std::string header_name_t;
+  typedef std::string header_value_t;
+  typedef std::set<header_name_t, CILess> header_spec_t;
+
   RGWHTTPHeadersCollector(CephContext * const cct,
-                          const std::set<header_name_t, CILess> relevant_headers)
+                          const header_spec_t relevant_headers)
     : RGWHTTPClient(cct),
       relevant_headers(relevant_headers) {
   }
@@ -136,13 +137,13 @@ public:
   }
 
 protected:
-  virtual int receive_header(void *ptr, size_t len);
+  virtual int receive_header(void *ptr, size_t len) override;
 
-  virtual int receive_data(void *ptr, size_t len) {
+  virtual int receive_data(void *ptr, size_t len) override {
     return 0;
   }
 
-  virtual int send_data(void *ptr, size_t len) {
+  virtual int send_data(void *ptr, size_t len) override {
     return 0;
   }
 
