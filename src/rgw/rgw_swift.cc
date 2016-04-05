@@ -570,7 +570,7 @@ uint32_t RGWSwift::get_perm_mask(const string& swift_user,
 {
   uint32_t perm_mask = 0;
 
-  if (swift_user.empty()) {
+  if (!swift_user.empty()) {
     string subuser;
     ssize_t pos = swift_user.find(':');
     if (pos < 0) {
