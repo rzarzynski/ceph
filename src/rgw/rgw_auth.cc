@@ -44,18 +44,17 @@ void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* 
    * applied by using a RGWThirdPartyAccountAuthApplier decorator. */
   const rgw_user& acct_user = info.auth_user;
 
-  /*
-   * Normally once someone parsed the token, the tenant and user are set
-   * in rgw_swift_auth_info. If .tenant is empty in it, the client has
-   * authenticated with the empty legacy tenant. But when we authenticate
-   * with Keystone, we have a special compatibility kludge. First, we try
-   * the same tenant as the user. If that user exists, we use it. This way,
-   * migrated OpenStack users can get their namespaced containers and
-   * nobody's the wiser. If that fails, we look up the user in the empty
-   * tenant. If neither is found, make one, and those migrating can
-   * set a special configurable rgw_keystone_implicit_tenants to create
-   * suitable tenantized users.
-   */
+  /* Normally, empty "tenant" field of acct_user means the authenticated
+   * identity has the legacy, global tenant. However, due to inclusion
+   * of multi-tenancy, we got some special compatibility kludge for remote
+   * backends like Keystone.
+   * If the global tenant is the requested one, we try the same tenant as
+   * the user name first. If that RGWUserInfo exists, we use it. This way,
+   * migrated OpenStack users can get their namespaced containers and nobody's
+   * the wiser.
+   * If that fails, we look up in the requested (possibly empty) tenant.
+   * If that fails too, we create the account within the global or separated
+   * namespace depending on rgw_keystone_implicit_tenants. */
   if (acct_user.tenant.empty()) {
     const rgw_user tenanted_uid(acct_user.id, acct_user.id);
 
