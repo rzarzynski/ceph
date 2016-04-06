@@ -11,7 +11,7 @@
 #define dout_subsys ceph_subsys_rgw
 
 /* static declaration */
-const rgw_user RGWRemoteAuthApplier::AuthInfo::UNKNOWN_ACCT;
+const rgw_user RGWAuthApplier::UNKNOWN_ACCT;
 
 void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
                                           RGWUserInfo& user_info) const      /* out */
@@ -43,7 +43,7 @@ void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* 
 
   /* AuthEngine may leave the acct_user unspecified. In such scenario,
    * we'll deduce it from auth_user. */
-  if (AuthInfo::UNKNOWN_ACCT == info.acct_user) {
+  if (RGWAuthApplier::UNKNOWN_ACCT == info.acct_user) {
     acct_user = info.auth_user;
   } else {
     acct_user = info.acct_user;
@@ -108,7 +108,22 @@ uint32_t RGWLocalAuthApplier::get_perm_mask(const std::string& subuser_name,
 
 void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
-  user_info = this->user_info;
+  if (UNKNOWN_ACCT == acct_user_override) {
+    /* There is no override specified by the upper layer. This means that we'll
+     * load the account owned by the authenticated identity (aka auth_user). */
+    user_info = this->user_info;
+  } else if (this->user_info.user_id == acct_user_override) {
+    /* The override has been specified but the account belongs to the authenticated
+     * identity. A load from RADOS may be safely skipped in this case. */
+    user_info = this->user_info;
+  } else {
+    int ret = rgw_get_user_info_by_uid(store, acct_user_override, user_info);
+    if (ret < 0) {
+      throw ret;
+    }
+  }
+
+  /* Succeeded */
 }
 
 void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
