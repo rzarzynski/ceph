@@ -142,5 +142,5 @@ void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* o
 {
   auth_user = user_info.user_id;
   perm_mask = get_perm_mask(subuser, user_info);
-  admin_request = false;
+  admin_request = user_info.admin;
 }
