@@ -10,9 +10,6 @@
 
 #define dout_subsys ceph_subsys_rgw
 
-/* static declaration */
-const rgw_user RGWAuthApplier::UNKNOWN_ACCT;
-
 void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
                                           RGWUserInfo& user_info) const      /* out */
 {
@@ -82,6 +79,9 @@ void RGWRemoteAuthApplier::load_user_info(rgw_user& auth_user,               /* 
 }
 
 
+/* static declaration */
+const rgw_user RGWThirdPartyAccountAuthApplier::UNKNOWN_ACCT;
+
 void RGWThirdPartyAccountAuthApplier::load_acct_info(RGWUserInfo& user_info) const
 {
   rgw_user auth_user;
@@ -111,6 +111,9 @@ void RGWThirdPartyAccountAuthApplier::load_acct_info(RGWUserInfo& user_info) con
 
 
 /* LocalAuthApplier */
+/* static declaration */
+const std::string RGWLocalAuthApplier::NO_SUBUSER;
+
 uint32_t RGWLocalAuthApplier::get_perm_mask(const std::string& subuser_name,
                                             const RGWUserInfo &uinfo) const
 {
@@ -143,4 +146,13 @@ void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* o
   auth_user = user_info.user_id;
   perm_mask = get_perm_mask(subuser, user_info);
   admin_request = user_info.admin;
+}
+
+
+RGWAuthApplier::aplptr_t RGWAnonymousAuthEngine::authenticate() const
+{
+  RGWUserInfo user_info;
+  rgw_get_anon_user(user_info, user_info.user_id);
+
+  return apl_factory->create_loader(cct, user_info, RGWLocalAuthApplier::NO_SUBUSER);
 }

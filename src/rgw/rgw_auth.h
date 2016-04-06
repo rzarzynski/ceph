@@ -21,9 +21,6 @@ protected:
 public:
   typedef std::unique_ptr<RGWAuthApplier> aplptr_t;
 
-  /* FIXME: comment this. */
-  static const rgw_user UNKNOWN_ACCT;
-
   RGWAuthApplier(CephContext * const cct) : cct(cct) {}
   virtual ~RGWAuthApplier() {};
 
@@ -73,6 +70,9 @@ class RGWThirdPartyAccountAuthApplier : public RGWDecoratoringAuthApplier {
   /* const */RGWRados * const store;
   const rgw_user acct_user_override;
 public:
+  /* FIXME: comment this. */
+  static const rgw_user UNKNOWN_ACCT;
+
   RGWThirdPartyAccountAuthApplier(aplptr_t&& decoratee,
                                   RGWRados * const store,
                                   const rgw_user acct_user_override)
@@ -81,7 +81,7 @@ public:
       acct_user_override(acct_user_override) {
   }
 
-  virtual void load_acct_info(RGWUserInfo& user_info) const override;      /* out */
+  virtual void load_acct_info(RGWUserInfo& user_info) const override;   /* out */
 };
 
 
@@ -186,6 +186,8 @@ protected:
                          const RGWUserInfo &uinfo) const;
 
 public:
+  static const std::string NO_SUBUSER;
+
   virtual void load_acct_info(RGWUserInfo& user_info) const;     /* out */
   virtual void load_user_info(rgw_user& auth_user,               /* out */
                               uint32_t& perm_mask,               /* out */
@@ -199,7 +201,7 @@ public:
 
   virtual aplptr_t create_loader(CephContext * const cct,
                                  const RGWUserInfo& user_info,
-                                 std::string subuser) const {
+                                 const std::string& subuser) const {
     return aplptr_t(new RGWLocalAuthApplier(cct, user_info, subuser));
   }
 };
@@ -267,6 +269,7 @@ public:
   }
 };
 
+
 /* Keystone. */
 class RGWKeystoneAuthEngine : public RGWTokenBasedAuthEngine {
 protected:
@@ -288,5 +291,23 @@ public:
   RGWAuthApplier::aplptr_t authenticate() const override;
 };
 
+
+/* Anonymous */
+class RGWAnonymousAuthEngine : public RGWAuthEngine {
+  const RGWLocalAuthApplier::Factory * const apl_factory;
+
+public:
+  RGWAnonymousAuthEngine(CephContext * const cct,
+                         const RGWLocalAuthApplier::Factory * const apl_factory)
+    : RGWAuthEngine(cct),
+      apl_factory(apl_factory) {
+  }
+
+  bool is_applicable() const noexcept override {
+    return true;
+  }
+
+  RGWAuthApplier::aplptr_t authenticate() const override;
+};
 
 #endif /* CEPH_RGW_AUTH_H */
