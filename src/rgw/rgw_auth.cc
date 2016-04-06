@@ -39,15 +39,10 @@ void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
 /* TODO(rzarzynski): we need to handle display_name changes. */
 void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
-  rgw_user acct_user;
-
-  /* AuthEngine may leave the acct_user unspecified. In such scenario,
-   * we'll deduce it from auth_user. */
-  if (RGWAuthApplier::UNKNOWN_ACCT == info.acct_user) {
-    acct_user = info.auth_user;
-  } else {
-    acct_user = info.acct_user;
-  }
+  /* It's supposed that RGWRemoteAuthApplier tries to load account info
+   * that belongs to the authenticated identity. Another policy may be
+   * applied by using a RGWThirdPartyAccountAuthApplier decorator. */
+  const rgw_user& acct_user = info.auth_user;
 
   /*
    * Normally once someone parsed the token, the tenant and user are set
@@ -87,6 +82,35 @@ void RGWRemoteAuthApplier::load_user_info(rgw_user& auth_user,               /* 
   admin_request = info.is_admin;
 }
 
+
+void RGWThirdPartyAccountAuthApplier::load_acct_info(RGWUserInfo& user_info) const
+{
+  rgw_user auth_user;
+  uint32_t perm_mask;
+  bool is_admin;
+
+  RGWDecoratoringAuthApplier::load_user_info(auth_user, perm_mask, is_admin);
+
+
+  if (UNKNOWN_ACCT == acct_user_override) {
+    /* There is no override specified by the upper layer. This means that we'll
+     * load the account owned by the authenticated identity (aka auth_user). */
+    RGWDecoratoringAuthApplier::load_acct_info(user_info);
+  } else if (acct_user_override == auth_user) {
+    /* The override has been specified but the account belongs to the authenticated
+     * identity. We may safely forward the call to a next stage. */
+    RGWDecoratoringAuthApplier::load_acct_info(user_info);
+  } else {
+    int ret = rgw_get_user_info_by_uid(store, acct_user_override, user_info);
+    if (ret < 0) {
+      /* We aren't trying to recover from ENOENT here. It's supposed that creating
+       * someone else's account isn't a thing we want to support. */
+      throw ret;
+    }
+  }
+}
+
+
 /* LocalAuthApplier */
 uint32_t RGWLocalAuthApplier::get_perm_mask(const std::string& subuser_name,
                                             const RGWUserInfo &uinfo) const
@@ -108,22 +132,9 @@ uint32_t RGWLocalAuthApplier::get_perm_mask(const std::string& subuser_name,
 
 void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* out */
 {
-  if (UNKNOWN_ACCT == acct_user_override) {
-    /* There is no override specified by the upper layer. This means that we'll
-     * load the account owned by the authenticated identity (aka auth_user). */
-    user_info = this->user_info;
-  } else if (this->user_info.user_id == acct_user_override) {
-    /* The override has been specified but the account belongs to the authenticated
-     * identity. A load from RADOS may be safely skipped in this case. */
-    user_info = this->user_info;
-  } else {
-    int ret = rgw_get_user_info_by_uid(store, acct_user_override, user_info);
-    if (ret < 0) {
-      throw ret;
-    }
-  }
-
-  /* Succeeded */
+  /* Load the account that belongs to the authenticated identity. An extra call
+   * to RADOS may be safely skipped in this case. */
+  user_info = this->user_info;
 }
 
 void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
@@ -134,5 +145,3 @@ void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* o
   perm_mask = get_perm_mask(subuser, user_info);
   admin_request = false;
 }
-
-

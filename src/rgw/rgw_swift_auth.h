@@ -15,7 +15,7 @@ class RGWTempURLAuthApplier : public RGWLocalAuthApplier {
 protected:
   RGWTempURLAuthApplier(CephContext * const cct,
                         const RGWUserInfo& user_info)
-    : RGWLocalAuthApplier(cct, user_info, "", UNKNOWN_ACCT) {
+    : RGWLocalAuthApplier(cct, user_info, "") {
   };
 
 public:

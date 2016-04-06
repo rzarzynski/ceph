@@ -18,18 +18,13 @@ class RGWAuthApplier {
   friend class RGWDecoratoringAuthApplier;
 protected:
   CephContext * const cct;
-  const rgw_user acct_user_override;
 public:
   typedef std::unique_ptr<RGWAuthApplier> aplptr_t;
 
   /* FIXME: comment this. */
   static const rgw_user UNKNOWN_ACCT;
 
-  RGWAuthApplier(CephContext * const cct,
-                 const rgw_user& acct_user_override)
-    : cct(cct),
-      acct_user_override(acct_user_override) {
-  }
+  RGWAuthApplier(CephContext * const cct) : cct(cct) {}
   virtual ~RGWAuthApplier() {};
 
   /* Fill provided RGWUserInfo with information about the account that
@@ -55,7 +50,7 @@ protected:
 
 public:
   RGWDecoratoringAuthApplier(aplptr_t&& decoratee)
-    : RGWAuthApplier(decoratee->cct, decoratee->acct_user_override),
+    : RGWAuthApplier(decoratee->cct),
       decoratee(std::move(decoratee)) {
   }
 
@@ -71,6 +66,22 @@ public:
   virtual void modify_request_state(req_state * s) const {       /* in/out */
     return decoratee->modify_request_state(s);
   }
+};
+
+
+class RGWThirdPartyAccountAuthApplier : public RGWDecoratoringAuthApplier {
+  /* const */RGWRados * const store;
+  const rgw_user acct_user_override;
+public:
+  RGWThirdPartyAccountAuthApplier(aplptr_t&& decoratee,
+                                  RGWRados * const store,
+                                  const rgw_user acct_user_override)
+    : RGWDecoratoringAuthApplier(std::move(decoratee)),
+      store(store),
+      acct_user_override(acct_user_override) {
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const override;      /* out */
 };
 
 
@@ -122,9 +133,8 @@ protected:
 
   RGWRemoteAuthApplier(CephContext * const cct,
                        RGWRados * const store,
-                       const AuthInfo info,
-                       const rgw_user acct_user_override)
-    : RGWAuthApplier(cct, acct_user_override),
+                       const AuthInfo info)
+    : RGWAuthApplier(cct),
       store(store),
       info(info) {
   }
@@ -143,20 +153,14 @@ public:
 class RGWRemoteAuthApplier::Factory {
 protected:
   RGWRados * const store;
-  const rgw_user acct_user_override;
 
 public:
-  Factory(RGWRados * const store,
-          const rgw_user acct_user_override = rgw_user())
-    : store(store),
-      acct_user_override(acct_user_override) {
-  }
+  Factory(RGWRados * const store) : store(store) {}
   virtual ~Factory() {}
 
   virtual aplptr_t create_loader(CephContext * const cct,
                                  const AuthInfo info) const {
-    return aplptr_t(new RGWRemoteAuthApplier(cct, store, info,
-                                             acct_user_override));
+    return aplptr_t(new RGWRemoteAuthApplier(cct, store, info));
   }
 };
 
@@ -172,9 +176,8 @@ protected:
 
   RGWLocalAuthApplier(CephContext * const cct,
                       const RGWUserInfo& user_info,
-                      const std::string subuser,
-                      const rgw_user acct_user_override)
-    : RGWAuthApplier(cct, acct_user_override),
+                      const std::string subuser)
+    : RGWAuthApplier(cct),
       user_info(user_info),
       subuser(subuser) {
   }
@@ -191,18 +194,13 @@ public:
 };
 
 class RGWLocalAuthApplier::Factory {
-  const rgw_user acct_user_override;
 public:
-  Factory(const rgw_user acct_user_override = rgw_user())
-    : acct_user_override(acct_user_override) {
-  }
   virtual ~Factory() {}
 
   virtual aplptr_t create_loader(CephContext * const cct,
                                  const RGWUserInfo& user_info,
                                  std::string subuser) const {
-    return aplptr_t(new RGWLocalAuthApplier(cct, user_info, subuser,
-                                            acct_user_override));
+    return aplptr_t(new RGWLocalAuthApplier(cct, user_info, subuser));
   }
 };
 
