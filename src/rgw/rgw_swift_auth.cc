@@ -222,6 +222,10 @@ RGWAuthApplier::aplptr_t RGWTempURLAuthEngine::authenticate() const
 /* External token */
 bool RGWExternalTokenAuthEngine::is_applicable() const noexcept
 {
+  if (false == RGWTokenBasedAuthEngine::is_applicable()) {
+    return false;
+  }
+
   return false == g_conf->rgw_swift_auth_url.empty();
 }
 
@@ -413,6 +417,10 @@ int rgw_swift_verify_signed_token(CephContext * const cct,
 /* AUTH_rgwtk (signed token): engine */
 bool RGWSignedTokenAuthEngine::is_applicable() const noexcept
 {
+  if (false == RGWTokenBasedAuthEngine::is_applicable()) {
+    return false;
+  }
+
   return !token.compare(0, 10, "AUTH_rgwtk");
 }
 

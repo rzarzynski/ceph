@@ -594,6 +594,10 @@ uint32_t RGWSwift::get_perm_mask(const string& swift_user,
 /* Keystone */
 bool RGWKeystoneAuthEngine::is_applicable() const noexcept
 {
+  if (false == RGWTokenBasedAuthEngine::is_applicable()) {
+    return false;
+  }
+
   return false == cct->_conf->rgw_keystone_url.empty();
 }
 

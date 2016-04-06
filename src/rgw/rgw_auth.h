@@ -261,6 +261,10 @@ public:
     : RGWAuthEngine(cct),
       token(extr.get_token()) {
   }
+
+  bool is_applicable() const noexcept override {
+    return !token.empty();
+  }
 };
 
 /* Keystone. */
