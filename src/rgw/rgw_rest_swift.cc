@@ -14,7 +14,12 @@
 #include "rgw_formats.h"
 #include "rgw_client_io.h"
 
+#include "rgw_auth.h"
+#include "rgw_auth_decoimpl.h"
+#include "rgw_swift_auth.h"
+
 #include <sstream>
+#include <memory>
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -1350,38 +1355,96 @@ RGWOp *RGWHandler_REST_Obj_SWIFT::op_options()
 
 int RGWHandler_REST_SWIFT::authorize()
 {
-  if ((!s->os_auth_token && s->info.args.get("temp_url_sig").empty()) ||
-      (s->op == OP_OPTIONS)) {
-    /* anonymous access */
-    rgw_get_anon_user(*(s->user));
-    s->perm_mask = RGW_PERM_FULL_CONTROL;
+  /* Factories. */
+  RGWTempURLAuthApplier::Factory tempurl_fact;
+  RGWLocalAuthApplier::Factory local_fact;
+  RGWRemoteAuthApplier::Factory creating_fact(store);
+
+  /* Extractors. */
+  RGWXAuthTokenExtractor token_extr(s);
+
+  /* Auth engines. */
+  RGWTempURLAuthEngine tempurl(s, store, &tempurl_fact);
+  RGWSignedTokenAuthEngine rgwtk(s->cct, store, token_extr, &local_fact);
+  RGWKeystoneAuthEngine keystone(s->cct,        token_extr, &creating_fact);
+  RGWExternalTokenAuthEngine ext(s->cct, store, token_extr, &local_fact);
+  RGWAnonymousAuthEngine anoneng(s->cct, &local_fact);
+
+  /* Pipeline. */
+  const std::vector<const RGWAuthEngine *> engines = {
+    &tempurl, &rgwtk, &keystone, &ext, &anoneng
+  };
+
+  for (const auto engine : engines) {
+    if (!engine->is_applicable()) {
+      /* Engine said it isn't suitable for handling this particular
+       * request. Let's try a next one. */
+      continue;
+    }
+
+    try {
+      ldout(s->cct, 5) << "trying auth engine: " << engine->get_name() << dendl;
+
+      auto final_applier = engine->authenticate();
+      if (!final_applier) {
+        /* Access denied is acknowledged by returning a std::unique_ptr with
+         * nullptr inside. */
+        ldout(s->cct, 5) << "auth engine refused to authenicate" << dendl;
+        return -EPERM;
+      }
+
+      /* Construct a pipeline over the final_applier. */
+      auto applier = std::unique_ptr<RGWAuthApplier>(
+        new RGWThirdPartyAccountAuthApplier<RGWAuthApplier::aplptr_t>(
+          std::move(final_applier), store, s->account_name));
+
+      try {
+        /* Account used by a given RGWOp is decoupled from identity employed
+         * in the authorization phase (RGWOp::verify_permissions). */
+        applier->load_acct_info(*s->user);
+        s->perm_mask = applier->get_perm_mask();
+
+        /* This is the signle place where we pass req_state as a pointer
+         * to non-const and thus its modification is allowed. In the time
+         * of writing only RGWTempURLEngine needed that feature. */
+        applier->modify_request_state(s);
+
+        s->auth_identity = std::move(applier);
+      } catch (int err) {
+        ldout(s->cct, 5) << "applier throwed err=" << err << dendl;
+        return err;
+      }
+    } catch (int err) {
+      ldout(s->cct, 5) << "auth engine throwed err=" << err << dendl;
+      return err;
+    }
+
+    /* FIXME(rzarzynski): move into separated RGWAuthApplier decorator. */
+    if (s->user->system) {
+      s->system_request = true;
+      ldout(s->cct, 20) << "system request over Swift API" << dendl;
+
+      rgw_user euid(s->info.args.sys_get(RGW_SYS_PARAM_PREFIX "uid"));
+      if (!euid.empty()) {
+        RGWUserInfo einfo;
+
+        const int ret = rgw_get_user_info_by_uid(store, euid, einfo);
+        if (ret < 0) {
+          ldout(s->cct, 0) << "User lookup failed, euid=" << euid
+                           << " ret=" << ret << dendl;
+          return ret;
+        }
+
+        *(s->user) = einfo;
+      }
+    }
+
     return 0;
   }
 
-  bool authorized = rgw_swift->verify_swift_token(store, s);
-  if (!authorized)
-    return -EPERM;
-
-  if (s->user->system) {
-    s->system_request = true;
-    ldout(s->cct, 20) << "system request over Swift API" << dendl;
-
-    rgw_user euid(s->info.args.sys_get(RGW_SYS_PARAM_PREFIX "uid"));
-    if (!euid.empty()) {
-      RGWUserInfo einfo;
-
-      const int ret = rgw_get_user_info_by_uid(store, euid, einfo);
-      if (ret < 0) {
-        ldout(s->cct, 0) << "User lookup failed, euid=" << euid
-                         << " ret=" << ret << dendl;
-        return -ENOENT;
-      }
-
-      *(s->user) = einfo;
-    }
-  }
-
-  return 0;
+  /* All engines refused to handle this authentication request by
+   * returning RGWAuthEngine::Status::UNKKOWN. Rather rare case. */
+  return -EPERM;
 }
 
 int RGWHandler_REST_SWIFT::postauth_init()
