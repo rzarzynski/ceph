@@ -7,6 +7,84 @@
 
 #include "rgw_auth.h"
 
+
+/* Abstract decorator over any implementation of RGWAuthApplier. */
+template <typename DecorateeT>
+class RGWDecoratingAuthApplier : public RGWAuthApplier {
+  static_assert(std::is_base_of<RGWAuthApplier, DecorateeT>::value,
+                "DecorateeT must be a subclass of RGWAuthApplier");
+  DecorateeT decoratee;
+
+public:
+  RGWDecoratingAuthApplier(const DecorateeT& decoratee)
+    : RGWAuthApplier(decoratee.cct),
+      decoratee(decoratee) {
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
+    return decoratee.load_acct_info(user_info);
+  }
+
+  virtual void load_user_info(rgw_user& auth_user,                      /* out */
+                              uint32_t& perm_mask,                      /* out */
+                              bool& admin_request) const override {     /* out */
+    return decoratee.load_user_info(auth_user, perm_mask, admin_request);
+  }
+
+  virtual void modify_request_state(req_state * s) const override {     /* in/out */
+    return decoratee.modify_request_state(s);
+  }
+};
+
+
+/* Decorator specialization for dealing with pointers to an applier. Useful
+ * for decorating the applier returned after successfull authenication. */
+template <>
+class RGWDecoratingAuthApplier<RGWAuthApplier::aplptr_t> : public RGWAuthApplier {
+  aplptr_t decoratee;
+
+public:
+  RGWDecoratingAuthApplier(aplptr_t&& decoratee)
+    : RGWAuthApplier(decoratee->cct),
+      decoratee(std::move(decoratee)) {
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
+    return decoratee->load_acct_info(user_info);
+  }
+
+  virtual void load_user_info(rgw_user& auth_user,                      /* out */
+                              uint32_t& perm_mask,                      /* out */
+                              bool& admin_request) const override {     /* out */
+    return decoratee->load_user_info(auth_user, perm_mask, admin_request);
+  }
+
+  virtual void modify_request_state(req_state * s) const override {     /* in/out */
+    return decoratee->modify_request_state(s);
+  }
+};
+
+
+template <typename T>
+class RGWThirdPartyAccountAuthApplier : public RGWDecoratingAuthApplier<T> {
+  /* const */RGWRados * const store;
+  const rgw_user acct_user_override;
+public:
+  /* FIXME: comment this. */
+  static const rgw_user UNKNOWN_ACCT;
+
+  template <typename U>
+  RGWThirdPartyAccountAuthApplier(U&& decoratee,
+                                  RGWRados * const store,
+                                  const rgw_user acct_user_override)
+    : RGWDecoratingAuthApplier<T>(std::move(decoratee)),
+      store(store),
+      acct_user_override(acct_user_override) {
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const override;   /* out */
+};
+
 /* static declaration */
 template <typename T>
 const rgw_user RGWThirdPartyAccountAuthApplier<T>::UNKNOWN_ACCT;
