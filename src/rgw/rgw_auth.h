@@ -10,12 +10,43 @@
 #include "rgw_common.h"
 #include "rgw_keystone.h"
 
+
+/* Load information about identity that will be used by RGWOp to authorize
+ * any operation that comes from an authenticated user. */
+class RGWIdentityApplier {
+public:
+  typedef std::map<std::string, int> aclspec_t;
+
+  virtual ~RGWIdentityApplier() {};
+
+  /* Translate the ACL provided in @aclspec into concrete permission set that
+   * can be used in authorization phase (particularly in verify_permission
+   * method of a given RGWOp).
+   *
+   * XXX: implementation is responsible for giving the real semantic to the
+   * items in @aclspec. That is, their meaning may depend on particular auth
+   * engine that was used. */
+  virtual int get_perms_from_aclspec(const aclspec_t& aclspec) const = 0;
+
+  /* Verify whether a given identity *can be treated as* an owner of
+   * the rgw_user (account in Swift's terminology) specified in @uid. */
+  virtual bool is_entitled_to(const rgw_user& uid) const = 0;
+
+  /* Verify whether a given identity *is* the owner of the rgw_user
+  * (account in Swift's terminology) specified in @uid. */
+  virtual bool is_owner_of(const rgw_user& uid) const = 0;
+};
+
+
 /* Interface for classes applying changes to request state/RADOS store imposed
  * by a particular RGWAuthEngine.
  *
+ * Must also conform to RGWIdentityApplier interface to apply authorization
+ * policy (ACLs, account's ownership and entitlement).
+ *
  * In contrast to RGWAuthEngine, implementations of this interface are allowed
  * to handle req_state or RGWRados in the read-write manner. */
-class RGWAuthApplier {
+class RGWAuthApplier : public RGWIdentityApplier {
   template <typename DecorateeT>
    friend class RGWDecoratingAuthApplier;
 protected:
@@ -27,14 +58,11 @@ public:
   virtual ~RGWAuthApplier() {};
 
   /* Fill provided RGWUserInfo with information about the account that
-   * RGWOp may operate on. Errors are handled solely through exceptions. */
+   * RGWOp will operate on. Errors are handled solely through exceptions.
+   *
+   * XXX: be aware that the "account" term refers to rgw_user. The naming
+   * is legacy. */
   virtual void load_acct_info(RGWUserInfo& user_info) const = 0; /* out */
-
-  /* Load information about identity that will be used by RGWOp to authorize
-   * any operation that comes from an authenticated user. */
-  virtual void load_user_info(rgw_user& auth_user,               /* out */
-                              uint32_t& perm_mask,               /* out */
-                              bool& admin_request) const = 0;    /* out */
 
   /* Apply any changes to request state. This method will be most useful for
    * TempURL of Swift API or AWSv4. */
@@ -100,10 +128,11 @@ protected:
                               RGWUserInfo& user_info) const;          /* out */
 
 public:
+  virtual int get_perms_from_aclspec(const aclspec_t& aclspec) const override;
+  virtual bool is_entitled_to(const rgw_user& uid) const override;
+  virtual bool is_owner_of(const rgw_user& uid) const override;
   virtual void load_acct_info(RGWUserInfo& user_info) const override; /* out */
-  virtual void load_user_info(rgw_user& auth_user,                    /* out */
-                              uint32_t& perm_mask,                    /* out */
-                              bool& admin_request) const override;    /* out */
+
   class Factory;
 };
 
@@ -145,10 +174,11 @@ protected:
 public:
   static const std::string NO_SUBUSER;
 
+  virtual int get_perms_from_aclspec(const aclspec_t& aclspec) const override;
+  virtual bool is_entitled_to(const rgw_user& uid) const override;
+  virtual bool is_owner_of(const rgw_user& uid) const override;
   virtual void load_acct_info(RGWUserInfo& user_info) const;     /* out */
-  virtual void load_user_info(rgw_user& auth_user,               /* out */
-                              uint32_t& perm_mask,               /* out */
-                              bool& admin_request) const;        /* out */
+
   class Factory;
 };
 

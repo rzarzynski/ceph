@@ -11,6 +11,36 @@
 
 #define dout_subsys ceph_subsys_rgw
 
+
+/* RGWRemoteAuthApplier */
+int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
+{
+  const auto iter = aclspec.find(info.auth_user.to_str());
+  if (std::end(aclspec) == iter) {
+    return true;
+  }
+
+  return false;
+}
+
+bool RGWRemoteAuthApplier::is_entitled_to(const rgw_user& uid) const
+{
+  if (is_owner_of(uid)) {
+    return true;
+  }
+
+  if (info.is_admin) {
+    return true;
+  }
+
+  return false;
+}
+
+bool RGWRemoteAuthApplier::is_owner_of(const rgw_user& uid) const
+{
+  return uid == info.auth_user;
+}
+
 void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
                                           RGWUserInfo& user_info) const      /* out */
 {
@@ -70,19 +100,38 @@ void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* 
   /* Succeeded if we are here (create_account() hasn't throwed). */
 }
 
-void RGWRemoteAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
-                                          uint32_t& perm_mask,               /* out */
-                                          bool& admin_request) const         /* out */
-{
-  auth_user = info.auth_user;
-  perm_mask = info.perm_mask;
-  admin_request = info.is_admin;
-}
-
 
 /* LocalAuthApplier */
 /* static declaration */
 const std::string RGWLocalAuthApplier::NO_SUBUSER;
+
+int RGWLocalAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
+{
+  const auto iter = aclspec.find(user_info.user_id.to_str());
+  if (std::end(aclspec) == iter) {
+    return true;
+  }
+
+  return false;
+}
+
+bool RGWLocalAuthApplier::is_entitled_to(const rgw_user& uid) const
+{
+  if (is_owner_of(uid)) {
+    return true;
+  }
+
+  if (user_info.admin) {
+    return true;
+  }
+
+  return false;
+}
+
+bool RGWLocalAuthApplier::is_owner_of(const rgw_user& uid) const
+{
+  return uid == user_info.user_id;
+}
 
 uint32_t RGWLocalAuthApplier::get_perm_mask(const std::string& subuser_name,
                                             const RGWUserInfo &uinfo) const
@@ -107,15 +156,6 @@ void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* o
   /* Load the account that belongs to the authenticated identity. An extra call
    * to RADOS may be safely skipped in this case. */
   user_info = this->user_info;
-}
-
-void RGWLocalAuthApplier::load_user_info(rgw_user& auth_user,               /* out */
-                                         uint32_t& perm_mask,               /* out */
-                                         bool& admin_request) const         /* out */
-{
-  auth_user = user_info.user_id;
-  perm_mask = get_perm_mask(subuser, user_info);
-  admin_request = user_info.admin;
 }
 
 
