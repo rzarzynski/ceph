@@ -21,14 +21,20 @@ public:
       decoratee(decoratee) {
   }
 
-  virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
-    return decoratee.load_acct_info(user_info);
+  virtual int get_perms_from_aclspec(const aclspec_t& aclspec) const override {
+    return decoratee.get_perms_from_aclspec(aclspec);
   }
 
-  virtual void load_user_info(rgw_user& auth_user,                      /* out */
-                              uint32_t& perm_mask,                      /* out */
-                              bool& admin_request) const override {     /* out */
-    return decoratee.load_user_info(auth_user, perm_mask, admin_request);
+  virtual bool is_entitled_to(const rgw_user& uid) const override {
+    return decoratee.is_entitled_to(uid);
+  }
+
+  virtual bool is_owner_of(const rgw_user& uid) const override {
+    return decoratee.is_oner_of(uid);
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
+    return decoratee.load_acct_info(user_info);
   }
 
   virtual void modify_request_state(req_state * s) const override {     /* in/out */
@@ -49,14 +55,20 @@ public:
       decoratee(std::move(decoratee)) {
   }
 
-  virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
-    return decoratee->load_acct_info(user_info);
+  virtual int get_perms_from_aclspec(const aclspec_t& aclspec) const override {
+    return decoratee->get_perms_from_aclspec(aclspec);
   }
 
-  virtual void load_user_info(rgw_user& auth_user,                      /* out */
-                              uint32_t& perm_mask,                      /* out */
-                              bool& admin_request) const override {     /* out */
-    return decoratee->load_user_info(auth_user, perm_mask, admin_request);
+  virtual bool is_entitled_to(const rgw_user& uid) const override {
+    return decoratee->is_entitled_to(uid);
+  }
+
+  virtual bool is_owner_of(const rgw_user& uid) const override {
+    return decoratee->is_owner_of(uid);
+  }
+
+  virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
+    return decoratee->load_acct_info(user_info);
   }
 
   virtual void modify_request_state(req_state * s) const override {     /* in/out */
@@ -92,17 +104,11 @@ const rgw_user RGWThirdPartyAccountAuthApplier<T>::UNKNOWN_ACCT;
 template <typename T>
 void RGWThirdPartyAccountAuthApplier<T>::load_acct_info(RGWUserInfo& user_info) const
 {
-  rgw_user auth_user;
-  uint32_t perm_mask;
-  bool is_admin;
-
-  RGWDecoratingAuthApplier<T>::load_user_info(auth_user, perm_mask, is_admin);
-
   if (UNKNOWN_ACCT == acct_user_override) {
     /* There is no override specified by the upper layer. This means that we'll
      * load the account owned by the authenticated identity (aka auth_user). */
     RGWDecoratingAuthApplier<T>::load_acct_info(user_info);
-  } else if (acct_user_override == auth_user) {
+  } else if (RGWDecoratingAuthApplier<T>::is_owner_of(acct_user_override)) {
     /* The override has been specified but the account belongs to the authenticated
      * identity. We may safely forward the call to a next stage. */
     RGWDecoratingAuthApplier<T>::load_acct_info(user_info);
