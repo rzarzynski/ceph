@@ -12,15 +12,43 @@
 #define dout_subsys ceph_subsys_rgw
 
 
+static inline const std::string make_spec_item(const std::string tenant,
+                                               const std::string id)
+{
+  return tenant + ":" + id;
+}
+
 /* RGWRemoteAuthApplier */
 int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
 {
-  const auto iter = aclspec.find(info.auth_user.to_str());
-  if (std::end(aclspec) == iter) {
-    return iter->second;
+  const std::string& id = info.auth_user.id;
+  const std::string& tenant = info.auth_user.tenant;
+
+  const std::vector<std::string> allowed_items = {
+    make_spec_item(tenant, id),
+
+    /* For backward compatibility with ACLOwner. */
+    rgw_user(tenant).to_str(),
+    rgw_user(tenant, tenant).to_str(),
+
+    /* Wildcards. */
+    make_spec_item(tenant, "*"),
+    make_spec_item("*", id),
+    make_spec_item(info.token.get_project_name(), info.token.get_user_name()),
+  };
+
+  int perm = 0;
+
+  for (const auto& allowed_item : allowed_items) {
+    const auto iter = aclspec.find(allowed_item);
+    if (std::end(aclspec) != iter) {
+      perm |= iter->second;
+    }
   }
 
-  return 0;
+  ldout(cct, 20) << "from user ACL got perm=" << perm << dendl;
+
+  return perm;
 }
 
 bool RGWRemoteAuthApplier::is_entitled_to(const rgw_user& uid) const
@@ -38,7 +66,10 @@ bool RGWRemoteAuthApplier::is_entitled_to(const rgw_user& uid) const
 
 bool RGWRemoteAuthApplier::is_owner_of(const rgw_user& uid) const
 {
-  return uid == info.auth_user;
+  const std::string& tenant = info.auth_user.tenant;
+
+  return uid == rgw_user(tenant) ||
+         uid == rgw_user(tenant, tenant);
 }
 
 void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
