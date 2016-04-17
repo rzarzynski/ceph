@@ -70,7 +70,7 @@ void RGWRemoteAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* 
   /* It's supposed that RGWRemoteAuthApplier tries to load account info
    * that belongs to the authenticated identity. Another policy may be
    * applied by using a RGWThirdPartyAccountAuthApplier decorator. */
-  const rgw_user& acct_user = info.auth_user;
+  const rgw_user& acct_user = info.acct_user;
 
   /* Normally, empty "tenant" field of acct_user means the authenticated
    * identity has the legacy, global tenant. However, due to inclusion
