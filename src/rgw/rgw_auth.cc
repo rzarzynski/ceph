@@ -108,11 +108,12 @@ const std::string RGWLocalAuthApplier::NO_SUBUSER;
 int RGWLocalAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
 {
   const auto iter = aclspec.find(user_info.user_id.to_str());
-  if (std::end(aclspec) == iter) {
-    return true;
+  if (std::end(aclspec) != iter) {
+    ldout(cct, 20) << "from user ACL got perm=" << iter->second << dendl;
+    return iter->second;
   }
 
-  return false;
+  return 0;
 }
 
 bool RGWLocalAuthApplier::is_entitled_to(const rgw_user& uid) const
