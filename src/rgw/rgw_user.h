@@ -55,10 +55,6 @@ extern void rgw_get_anon_user(RGWUserInfo& info,
                               const std::string& account_name = std::string());
 
 /**
- * verify that user is an actual user, and not the anonymous user
- */
-extern bool rgw_user_is_authenticated(const rgw_user& auth_user);
-/**
  * Save the given user information to storage.
  * Returns: 0 on success, -ERR# on failure.
  */
