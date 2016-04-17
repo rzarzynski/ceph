@@ -317,7 +317,7 @@ static int read_policy(RGWRados *store,
     rgw_user& owner = bucket_policy.get_owner().get_id();
     if (owner.compare(s->user->user_id) != 0 &&
         !s->admin_request &&
-        !bucket_policy.verify_permission(s->auth_user, s->perm_mask,
+        !bucket_policy.verify_permission(*s->auth_identity, s->perm_mask,
                                          RGW_PERM_READ)) {
       ret = -EACCES;
     } else {
@@ -1398,8 +1398,10 @@ int RGWListBuckets::verify_permission()
 
 int RGWGetUsage::verify_permission()
 {
-  if (!rgw_user_is_authenticated(s->auth_user))
+  if (s->auth_identity->is_anonymous()) {
     return -EACCES;
+  }
+
   return 0;
 }
 
@@ -1585,7 +1587,7 @@ void RGWStatAccount::execute()
 
 int RGWGetBucketVersioning::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -1605,7 +1607,7 @@ void RGWGetBucketVersioning::execute()
 
 int RGWSetBucketVersioning::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -1838,7 +1840,7 @@ void RGWListBucket::execute()
 
 int RGWGetBucketLogging::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -1847,7 +1849,7 @@ int RGWGetBucketLogging::verify_permission()
 
 int RGWGetBucketLocation::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -1859,7 +1861,7 @@ int RGWCreateBucket::verify_permission()
   /* This check is mostly needed for S3 that doesn't support account ACL.
    * Swift doesn't allow to delegate any permission to an anonymous user,
    * so it will become an early exit in such case. */
-  if (!rgw_user_is_authenticated(s->auth_user)) {
+  if (s->auth_identity->is_anonymous()) {
     return -EACCES;
   }
 
@@ -2835,7 +2837,7 @@ int RGWPutMetadataAccount::handle_temp_url_update(
 
 int RGWPutMetadataAccount::verify_permission()
 {
-  if (!rgw_user_is_authenticated(s->auth_user)) {
+  if (s->auth_identity->is_anonymous()) {
     return -EACCES;
   }
 
@@ -3270,7 +3272,7 @@ int RGWCopyObj::verify_permission()
     }
 
     if (!s->admin_request && /* admin request overrides permission checks */
-        !src_policy.verify_permission(s->auth_user, s->perm_mask, RGW_PERM_READ)) {
+        !src_policy.verify_permission(*s->auth_identity, s->perm_mask, RGW_PERM_READ)) {
       return -EACCES;
     }
   }
@@ -3308,7 +3310,7 @@ int RGWCopyObj::verify_permission()
   }
 
   if (!s->admin_request && /* admin request overrides permission checks */
-      !dest_bucket_policy.verify_permission(s->auth_user, s->perm_mask,
+      !dest_bucket_policy.verify_permission(*s->auth_identity, s->perm_mask,
                                             RGW_PERM_WRITE)) {
     return -EACCES;
   }
@@ -3568,7 +3570,7 @@ void RGWPutACLs::execute()
 
 int RGWGetCORS::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -3590,7 +3592,7 @@ void RGWGetCORS::execute()
 
 int RGWPutCORS::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -3619,7 +3621,7 @@ void RGWPutCORS::execute()
 
 int RGWDeleteCORS::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
@@ -3745,7 +3747,7 @@ void RGWGetRequestPayment::execute()
 
 int RGWSetRequestPayment::verify_permission()
 {
-  if (s->auth_user.compare(s->bucket_owner.get_id()) != 0) {
+  if (false == s->auth_identity->is_entitled_to(s->bucket_owner.get_id())) {
     return -EACCES;
   }
 
