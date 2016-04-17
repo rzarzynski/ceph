@@ -44,6 +44,11 @@ public:
   }
 };
 
+inline ostream& operator<<(ostream& out, const RGWIdentityApplier &id) {
+//  return out << id.to_str();
+  return out;
+}
+
 
 /* Interface for classes applying changes to request state/RADOS store imposed
  * by a particular RGWAuthEngine.
