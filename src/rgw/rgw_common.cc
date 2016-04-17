@@ -884,7 +884,7 @@ bool verify_requester_payer_permission(struct req_state *s)
   if (!s->bucket_info.requester_pays)
     return true;
 
-  if (s->auth_identity.is_owner_of(s->bucket_info.owner))
+  if (s->auth_identity->is_owner_of(s->bucket_info.owner))
     return true;
 
   const char *request_payer = s->info.env->get("HTTP_X_AMZ_REQUEST_PAYER");
