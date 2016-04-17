@@ -75,15 +75,56 @@ rgw_auth_transform_old_authinfo(req_state * const s)
 }
 
 
-/* RGWRemoteAuthApplier */
-int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
+static inline const std::string make_spec_item(const std::string tenant,
+                                               const std::string id)
 {
-  const auto iter = aclspec.find(info.auth_user.to_str());
-  if (std::end(aclspec) == iter) {
-    return iter->second;
+  return tenant + ":" + id;
+}
+
+/* RGWRemoteAuthApplier */
+int RGWRemoteAuthApplier::get_perms_for_idenity(const aclspec_t& aclspec,
+                                                const identity_t& identity) const
+{
+  const auto& tenant = identity.tenant;
+  const auto& id = identity.id;
+
+  const std::vector<std::string> allowed_items = {
+    make_spec_item(tenant, id),
+
+    /* For backward compatibility with ACLOwner. */
+    rgw_user(tenant).to_str(),
+    rgw_user(tenant, tenant).to_str(),
+
+    /* Wildcards. */
+    make_spec_item(tenant, "*"),
+    make_spec_item("*", id),
+  };
+
+  int perm = 0;
+
+  for (const auto& allowed_item : allowed_items) {
+    const auto iter = aclspec.find(allowed_item);
+
+    if (std::end(aclspec) != iter) {
+      perm |= iter->second;
+    }
   }
 
-  return 0;
+  return perm;
+}
+
+int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
+{
+  int perm = 0;
+
+  for (const auto& identity : info.identities) {
+    ldout(cct, 20) << "trying identity: " << identity << dendl;
+
+    perm |= get_perms_for_idenity(aclspec, identity);
+  }
+
+  ldout(cct, 20) << "from Swift ACL got perm=" << perm << dendl;
+  return perm;
 }
 
 bool RGWRemoteAuthApplier::is_admin_of(const rgw_user& uid) const

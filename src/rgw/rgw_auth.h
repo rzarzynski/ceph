@@ -139,6 +139,9 @@ protected:
       info(info) {
   }
 
+  int get_perms_for_idenity(const aclspec_t& aclspec,
+                            const identity_t& identity) const;
+
   virtual void create_account(const rgw_user acct_user,
                               RGWUserInfo& user_info) const;          /* out */
 
