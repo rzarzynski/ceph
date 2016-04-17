@@ -33,6 +33,10 @@ public:
     return decoratee.is_oner_of(uid);
   }
 
+  virtual int get_perm_mask() const override {
+    return decoratee.get_perm_mask();
+  }
+
   virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
     return decoratee.load_acct_info(user_info);
   }
@@ -65,6 +69,10 @@ public:
 
   virtual bool is_owner_of(const rgw_user& uid) const override {
     return decoratee->is_owner_of(uid);
+  }
+
+  virtual int get_perm_mask() const override {
+    return decoratee->get_perm_mask();
   }
 
   virtual void load_acct_info(RGWUserInfo& user_info) const override {  /* out */
