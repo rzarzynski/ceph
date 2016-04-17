@@ -17,10 +17,10 @@ int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
 {
   const auto iter = aclspec.find(info.auth_user.to_str());
   if (std::end(aclspec) == iter) {
-    return true;
+    return iter->second;
   }
 
-  return false;
+  return 0;
 }
 
 bool RGWRemoteAuthApplier::is_entitled_to(const rgw_user& uid) const
