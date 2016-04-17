@@ -200,7 +200,7 @@ void RGWLocalAuthApplier::load_acct_info(RGWUserInfo& user_info) const      /* o
 RGWAuthApplier::aplptr_t RGWAnonymousAuthEngine::authenticate() const
 {
   RGWUserInfo user_info;
-  rgw_get_anon_user(user_info, user_info.user_id);
+  rgw_get_anon_user(user_info);
 
   return apl_factory->create_loader(cct, user_info, RGWLocalAuthApplier::NO_SUBUSER);
 }
