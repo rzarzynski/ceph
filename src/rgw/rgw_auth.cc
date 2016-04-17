@@ -19,16 +19,11 @@ static inline const std::string make_spec_item(const std::string tenant,
 }
 
 /* RGWRemoteAuthApplier */
-int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
+int RGWRemoteAuthApplier::get_perms_for_idenity(const aclsec_t& aclspec,
+                                                const identity_t& identity) const
 {
-  const std::string& id = info.auth_user.id;
-  const std::string& tenant = info.auth_user.tenant;
-
-  ldout(cct, 20) << "+++++++++++++++ t=" << tenant << ", id=" << id << " +++++++++++++++++++++++++++++++++calculating ACL perm from" << dendl;
-  ldout(cct, 20) << "+++++++++++++++ t=" << info.token.get_project_name() << ", id=" << info.token.get_user_name() << " +++++++++++++++++++++++++++++++++calculating ACL perm from" << dendl;
-  for (const auto& acl_item : aclspec) {
-    ldout(cct, 20) << "\t" << acl_item.first << dendl;
-  }
+  const auto& tenant = identity.tenant;
+  const auto& id = identity.id;
 
   const std::vector<std::string> allowed_items = {
     make_spec_item(tenant, id),
@@ -36,24 +31,32 @@ int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
     /* For backward compatibility with ACLOwner. */
     rgw_user(tenant).to_str(),
     rgw_user(tenant, tenant).to_str(),
-
-    /* Wildcards. */
-    make_spec_item(tenant, "*"),
-    make_spec_item("*", id),
-    make_spec_item(info.token.get_project_name(), info.token.get_user_name()),
   };
 
   int perm = 0;
 
   for (const auto& allowed_item : allowed_items) {
     const auto iter = aclspec.find(allowed_item);
+
     if (std::end(aclspec) != iter) {
       perm |= iter->second;
     }
   }
 
-  ldout(cct, 20) << "from user ACL got perm=" << perm << dendl;
+  return perm;
+}
 
+int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
+{
+  int perm = 0;
+
+  for (const auto& identity : get_identities()) {
+    ldout(cct, 20) << "trying identity: " << identity << endl;
+
+    perm |= get_perms_for_idenity(aclspec, identity);
+  }
+
+  ldout(cct, 20) << "from Swift ACL got perm=" << perm << dendl;
   return perm;
 }
 
@@ -72,10 +75,14 @@ bool RGWRemoteAuthApplier::is_entitled_to(const rgw_user& uid) const
 
 bool RGWRemoteAuthApplier::is_owner_of(const rgw_user& uid) const
 {
-  const std::string& tenant = info.auth_user.tenant;
+  for (const auto& identity : get_identities()) {
+    if (uid == rgw_user(identity.tenant) ||
+        uid == rgw_user(identity.tenant, identity.tenant) {
+      return true;
+    }
+  }
 
-  return uid == rgw_user(tenant) ||
-         uid == rgw_user(tenant, tenant);
+  return false;
 }
 
 void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
@@ -90,7 +97,7 @@ void RGWRemoteAuthApplier::create_account(const rgw_user acct_user,
   }
 
   user_info.user_id = new_acct_user;
-  user_info.display_name = info.display_name;
+  user_info.display_name = info.acct_name;
 
   int ret = rgw_store_user_info(store, user_info, nullptr, nullptr,
                                 real_time(), true);
@@ -319,10 +326,15 @@ RGWKeystoneAuthEngine::get_creds_info(const KeystoneToken& token,
   return {
     /* Suggested account name for the authenticated user. */
     rgw_user(token.get_project_id()),
-    /* The authenticated identity. */
-    rgw_user(token.get_project_id(), token.get_user_id()),
     /* User's display name (aka real name). */
     token.get_project_name(),
+    /* The authenticated identities. */
+    {
+      /* The primary identity constructed upon UUIDs. */
+      { token.get_project_id(), token.get_user_id() },
+      /* For Keystone v2 an alias may be also used. */
+      { token.get_project_name(), token.get_user_name() },
+    },
     /* Keystone doesn't support RGW's subuser concept, so we cannot cut down
      * the access rights through the perm_mask. At least at this layer. */
     RGW_PERM_FULL_CONTROL,

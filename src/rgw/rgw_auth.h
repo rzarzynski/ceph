@@ -38,13 +38,16 @@ public:
   * (account in Swift's terminology) specified in @uid. */
   virtual bool is_owner_of(const rgw_user& uid) const = 0;
 
+  /* Return the permission mask that is used to narrow down the set of
+   * operations allowed for a given identity. This method reflects the idea
+   * of subuser tied to RGWUserInfo. */
+  virtual int get_perm_mask() const = 0;
+
   virtual bool is_anonymous() const final {
     /* If the identity owns the anonymous account (rgw_user), it's considered
      * the anonymous identity. */
     return is_owner_of(rgw_user(RGW_USER_ANON_ID));
   }
-
-  virtual int get_perm_mask() const = 0;
 };
 
 inline ostream& operator<<(ostream& out, const RGWIdentityApplier &id) {
@@ -66,6 +69,14 @@ class RGWAuthApplier : public RGWIdentityApplier {
    friend class RGWDecoratingAuthApplier;
 protected:
   CephContext * const cct;
+
+  /* Protected interface for decorators. */
+  typedef rgw_user identity_t;
+
+  /* Return all identities an authentication engine authenticated. Plural
+   * form is fully indented here. */
+  virtual const std::vector<identity_t>& get_identities() const = 0;
+
 public:
   typedef std::unique_ptr<RGWAuthApplier> aplptr_t;
 
@@ -97,36 +108,22 @@ public:
     friend class RGWRemoteAuthApplier;
   protected:
     const rgw_user acct_user;
-    const rgw_user auth_user;
-    const std::string display_name;
+    const std::string acct_name;
+    const std::vector<identity_t> identities;
     const uint32_t perm_mask;
     const bool is_admin;
-    const KeystoneToken token;
 
   public:
     AuthInfo(const rgw_user acct_user,
-             const rgw_user auth_user,
-             const std::string display_name,
+             const std::string acct_name,
+             const std::vector<identity_t> identities,
              const uint32_t perm_mask,
-             const bool is_admin,
-             const KeystoneToken& token)
+             const bool is_admin)
     : acct_user(acct_user),
-      auth_user(auth_user),
-      display_name(display_name),
+      acct_name(acct_name),
+      identities(identities),
       perm_mask(perm_mask),
-      is_admin(is_admin),
-      token(token) {
-    }
-
-    /* Constructor for engines that aren't aware about user account. They know
-     * only user's identity and its associated rights. Account will be deduced
-     * for them. */
-    AuthInfo(const rgw_user auth_user,
-             const std::string display_name,
-             const uint32_t perm_mask,
-             const bool is_admin,
-             const KeystoneToken& token)
-      : AuthInfo(rgw_user(), auth_user, display_name, perm_mask, is_admin, token) {
+      is_admin(is_admin) {
     }
   };
 
@@ -141,6 +138,10 @@ protected:
     : RGWAuthApplier(cct),
       store(store),
       info(info) {
+  }
+
+  virtual const std::vector<identity_t>& get_identities() const override {
+    return info.identities;
   }
 
   virtual void create_account(const rgw_user acct_user,
@@ -186,6 +187,10 @@ protected:
     : RGWAuthApplier(cct),
       user_info(user_info),
       subuser(subuser) {
+  }
+
+  virtual const std::vector<identity_t>& get_identities() const override {
+    return { user_info.user_id };
   }
 
   uint32_t get_perm_mask(const std::string& subuser_name,

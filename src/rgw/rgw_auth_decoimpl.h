@@ -14,6 +14,10 @@ class RGWDecoratingAuthApplier : public RGWAuthApplier {
   static_assert(std::is_base_of<RGWAuthApplier, DecorateeT>::value,
                 "DecorateeT must be a subclass of RGWAuthApplier");
   DecorateeT decoratee;
+protected:
+  virtual const std::vector<identity_t>& get_identities() const override {
+    return decoratee.get_identities();
+  }
 
 public:
   RGWDecoratingAuthApplier(const DecorateeT& decoratee)
@@ -30,7 +34,7 @@ public:
   }
 
   virtual bool is_owner_of(const rgw_user& uid) const override {
-    return decoratee.is_oner_of(uid);
+    return decoratee.is_owner_of(uid);
   }
 
   virtual int get_perm_mask() const override {
@@ -52,6 +56,10 @@ public:
 template <>
 class RGWDecoratingAuthApplier<RGWAuthApplier::aplptr_t> : public RGWAuthApplier {
   aplptr_t decoratee;
+protected:
+  virtual const std::vector<identity_t>& get_identities() const override {
+    return decoratee->get_identities();
+  }
 
 public:
   RGWDecoratingAuthApplier(aplptr_t&& decoratee)
@@ -128,6 +136,70 @@ void RGWThirdPartyAccountAuthApplier<T>::load_acct_info(RGWUserInfo& user_info) 
       throw ret;
     }
   }
+}
+
+
+template <typename T>
+class RGWSwiftACLAuthApplier : public RGWDecoratingAuthApplier<T> {
+protected:
+  static const std::string make_spec_item(const std::string tenant,
+                                          const std::string id) {
+    return tenant + ":" + id;
+  }
+
+  virtual int get_perms_for_idenity(const aclsec_t& aclspec,
+                                    const identity_t& identity) const;
+public:
+  using RGWDecoratingAuthApplier<T>::RGWDecoratingAuthApplier;
+
+  virtual int get_perms_from_aclspec(const aclspec_t& aclspec) const override;
+};
+
+template <typename T>
+int RGWSwiftACLAuthApplier<T>::get_perms_for_idenity(const aclsec_t& aclspec,
+                                                  const identity_t& identity) const
+{
+  const auto& tenant = identity.tenant;
+  const auto& id = identity.id;
+
+  const std::vector<std::string> allowed_items = {
+    make_spec_item(tenant, id),
+
+    /* For backward compatibility with ACLOwner. */
+    rgw_user(tenant).to_str(),
+    rgw_user(tenant, tenant).to_str(),
+
+    /* Wildcards. */
+    make_spec_item(tenant, "*"),
+    make_spec_item("*", id),
+  };
+
+  int perm = 0;
+
+  for (const auto& allowed_item : allowed_items) {
+    const auto iter = aclspec.find(allowed_item);
+
+    if (std::end(aclspec) != iter) {
+      perm |= iter->second;
+    }
+  }
+
+  return perm;
+}
+
+template <typename T>
+int RGWSwiftACLAuthApplier<T>::get_perms_from_aclspec(const aclspec_t& aclspec) const
+{
+  int perm = 0;
+
+  for (const auto& identity : get_identities()) {
+    ldout(cct, 20) << "trying identity: " << identity << endl;
+
+    perm |= get_perms_for_idenity(aclspec, identity);
+  }
+
+  ldout(cct, 20) << "from Swift ACL got perm=" << perm << dendl;
+  return perm;
 }
 
 #endif /* CEPH_RGW_AUTH_DECOIMPL_H */
