@@ -24,6 +24,12 @@ int RGWRemoteAuthApplier::get_perms_from_aclspec(const aclspec_t& aclspec) const
   const std::string& id = info.auth_user.id;
   const std::string& tenant = info.auth_user.tenant;
 
+  ldout(cct, 20) << "+++++++++++++++ t=" << tenant << ", id=" << id << " +++++++++++++++++++++++++++++++++calculating ACL perm from" << dendl;
+  ldout(cct, 20) << "+++++++++++++++ t=" << info.token.get_project_name() << ", id=" << info.token.get_user_name() << " +++++++++++++++++++++++++++++++++calculating ACL perm from" << dendl;
+  for (const auto& acl_item : aclspec) {
+    ldout(cct, 20) << "\t" << acl_item.first << dendl;
+  }
+
   const std::vector<std::string> allowed_items = {
     make_spec_item(tenant, id),
 
@@ -314,13 +320,14 @@ RGWKeystoneAuthEngine::get_creds_info(const KeystoneToken& token,
     /* Suggested account name for the authenticated user. */
     rgw_user(token.get_project_id()),
     /* The authenticated identity. */
-    rgw_user(token.get_project_id()),
+    rgw_user(token.get_project_id(), token.get_user_id()),
     /* User's display name (aka real name). */
     token.get_project_name(),
     /* Keystone doesn't support RGW's subuser concept, so we cannot cut down
      * the access rights through the perm_mask. At least at this layer. */
     RGW_PERM_FULL_CONTROL,
-    is_admin
+    is_admin,
+    token
   };
 }
 

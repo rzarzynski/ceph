@@ -100,18 +100,21 @@ public:
     const std::string display_name;
     const uint32_t perm_mask;
     const bool is_admin;
+    const KeystoneToken token;
 
   public:
     AuthInfo(const rgw_user acct_user,
              const rgw_user auth_user,
              const std::string display_name,
              const uint32_t perm_mask,
-             const bool is_admin)
+             const bool is_admin,
+             const KeystoneToken& token)
     : acct_user(acct_user),
       auth_user(auth_user),
       display_name(display_name),
       perm_mask(perm_mask),
-      is_admin(is_admin) {
+      is_admin(is_admin),
+      token(token) {
     }
 
     /* Constructor for engines that aren't aware about user account. They know
@@ -120,8 +123,9 @@ public:
     AuthInfo(const rgw_user auth_user,
              const std::string display_name,
              const uint32_t perm_mask,
-             const bool is_admin)
-      : AuthInfo(rgw_user(), auth_user, display_name, perm_mask, is_admin) {
+             const bool is_admin,
+             const KeystoneToken& token)
+      : AuthInfo(rgw_user(), auth_user, display_name, perm_mask, is_admin, token) {
     }
   };
 
