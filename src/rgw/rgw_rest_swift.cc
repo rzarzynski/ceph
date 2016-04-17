@@ -18,6 +18,7 @@
 #include "rgw_swift_auth.h"
 
 #include <sstream>
+#include <memory>
 
 #define dout_subsys ceph_subsys_rgw
 
@@ -1451,19 +1452,22 @@ int RGWHandler_REST_SWIFT::authorize()
       }
 
       /* Construct a pipeline over the final_applier. */
-      RGWThirdPartyAccountAuthApplier<RGWAuthApplier::aplptr_t> applier(
-        std::move(final_applier), store, s->account_name);
+      auto applier = std::unique_ptr<RGWAuthApplier>(
+        new RGWThirdPartyAccountAuthApplier<RGWAuthApplier::aplptr_t>(
+          std::move(final_applier), store, s->account_name));
 
       try {
         /* Account used by a given RGWOp is decoupled from identity employed
          * in the authorization phase (RGWOp::verify_permissions). */
-        applier.load_acct_info(*s->user);
-        applier.load_user_info(s->auth_user, s->perm_mask, s->admin_request);
+        applier->load_acct_info(*s->user);
+        s->perm_mask = applier->get_perm_mask();
 
         /* This is the signle place where we pass req_state as a pointer
          * to non-const and thus its modification is allowed. In the time
          * of writing only RGWTempURLEngine needed that feature. */
-        applier.modify_request_state(s);
+        applier->modify_request_state(s);
+
+        s->auth_identity = std::move(applier);
       } catch (int err) {
         ldout(s->cct, 5) << "applier throwed err=" << err << dendl;
         return err;
@@ -1471,11 +1475,6 @@ int RGWHandler_REST_SWIFT::authorize()
     } catch (int err) {
       ldout(s->cct, 5) << "auth engine throwed err=" << err << dendl;
       return err;
-    }
-
-    /* Paranoia mode on. */
-    if (s->auth_user.empty()) {
-      s->auth_user = s->user->user_id;
     }
 
     /* FIXME(rzarzynski): move into separated RGWAuthApplier decorator. */

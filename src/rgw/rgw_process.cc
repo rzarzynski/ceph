@@ -32,6 +32,66 @@ void RGWProcess::RGWWQ::_dump_queue()
   }
 } /* RGWProcess::RGWWQ::_dump_queue */
 
+static std::unique_ptr<RGWIdentityApplier>
+transform_old_authinfo(req_state * const s)
+{
+  /* This class is not intended for public use. Should be removed altogether
+   * with this function after moving all our APIs to the new authentication
+   * infrastructure. */
+  class RGWDummyIdentityApplier : public RGWIdentityApplier {
+    CephContext * const cct;
+
+    /* For this particular case it's OK to use rgw_user structure to convey
+     * the identity info as this was the policy for doing that before the
+     * new auth. */
+    const rgw_user id;
+    const int perm_mask;
+    const bool is_admin;
+  public:
+    RGWDummyIdentityApplier(CephContext * const cct,
+                            const rgw_user& auth_id,
+                            const int perm_mask,
+                            const bool is_admin)
+      : cct(cct),
+        id(auth_id),
+        perm_mask(perm_mask),
+        is_admin(is_admin) {
+    }
+
+    int get_perms_from_aclspec(const aclspec_t& aclspec) const {
+      ldout(cct, 5) << "Searching permissions for uid=" << id
+                    << " mask=" << perm_mask << dendl;
+
+      const auto iter = aclspec.find(id.to_str());
+      if (std::end(aclspec) != iter) {
+        ldout(cct, 5) << "Found permission: " << iter->second << dendl;
+        return iter->second & perm_mask;
+      }
+
+      ldout(cct, 5) << "Permissions for user not found" << dendl;
+      return 0;
+    }
+
+    bool is_entitled_to(const rgw_user& acct_id) const {
+      return is_admin || is_owner_of(acct_id);
+    }
+
+    bool is_owner_of(const rgw_user& acct_id) const {
+      return id == acct_id;
+    }
+
+    int get_perm_mask() const {
+      return perm_mask;
+    }
+  };
+
+  return std::unique_ptr<RGWIdentityApplier>(
+        new RGWDummyIdentityApplier(s->cct,
+                                    s->user->user_id,
+                                    s->perm_mask,
+                                    s->admin_request));
+}
+
 int process_request(RGWRados* store, RGWREST* rest, RGWRequest* req,
 		    RGWStreamIO* client_io, OpsLogSocket* olog)
 {
@@ -92,6 +152,12 @@ int process_request(RGWRados* store, RGWREST* rest, RGWRequest* req,
     dout(10) << "failed to authorize request" << dendl;
     abort_early(s, NULL, ret, handler);
     goto done;
+  }
+
+  /* FIXME: remove this after switching all APIs to the new authentication
+   * infrastructure. */
+  if (nullptr == s->auth_identity) {
+    s->auth_identity = transform_old_authinfo(s);
   }
 
   req->log(s, "normalizing buckets and tenants");
