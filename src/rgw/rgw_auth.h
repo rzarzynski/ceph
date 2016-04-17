@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include "rgw_common.h"
+#define RGW_USER_ANON_ID "anonymous"
 #include "rgw_keystone.h"
 
 
@@ -35,6 +36,12 @@ public:
   /* Verify whether a given identity *is* the owner of the rgw_user
   * (account in Swift's terminology) specified in @uid. */
   virtual bool is_owner_of(const rgw_user& uid) const = 0;
+
+  virtual bool is_anonymous() const final {
+    /* If the identity owns the anonymous account (rgw_user), it's considered
+     * the anonymous identity. */
+    return is_owner_of(rgw_user(RGW_USER_ANON_ID));
+  }
 };
 
 
