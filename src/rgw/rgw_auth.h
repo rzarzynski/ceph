@@ -48,11 +48,12 @@ public:
      * the anonymous identity. */
     return is_owner_of(rgw_user(RGW_USER_ANON_ID));
   }
+
+  virtual std::string to_str() const = 0;
 };
 
 inline ostream& operator<<(ostream& out, const RGWIdentityApplier &id) {
-//  return out << id.to_str();
-  return out;
+  return out << id.to_str();
 }
 
 std::unique_ptr<RGWIdentityApplier>
@@ -150,6 +151,7 @@ public:
   virtual bool is_admin_of(const rgw_user& uid) const override;
   virtual bool is_owner_of(const rgw_user& uid) const override;
   virtual int get_perm_mask() const { return info.perm_mask; }
+  virtual std::string to_str() const override;
   virtual void load_acct_info(RGWUserInfo& user_info) const override; /* out */
 
   class Factory;
@@ -197,6 +199,7 @@ public:
   virtual bool is_admin_of(const rgw_user& uid) const override;
   virtual bool is_owner_of(const rgw_user& uid) const override;
   virtual int get_perm_mask() const { return get_perm_mask(subuser, user_info); }
+  virtual std::string to_str() const override;
   virtual void load_acct_info(RGWUserInfo& user_info) const;     /* out */
 
   class Factory;
