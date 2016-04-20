@@ -1290,8 +1290,6 @@ struct req_state {
 
   int prot_flags;
 
-  const char *os_auth_token;
-
   /* Content-Disposition override for TempURL of Swift API. */
   struct {
     string override;
