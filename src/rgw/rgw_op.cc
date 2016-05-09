@@ -2026,10 +2026,19 @@ void RGWCreateBucket::execute()
     }
   }
 
+  RGWQuotaInfo quota_info;
+  const RGWQuotaInfo * pquota_info = nullptr;
   if (need_metadata_upload()) {
     rgw_get_request_metadata(s->cct, s->info, attrs, false);
     prepare_add_del_attrs(s->bucket_attrs, rmattr_names, attrs);
     populate_with_generic_attrs(s, attrs);
+
+    op_ret = filter_out_bucket_quota(attrs, rmattr_names, quota_info);
+    if (op_ret < 0) {
+      return;
+    }
+
+    pquota_info = &quota_info;
   }
 
   policy.encode(aclbl);
@@ -2042,7 +2051,8 @@ void RGWCreateBucket::execute()
   s->bucket.tenant = s->bucket_tenant; /* ignored if bucket exists */
   s->bucket.name = s->bucket_name;
   op_ret = store->create_bucket(*(s->user), s->bucket, zonegroup_id,
-				placement_rule, swift_ver_location, attrs,
+				placement_rule, swift_ver_location,
+				pquota_info, attrs,
 				info, pobjv, &ep_objv, creation_time,
 				pmaster_bucket, true);
   /* continue if EEXIST and create_bucket will fail below.  this way we can
@@ -2111,7 +2121,12 @@ void RGWCreateBucket::execute()
       rgw_get_request_metadata(s->cct, s->info, attrs, false);
       prepare_add_del_attrs(s->bucket_attrs, rmattr_names, attrs);
       populate_with_generic_attrs(s, attrs);
+      op_ret = filter_out_bucket_quota(attrs, rmattr_names, s->bucket_info.quota);
+      if (op_ret < 0) {
+        return;
+      }
 
+      /* This will also set the quota on the bucket. */
       op_ret = rgw_bucket_set_attrs(store, s->bucket_info, attrs,
                                     &s->bucket_info.objv_tracker);
     } while (op_ret == -ECANCELED && tries++ < 20);
