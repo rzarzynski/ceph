@@ -4,6 +4,8 @@
 #ifndef CEPH_RGWRADOS_H
 #define CEPH_RGWRADOS_H
 
+#include <functional>
+
 #include "include/rados/librados.hpp"
 #include "include/Context.h"
 #include "common/RefCountedObj.h"
@@ -2470,8 +2472,18 @@ public:
                        struct rgw_err *err,
                        void (*progress_cb)(off_t, void *),
                        void *progress_data);
-  int swift_versioning_copy(RGWBucketInfo& bucket_info, RGWRados::Object *source, RGWObjState *state,
-                            rgw_user& user);
+  int iterate_bucket(RGWBucketInfo& bucket_info,
+                     const std::string& obj_prefix,
+                     const std::string& obj_delim,
+                     std::function<int(const RGWObjEnt&, bool& stop)> entry_handler);
+  int swift_versioning_copy(RGWBucketInfo& bucket_info,
+                            RGWRados::Object *source,
+                            RGWObjState *state,
+                            const rgw_user& user);
+  int swift_versioning_delete(RGWBucketInfo& bucket_info,
+                              RGWRados::Object * object,
+                              RGWObjState *state,
+                              const rgw_user& user);
   int copy_obj_to_remote_dest(RGWObjState *astate,
                               map<string, bufferlist>& src_attrs,
                               RGWRados::Object::Read& read_op,

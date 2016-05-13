@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <boost/format.hpp>
+
 #include "common/ceph_json.h"
 #include "common/utf8.h"
 
@@ -5656,8 +5658,11 @@ int RGWRados::BucketShard::init(rgw_bucket& _bucket, rgw_obj& obj)
 }
 
 
-int RGWRados::swift_versioning_copy(RGWBucketInfo& bucket_info, RGWRados::Object *source, RGWObjState *state,
-                                    rgw_user& user)
+int RGWRados::swift_versioning_copy(RGWObjectCtx& obj_ctx,
+                                    RGWBucketInfo& bucket_info,
+                                    rgw_obj& obj,
+                                    RGWObjState * const state,
+                                    const rgw_user& user)
 {
   if (!bucket_info.has_swift_versioning() || bucket_info.swift_ver_location.empty()) {
     return 0;
@@ -5670,16 +5675,15 @@ int RGWRados::swift_versioning_copy(RGWBucketInfo& bucket_info, RGWRados::Object
   string client_id;
   string op_id;
 
-  rgw_obj& obj = source->get_obj();
   const string& src_name = obj.get_object();
   char buf[src_name.size() + 32];
   struct timespec ts = ceph::real_clock::to_timespec(state->mtime);
-  snprintf(buf, sizeof(buf), "%03d%s/%lld.%06ld", (int)src_name.size(),
+  snprintf(buf, sizeof(buf), "%03x%s/%lld.%06ld", (int)src_name.size(),
            src_name.c_str(), (long long)ts.tv_sec, ts.tv_nsec / 1000);
 
   RGWBucketInfo dest_bucket_info;
 
-  int r = get_bucket_info(source->get_ctx(), bucket_info.bucket.tenant, bucket_info.swift_ver_location, dest_bucket_info, NULL, NULL);
+  int r = get_bucket_info(obj_ctx, bucket_info.bucket.tenant, bucket_info.swift_ver_location, dest_bucket_info, NULL, NULL);
   if (r < 0) {
     ldout(cct, 10) << "failed to read dest bucket info: r=" << r << dendl;
     return r;
@@ -5693,7 +5697,7 @@ int RGWRados::swift_versioning_copy(RGWBucketInfo& bucket_info, RGWRados::Object
 
   string no_zone;
 
-  r = copy_obj(source->get_ctx(),
+  r = copy_obj(obj_ctx,
                user,
                client_id,
                op_id,
@@ -5723,10 +5727,153 @@ int RGWRados::swift_versioning_copy(RGWBucketInfo& bucket_info, RGWRados::Object
                NULL, /* void (*progress_cb)(off_t, void *) */
                NULL); /* void *progress_data */
   if (r == -ECANCELED || r == -ENOENT) { /* has already been overwritten, meaning another rgw process already copied it out */
+  ldout(cct, 20) << "++++ ECANC   --- SWIFT VERSION COPY BEGIN ++++ LINE: " << __LINE__ << dendl;
     return 0;
   }
 
   return r;
+}
+
+int RGWRados::iterate_bucket(RGWBucketInfo& bucket_info,
+                             const std::string& obj_prefix,
+                             const std::string& obj_delim,
+                             std::function<int(const RGWObjEnt&, bool& stop)> entry_handler)
+{
+  RGWRados::Bucket target(this, bucket_info);
+  RGWRados::Bucket::List list_op(&target);
+
+  list_op.params.prefix = obj_prefix;
+  list_op.params.delim = obj_delim;
+
+  ldout(cct, 20) << "iterating listing for bucket=" << bucket_info.bucket.name
+                 << ", obj_prefix=" << obj_prefix
+                 << ", obj_delim=" << obj_delim
+                 << dendl;
+
+  bool is_truncated = false;
+
+  do {
+    /* List bucket entries in chunks. */
+    static const int MAX_LIST_OBJS = 100;
+    std::vector<RGWObjEnt> entries(MAX_LIST_OBJS);
+
+    int ret = list_op.list_objects(MAX_LIST_OBJS, &entries, nullptr,
+                                   &is_truncated);
+    if (ret < 0) {
+      return ret;
+    }
+
+    for (const auto& entry : entries) {
+      bool should_stop = false;
+      ret = entry_handler(entry, should_stop);
+
+      if (ret < 0 || true == should_stop) {
+        /* Error or handler requested from us to stop further iterations. */
+        return ret;
+      }
+    }
+  } while (is_truncated);
+
+  return 0;
+}
+
+int RGWRados::swift_versioning_delete(RGWObjectCtx& obj_ctx,
+                                      RGWBucketInfo& bucket_info,
+                                      rgw_obj& obj,
+                                      RGWObjState *state,
+                                      const rgw_user& user)
+{
+  if (bucket_info.swift_ver_location.empty()) {
+    return 0;
+  }
+
+  if (!bucket_info.has_swift_versioning()) {
+    return 0;
+  }
+
+  /* Bucket info of the bucket that stores previous versions of our object. */
+  RGWBucketInfo archive_binfo;
+
+  int ret = get_bucket_info(obj_ctx, bucket_info.bucket.tenant,
+                            bucket_info.swift_ver_location, archive_binfo,
+                            nullptr, nullptr);
+  if (ret < 0) {
+    return ret;
+  }
+
+  /* Abort the operation if the bucket storing our archive belongs to someone
+   * else. This is a limitation in comparison to Swift as we aren't taking ACLs
+   * into consideration. For we can live with that.
+   *
+   * TODO: delegate this check to un upper layer and compare with ACLs. */
+  if (bucket_info.owner != archive_binfo.owner) {
+    return -EPERM;
+  }
+
+  /* NEED: destitation bucket and obj names,
+           archive bucket and obj names. */
+  const auto handler = [&](const RGWObjEnt& entry, bool& done) -> int {
+    std::string no_client_id;
+    std::string no_op_id;
+    std::string no_zone;
+
+    rgw_obj archive_obj(archive_binfo.bucket, entry.key);
+
+    int ret = copy_obj(obj_ctx,
+                       user,
+                       no_client_id,
+                       no_op_id,
+                       nullptr,       /* req_info *info */
+                       no_zone,
+                       obj,           /* dest obj */
+                       archive_obj,   /* src obj */
+                       bucket_info,   /* dest bucket info */
+                       archive_binfo, /* src bucket info */
+                       nullptr,       /* time_t *src_mtime */
+                       nullptr,       /* time_t *mtime */
+                       nullptr,       /* const time_t *mod_ptr */
+                       nullptr,       /* const time_t *unmod_ptr */
+                       false,         /* bool high_precision_time */
+                       nullptr,       /* const char *if_match */
+                       nullptr,       /* const char *if_nomatch */
+                       RGWRados::ATTRSMOD_NONE,
+                       true,          /* bool copy_if_newer */
+                       state->attrset,
+                       RGW_OBJ_CATEGORY_MAIN,
+                       0,             /* uint64_t olh_epoch */
+                       real_time(),   /* time_t delete_at */
+                       nullptr,       /* string *version_id */
+                       nullptr,       /* string *ptag */
+                       nullptr,       /* string *petag */
+                       nullptr,       /* struct rgw_err *err */
+                       nullptr,       /* void (*progress_cb)(off_t, void *) */
+                       nullptr);      /* void *progress_data */
+    if (ret == -ECANCELED || ret == -ENOENT) {
+      /* Has already been overwritten, meaning another rgw process already
+       * copied it out */
+      return 0;
+    }
+
+    /* Need to remove the archived copy. */
+    ret = delete_obj(obj_ctx, archive_binfo, archive_obj,
+          archive_binfo.versioning_status());
+
+    /* Tell the iterate_bucket to stop iterating. */
+    done = true;
+
+    return ret;
+  };
+
+  const std::string& obj_name = obj.get_object();
+  const auto prefix = boost::str(boost::format("%03x%s") % obj_name.size()
+                                                         % obj_name);
+
+  ret = iterate_bucket(archive_binfo, prefix, string(), handler);
+  if (ret < 0) {
+    return ret;
+  }
+
+  return 0;
 }
 
 /**
