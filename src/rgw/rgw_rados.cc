@@ -5659,13 +5659,18 @@ int RGWRados::BucketShard::init(rgw_bucket& _bucket, rgw_obj& obj)
 
 
 int RGWRados::swift_versioning_copy(RGWObjectCtx& obj_ctx,
+                                    const rgw_user& user,
                                     RGWBucketInfo& bucket_info,
-                                    rgw_obj& obj,
-                                    RGWObjState * const state,
-                                    const rgw_user& user)
+                                    rgw_obj& obj)
 {
   if (!bucket_info.has_swift_versioning() || bucket_info.swift_ver_location.empty()) {
     return 0;
+  }
+
+  RGWObjState * state = nullptr;
+  int r = get_obj_state(&obj_ctx, obj, &state, false);
+  if (r < 0) {
+    return r;
   }
 
   if (!state->exists) {
@@ -5683,7 +5688,7 @@ int RGWRados::swift_versioning_copy(RGWObjectCtx& obj_ctx,
 
   RGWBucketInfo dest_bucket_info;
 
-  int r = get_bucket_info(obj_ctx, bucket_info.bucket.tenant, bucket_info.swift_ver_location, dest_bucket_info, NULL, NULL);
+  r = get_bucket_info(obj_ctx, bucket_info.bucket.tenant, bucket_info.swift_ver_location, dest_bucket_info, NULL, NULL);
   if (r < 0) {
     ldout(cct, 10) << "failed to read dest bucket info: r=" << r << dendl;
     return r;
@@ -5734,6 +5739,7 @@ int RGWRados::swift_versioning_copy(RGWObjectCtx& obj_ctx,
   return r;
 }
 
+#if 0
 int RGWRados::iterate_bucket(RGWBucketInfo& bucket_info,
                              const std::string& obj_prefix,
                              const std::string& obj_delim,
@@ -5776,18 +5782,67 @@ int RGWRados::iterate_bucket(RGWBucketInfo& bucket_info,
 
   return 0;
 }
+#endif
 
-int RGWRados::swift_versioning_delete(RGWObjectCtx& obj_ctx,
-                                      RGWBucketInfo& bucket_info,
-                                      rgw_obj& obj,
-                                      RGWObjState *state,
-                                      const rgw_user& user)
+int RGWRados::iterate_bucket(RGWBucketInfo& bucket_info,
+                             const std::string& obj_prefix,
+                             const std::string& obj_delim,
+                             std::function<int(const RGWObjEnt&, bool& stop)> entry_handler)
 {
-  if (bucket_info.swift_ver_location.empty()) {
+  RGWRados::Bucket target(this, bucket_info);
+  RGWRados::Bucket::List list_op(&target);
+
+  list_op.params.prefix = obj_prefix;
+  list_op.params.delim = obj_delim;
+
+  ldout(cct, 20) << "iterating listing for bucket=" << bucket_info.bucket.name
+                 << ", obj_prefix=" << obj_prefix
+                 << ", obj_delim=" << obj_delim
+                 << dendl;
+
+  bool is_truncated = false;
+
+  RGWObjEnt last_entry;
+  bool last_entry_valid = false;
+  /* We need to rewind to the last object in a listing. */
+  do {
+    /* List bucket entries in chunks. */
+    static const int MAX_LIST_OBJS = 100;
+    std::vector<RGWObjEnt> entries(MAX_LIST_OBJS);
+
+    int ret = list_op.list_objects(MAX_LIST_OBJS, &entries, nullptr,
+                                   &is_truncated);
+    if (ret < 0) {
+      return ret;
+    }
+
+    if (!entries.empty()) {
+      last_entry = entries.back();
+      last_entry_valid = true;
+    }
+  } while (is_truncated);
+
+  if (true == last_entry_valid) {
+    bool should_stop = false;
+    int ret = entry_handler(last_entry, should_stop);
+
+    if (ret < 0 || true == should_stop) {
+      /* Error or handler requested from us to stop further iterations. */
+      return ret;
+    }
+
     return 0;
   }
 
-  if (!bucket_info.has_swift_versioning()) {
+  return 1;
+}
+
+int RGWRados::swift_versioning_delete(RGWObjectCtx& obj_ctx,
+                                      const rgw_user& user,
+                                      RGWBucketInfo& bucket_info,
+                                      rgw_obj& obj)
+{
+  if (swift_versioning_enabled(bucket_info) == false) {
     return 0;
   }
 
@@ -5817,6 +5872,10 @@ int RGWRados::swift_versioning_delete(RGWObjectCtx& obj_ctx,
     std::string no_op_id;
     std::string no_zone;
 
+    /* We are requesting ATTRSMOD_NONE so the attr attribute is perfectly
+     * irrelevant and may be safely skipped. */
+    std::map<std::string, ceph::bufferlist> no_attrs;
+
     rgw_obj archive_obj(archive_binfo.bucket, entry.key);
 
     int ret = copy_obj(obj_ctx,
@@ -5838,7 +5897,7 @@ int RGWRados::swift_versioning_delete(RGWObjectCtx& obj_ctx,
                        nullptr,       /* const char *if_nomatch */
                        RGWRados::ATTRSMOD_NONE,
                        true,          /* bool copy_if_newer */
-                       state->attrset,
+                       no_attrs,
                        RGW_OBJ_CATEGORY_MAIN,
                        0,             /* uint64_t olh_epoch */
                        real_time(),   /* time_t delete_at */
@@ -5873,7 +5932,11 @@ int RGWRados::swift_versioning_delete(RGWObjectCtx& obj_ctx,
     return ret;
   }
 
-  return 0;
+  if (ret == 1) {
+    ret = delete_obj(obj_ctx, bucket_info, obj, bucket_info.versioning_status());
+  }
+
+  return ret;
 }
 
 /**
@@ -6011,10 +6074,6 @@ int RGWRados::Object::Write::write_meta(uint64_t size,
     index_op.set_bilog_flags(RGW_BILOG_FLAG_VERSIONED_OP);
   }
 
-  r = store->swift_versioning_copy(bucket_info, target, state, meta.owner);
-  if (r < 0) {
-    goto done_cancel;
-  }
 
   r = index_op.prepare(CLS_RGW_OP_ADD);
   if (r < 0)
@@ -7651,10 +7710,6 @@ int RGWRados::Object::Delete::delete_obj()
 
   index_op.set_bilog_flags(params.bilog_flags);
 
-  r = store->swift_versioning_copy(bucket_info, target, state, params.bucket_owner);
-  if (r < 0) {
-    return r;
-  }
 
   r = index_op.prepare(CLS_RGW_OP_DEL);
   if (r < 0)

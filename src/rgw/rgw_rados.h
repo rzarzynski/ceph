@@ -2476,14 +2476,17 @@ public:
                      const std::string& obj_prefix,
                      const std::string& obj_delim,
                      std::function<int(const RGWObjEnt&, bool& stop)> entry_handler);
-  int swift_versioning_copy(RGWBucketInfo& bucket_info,
-                            RGWRados::Object *source,
-                            RGWObjState *state,
-                            const rgw_user& user);
-  int swift_versioning_delete(RGWBucketInfo& bucket_info,
-                              RGWRados::Object * object,
-                              RGWObjState *state,
-                              const rgw_user& user);
+  bool swift_versioning_enabled(const RGWBucketInfo& bucket_info) const {
+    return bucket_info.has_swift_versioning() && !bucket_info.swift_ver_location.empty();
+  }
+  int swift_versioning_copy(RGWObjectCtx& obj_ctx,
+                            const rgw_user& user,
+                            RGWBucketInfo& bucket_info,
+                            rgw_obj& obj);
+  int swift_versioning_delete(RGWObjectCtx& obj_ctx,
+                              const rgw_user& user,
+                              RGWBucketInfo& bucket_info,
+                              rgw_obj& obj);
   int copy_obj_to_remote_dest(RGWObjState *astate,
                               map<string, bufferlist>& src_attrs,
                               RGWRados::Object::Read& read_op,

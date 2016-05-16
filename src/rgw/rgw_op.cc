@@ -2394,6 +2394,18 @@ void RGWPutObj::execute()
 
   processor = select_processor(*static_cast<RGWObjectCtx *>(s->obj_ctx), &multipart);
 
+  /* Handle object versioning of Swift API. */
+  if (store->swift_versioning_enabled(s->bucket_info) && false == multipart) {
+    rgw_obj obj(s->bucket, s->object);
+    op_ret = store->swift_versioning_copy(*static_cast<RGWObjectCtx *>(s->obj_ctx),
+                                          s->bucket_owner.get_id(),
+                                          s->bucket_info,
+                                          obj);
+    if (op_ret < 0) {
+      return;
+    }
+  }
+
   op_ret = processor->prepare(store, NULL);
   if (op_ret < 0) {
     ldout(s->cct, 20) << "processor->prepare() returned ret=" << op_ret
@@ -3022,35 +3034,39 @@ void RGWDeleteObj::execute()
     }
 
     RGWObjectCtx *obj_ctx = static_cast<RGWObjectCtx *>(s->obj_ctx);
-
     obj_ctx->set_atomic(obj);
 
-    RGWRados::Object del_target(store, s->bucket_info, *obj_ctx, obj);
-    RGWRados::Object::Delete del_op(&del_target);
+    if (store->swift_versioning_enabled(s->bucket_info)) {
+      op_ret = store->swift_versioning_delete(*obj_ctx, s->bucket_owner.get_id(),
+                                              s->bucket_info, obj);
+    } else {
+      RGWRados::Object del_target(store, s->bucket_info, *obj_ctx, obj);
+      RGWRados::Object::Delete del_op(&del_target);
 
-    op_ret = get_system_versioning_params(s, &del_op.params.olh_epoch,
-					  &del_op.params.marker_version_id);
-    if (op_ret < 0) {
-      return;
-    }
+      op_ret = get_system_versioning_params(s, &del_op.params.olh_epoch,
+                                            &del_op.params.marker_version_id);
+      if (op_ret < 0) {
+        return;
+      }
 
-    del_op.params.bucket_owner = s->bucket_owner.get_id();
-    del_op.params.versioning_status = s->bucket_info.versioning_status();
-    del_op.params.obj_owner = s->owner;
-    del_op.params.unmod_since = unmod_since;
-    del_op.params.high_precision_time = s->system_request; /* system request uses high precision time */
+      del_op.params.bucket_owner = s->bucket_owner.get_id();
+      del_op.params.versioning_status = s->bucket_info.versioning_status();
+      del_op.params.obj_owner = s->owner;
+      del_op.params.unmod_since = unmod_since;
+      del_op.params.high_precision_time = s->system_request; /* system request uses high precision time */
 
-    op_ret = del_op.delete_obj();
-    if (op_ret >= 0) {
-      delete_marker = del_op.result.delete_marker;
-      version_id = del_op.result.version_id;
-    }
+      op_ret = del_op.delete_obj();
+      if (op_ret >= 0) {
+        delete_marker = del_op.result.delete_marker;
+        version_id = del_op.result.version_id;
+      }
 
-    /* Check whether the object has expired. Swift API documentation
-     * stands that we should return 404 Not Found in such case. */
-    if (need_object_expiration() && object_is_expired(attrs)) {
-      op_ret = -ENOENT;
-      return;
+      /* Check whether the object has expired. Swift API documentation
+       * stands that we should return 404 Not Found in such case. */
+      if (need_object_expiration() && object_is_expired(attrs)) {
+        op_ret = -ENOENT;
+        return;
+      }
     }
 
     if (op_ret == -ERR_PRECONDITION_FAILED && no_precondition_error) {
