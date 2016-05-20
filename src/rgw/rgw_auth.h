@@ -291,8 +291,8 @@ protected:
   const RGWRemoteAuthApplier::Factory * const apl_factory;
 
   /* Helper methods. */
-  KeystoneToken decode_pki_token(const std::string token) const;
-  KeystoneToken get_from_keystone(const std::string token) const;
+  KeystoneToken decode_pki_token(const std::string& token) const;
+  KeystoneToken get_from_keystone(const std::string& token) const;
   acl_strategy_t get_acl_strategy(const KeystoneToken& token) const;
   RGWRemoteAuthApplier::AuthInfo get_creds_info(const KeystoneToken& token,
                                                 const std::vector<std::string>& admin_roles
