@@ -5,6 +5,7 @@
 #define CEPH_RGW_CLIENT_IO_DECOIMPL_H
 
 #include <type_traits>
+#include <string>
 
 #include <boost/optional.hpp>
 
@@ -470,4 +471,39 @@ RGWStreamIOReorderingEngine<T> add_reordering(T&& t) {
   return RGWStreamIOReorderingEngine<T>(std::move(t));
 }
 
+
+template <typename T>
+class RGWStreamIOUrlPrefixingEngine : public RGWDecoratedStreamIO<T> {
+  template<typename Td> friend class RGWDecoratedStreamIO;
+protected:
+  std::string uri_prefix;
+
+  void init_env(CephContext* const cct) override {
+    RGWDecoratedStreamIO<T>::init_env(cct);
+
+    if (! uri_prefix.empty()) {
+      auto& env = RGWDecoratedStreamIO<T>::get_env();
+      auto ruri = env.get("REQUEST_URI", cct->_conf->rgw_request_uri.c_str());
+      auto suri = env.get("SCRIPT_URI", cct->_conf->rgw_request_uri.c_str());
+      env.set("REQUEST_URI", uri_prefix + ruri);
+      env.set("SCRIPT_URI", uri_prefix + suri);
+    }
+  }
+
+public:
+  template <typename U>
+  RGWStreamIOUrlPrefixingEngine(U&& decoratee,
+                                std::string uri_prefix)
+    : RGWDecoratedStreamIO<T>(std::move(decoratee)),
+      uri_prefix(std::move(uri_prefix)) {
+  }
+};
+
+template <typename T>
+RGWStreamIOUrlPrefixingEngine<T> add_prefixing(
+  std::string uri_prefix,
+  T&& t
+) {
+  return RGWStreamIOUrlPrefixingEngine<T>(std::move(t), std::move(uri_prefix));
+}
 #endif /* CEPH_RGW_CLIENT_IO_DECOIMPL_H */
