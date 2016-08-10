@@ -160,6 +160,19 @@ std::size_t RGWAsioClientIO::complete_header()
   return sent + write_data(HEADER_END, sizeof(HEADER_END) - 1);
 }
 
+std::size_t RGWAsioClientIO::send_header(const boost::string_ref& name,
+                                         const boost::string_ref& value)
+{
+  static constexpr char HEADER_SEPARATOR[] = ": ";
+  std::size_t sent = 0;
+
+  sent += write_data(name.data(), name.length());
+  sent += write_data(HEADER_SEPARATOR, strlen(HEADER_SEPARATOR));
+  sent += write_data(value.data(), value.length());
+
+  return sent;
+}
+
 std::size_t RGWAsioClientIO::send_content_length(const uint64_t len)
 {
   static constexpr size_t CONLEN_BUF_SIZE = 128;

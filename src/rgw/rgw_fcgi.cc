@@ -49,6 +49,19 @@ std::size_t RGWFCGX::send_100_continue()
   return send_status(100, "Continue");
 }
 
+std::size_t RGWFCGX::send_header(const boost::string_ref& name,
+                                 const boost::string_ref& value)
+{
+  static constexpr char HEADER_SEPARATOR[] = ": ";
+  std::size_t sent = 0;
+
+  sent += write_data(name.data(), name.length());
+  sent += write_data(HEADER_SEPARATOR, strlen(HEADER_SEPARATOR));
+  sent += write_data(value.data(), value.length());
+
+  return sent;
+}
+
 std::size_t RGWFCGX::send_content_length(const uint64_t len)
 {
   static constexpr size_t CONLEN_BUF_SIZE = 128;
