@@ -1914,6 +1914,12 @@ extern void rgw_uri_escape_char(char c, string& dst);
 extern bool url_decode(const string& src_str, string& dest_str, bool in_query = false);
 extern void url_encode(const string& src, string& dst);
 
+static inline std::string url_encode(const std::string& src) {
+  std::string dst;
+  url_encode(src, dst);
+  return dst;
+}
+
 /* destination should be CEPH_CRYPTO_HMACSHA1_DIGESTSIZE bytes long */
 extern void calc_hmac_sha1(const char *key, int key_len,
                           const char *msg, int msg_len, char *dest);

@@ -178,8 +178,7 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
     stringstream ss;
     jf.flush(ss);
     metadata_bl.append(ss.str());
-    STREAM_IO(s)->print("Rgwx-Embedded-Metadata-Len: %lld\r\n",
-			(long long)metadata_bl.length());
+    dump_header(s, "Rgwx-Embedded-Metadata-Len", metadata_bl.length());
     total_len += metadata_bl.length();
   }
 
@@ -191,7 +190,7 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
     if (r < 0) {
       ldout(s->cct, 0) << "ERROR: failed to decode pg ver attr, ignoring" << dendl;
     }
-    STREAM_IO(s)->print("Rgwx-Obj-PG-Ver: %lld\r\n", (long long)pg_ver);
+    dump_header(s, "Rgwx-Obj-PG-Ver", pg_ver);
 
     uint32_t source_zone_short_id = 0;
     r = decode_attr_bl_single_value(attrs, RGW_ATTR_SOURCE_ZONE, &source_zone_short_id, (uint32_t)0);
@@ -199,7 +198,7 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
       ldout(s->cct, 0) << "ERROR: failed to decode pg ver attr, ignoring" << dendl;
     }
     if (source_zone_short_id != 0) {
-      STREAM_IO(s)->print("Rgwx-Source-Zone-Short-Id: %lld\r\n", (long long)source_zone_short_id);
+      dump_header(s, "Rgwx-Source-Zone-Short-Id", source_zone_short_id);
     }
   }
 
@@ -212,15 +211,11 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
        * legit to perform GET on them through S3 API. In such situation,
        * a client should receive the composited content with corresponding
        * etag value. */
-      dump_etag(s, lo_etag.c_str());
+      dump_etag(s, lo_etag);
     } else {
       auto iter = attrs.find(RGW_ATTR_ETAG);
       if (iter != attrs.end()) {
-        bufferlist& bl = iter->second;
-        if (bl.length()) {
-	  const char * etag = bl.c_str();
-	  dump_etag(s, etag);
-        }
+        dump_etag(s, iter->second);
       }
     }
 
@@ -254,7 +249,7 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
 			 sizeof(RGW_ATTR_META_PREFIX)-1) == 0) {
         /* User custom metadata. */
         name += sizeof(RGW_ATTR_PREFIX) - 1;
-        STREAM_IO(s)->print("%s: %s\r\n", name, iter->second.c_str());
+        dump_header(s, name, iter->second);
       }
     }
   }
@@ -262,8 +257,7 @@ int RGWGetObj_ObjStore_S3::send_response_data(bufferlist& bl, off_t bl_ofs,
 done:
   for (riter = response_attrs.begin(); riter != response_attrs.end();
        ++riter) {
-    STREAM_IO(s)->print("%s: %s\r\n", riter->first.c_str(),
-			riter->second.c_str());
+    dump_header(s, riter->first, riter->second);
   }
 
   if (op_ret == -ERR_NOT_MODIFIED) {
@@ -844,11 +838,8 @@ void RGWGetBucketWebsite_ObjStore_S3::send_response()
 
 static void dump_bucket_metadata(struct req_state *s, RGWBucketEnt& bucket)
 {
-  char buf[32];
-  snprintf(buf, sizeof(buf), "%lld", (long long)bucket.count);
-  STREAM_IO(s)->print("X-RGW-Object-Count: %s\r\n", buf);
-  snprintf(buf, sizeof(buf), "%lld", (long long)bucket.size);
-  STREAM_IO(s)->print("X-RGW-Bytes-Used: %s\r\n", buf);
+  dump_header(s, "X-RGW-Object-Count", static_cast<long long>(bucket.count));
+  dump_header(s, "X-RGW-Bytes-Used", static_cast<long long>(bucket.size));
 }
 
 void RGWStatBucket_ObjStore_S3::send_response()
@@ -1235,7 +1226,7 @@ void RGWPutObj_ObjStore_S3::send_response()
       set_req_state_err(s, op_ret);
     }
     dump_errno(s);
-    dump_etag(s, etag.c_str());
+    dump_etag(s, etag);
     dump_content_length(s, 0);
   }
   if (s->system_request && !real_clock::is_zero(mtime)) {
@@ -2084,10 +2075,10 @@ void RGWDeleteObj_ObjStore_S3::send_response()
   set_req_state_err(s, r);
   dump_errno(s);
   if (!version_id.empty()) {
-    dump_string_header(s, "x-amz-version-id", version_id.c_str());
+    dump_header(s, "x-amz-version-id", version_id);
   }
   if (delete_marker) {
-    dump_string_header(s, "x-amz-delete-marker", "true");
+    dump_header(s, "x-amz-delete-marker", "true");
   }
   end_header(s, this);
 }
