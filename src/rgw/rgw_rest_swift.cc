@@ -968,6 +968,7 @@ void RGWDeleteObj_ObjStore_SWIFT::send_response()
   dump_errno(s);
 
   if (multipart_delete) {
+    STREAM_IO(s)->send_chunked_transfer_encoding();
     end_header(s, this /* RGWOp */, nullptr /* contype */,
                NO_CONTENT_LENGTH);
 

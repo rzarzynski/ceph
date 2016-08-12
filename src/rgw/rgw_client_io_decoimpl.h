@@ -70,6 +70,10 @@ public:
     return get_decoratee().send_content_length(len);
   }
 
+  std::size_t send_chunked_transfer_encoding() override {
+    return get_decoratee().send_chunked_transfer_encoding();
+  }
+
   std::size_t complete_header() override {
     return get_decoratee().complete_header();
   }
@@ -147,6 +151,14 @@ public:
     return sent;
   }
 
+  std::size_t send_chunked_transfer_encoding() override {
+    const auto sent = RGWDecoratedStreamIO<T>::send_chunked_transfer_encoding();
+    if (enabled) {
+      total_sent += sent;
+    }
+    return sent;
+  }
+
   std::size_t complete_header() override {
     const auto sent = RGWDecoratedStreamIO<T>::complete_header();
     if (enabled) {
@@ -211,6 +223,7 @@ public:
   }
 
   std::size_t send_content_length(const uint64_t len) override;
+  std::size_t send_chunked_transfer_encoding() override;
   std::size_t complete_header() override;
   std::size_t send_body(const char* buf, std::size_t len) override;
   int complete_request() override;
@@ -233,6 +246,13 @@ std::size_t RGWStreamIOBufferingEngine<T>::send_content_length(const uint64_t le
 {
   has_content_length = true;
   return RGWDecoratedStreamIO<T>::send_content_length(len);
+}
+
+template <typename T>
+std::size_t RGWStreamIOBufferingEngine<T>::send_chunked_transfer_encoding()
+{
+  has_content_length = true;
+  return RGWDecoratedStreamIO<T>::send_chunked_transfer_encoding();
 }
 
 template <typename T>
@@ -291,16 +311,18 @@ public:
     return RGWDecoratedStreamIO<T>::send_content_length(len);
   }
 
-  std::size_t complete_header() override {
-    size_t sent = 0;
+  std::size_t send_chunked_transfer_encoding() override {
+    has_content_length = false;
+    chunking_enabled = true;
+    return RGWDecoratedStreamIO<T>::send_header("Transfer-Encoding", "chunked");
+  }
 
+  std::size_t complete_header() override {
     if (! has_content_length) {
-      sent += RGWDecoratedStreamIO<T>::send_header("Transfer-Enconding",
-                                                   "chunked");
       chunking_enabled = true;
     }
 
-    return sent + RGWDecoratedStreamIO<T>::complete_header();
+    return RGWDecoratedStreamIO<T>::complete_header();
   }
 
   std::size_t send_body(const char* buf,
@@ -319,6 +341,15 @@ public:
                                                   sizeof(HEADER_END) - 1);
       return sent;
     }
+  }
+
+  int complete_request() override {
+    static constexpr char CHUNKED_RESP_END[] = "0\r\n\r\n";
+    std::size_t sent = 0;
+
+    sent += RGWDecoratedStreamIO<T>::send_body(CHUNKED_RESP_END,
+                                               sizeof(CHUNKED_RESP_END) - 1);
+    return sent + RGWDecoratedStreamIO<T>::complete_request();
   }
 };
 
