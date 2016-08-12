@@ -1217,9 +1217,10 @@ int RGWGetObj_ObjStore_SWIFT::send_response_data(bufferlist& bl,
 
 send_data:
   if (get_data && !op_ret) {
-    int r = STREAM_IO(s)->write(bl.c_str() + bl_ofs, bl_len);
-    if (r < 0)
+    const auto r = dump_body(s, bl.c_str() + bl_ofs, bl_len);
+    if (r < 0) {
       return r;
+    }
   }
   rgw_flush_formatter_and_reset(s, s->formatter);
 

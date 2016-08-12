@@ -293,7 +293,7 @@ void rgw_flush_formatter_and_reset(struct req_state *s, Formatter *formatter)
   formatter->flush(oss);
   std::string outs(oss.str());
   if (!outs.empty() && s->op != OP_HEAD) {
-    STREAM_IO(s)->write(outs.c_str(), outs.size());
+    dump_body(s, outs);
   }
 
   s->formatter->reset();
@@ -305,7 +305,7 @@ void rgw_flush_formatter(struct req_state *s, Formatter *formatter)
   formatter->flush(oss);
   std::string outs(oss.str());
   if (!outs.empty() && s->op != OP_HEAD) {
-    STREAM_IO(s)->write(outs.c_str(), outs.size());
+    dump_body(s, outs);
   }
 }
 
@@ -779,7 +779,7 @@ void abort_early(struct req_state *s, RGWOp *op, int err_no,
        *   x-amz-error-detail-Key: foo
        */
       end_header(s, op, NULL, error_content.size(), false, true);
-      STREAM_IO(s)->write(error_content.c_str(), error_content.size());
+      STREAM_IO(s)->send_body(error_content.c_str(), error_content.size());
     } else {
       end_header(s, op);
     }
@@ -808,6 +808,31 @@ void dump_range(struct req_state* const s,
                             static_cast<long long>(total));
 
   return dump_header(s, "Content-Range", boost::string_ref(range_buf, len));
+}
+
+
+int dump_body(struct req_state* const s,
+              const char* const buf,
+              const std::size_t len)
+{
+  return STREAM_IO(s)->send_body(buf, len);
+}
+
+int dump_body(struct req_state* const s, /* const */ ceph::buffer::list& bl)
+{
+  return dump_body(s, bl.c_str(), bl.length());
+}
+
+int dump_body(struct req_state* const s, const std::string& str)
+{
+  return dump_body(s, str.c_str(), str.length());
+}
+
+int recv_body(struct req_state* const s,
+              char* const buf,
+              const std::size_t max)
+{
+  return STREAM_IO(s)->recv_body(buf, max, s->aws4_auth_needs_complete);
 }
 
 int RGWGetObj_ObjStore::get_params()
@@ -1097,11 +1122,9 @@ int RGWPutObj_ObjStore::get_data(bufferlist& bl)
   if (cl) {
     bufferptr bp(cl);
 
-    int read_len; /* cio->read() expects int * */
-    int r = STREAM_IO(s)->read(bp.c_str(), cl, &read_len,
-                               s->aws4_auth_needs_complete);
-    if (r < 0) {
-      return r;
+    const auto read_len  = recv_body(s, bp.c_str(), cl);
+    if (read_len < 0) {
+      return read_len;
     }
 
     len = read_len;
@@ -1115,12 +1138,10 @@ int RGWPutObj_ObjStore::get_data(bufferlist& bl)
       }
       int len_padding = ret_auth;
       if (len_padding) {
-        int read_len;
         bufferptr bp_extra(len_padding);
-        int r = STREAM_IO(s)->read(bp_extra.c_str(), len_padding, &read_len,
-                                   s->aws4_auth_needs_complete);
-        if (r < 0) {
-          return r;
+        const auto read_len = recv_body(s, bp_extra.c_str(), len_padding);
+        if (read_len < 0) {
+          return read_len;
         }
         if (read_len != len_padding) {
           return -ERR_SIGNATURE_NO_MATCH;
@@ -1169,11 +1190,12 @@ int RGWPutACLs_ObjStore::get_params()
        op_ret = -ENOMEM;
        return op_ret;
     }
-    int read_len;
-    int r = STREAM_IO(s)->read(data, cl, &read_len, s->aws4_auth_needs_complete);
-    len = read_len;
-    if (r < 0)
-      return r;
+    const auto read_len = recv_body(s, data, cl);
+    if (read_len < 0) {
+      return read_len;
+    } else {
+      len = read_len;
+    }
     data[len] = '\0';
   } else {
     len = 0;
@@ -1195,10 +1217,10 @@ static int read_all_chunked_input(req_state *s, char **pdata, int *plen,
 
   int read_len = 0, len = 0;
   do {
-    int r = STREAM_IO(s)->read(data + len, need_to_read, &read_len, s->aws4_auth_needs_complete);
-    if (r < 0) {
+    read_len = recv_body(s, data + len, need_to_read);
+    if (read_len < 0) {
       free(data);
-      return r;
+      return read_len;
     }
 
     len += read_len;
@@ -1249,10 +1271,10 @@ int rgw_rest_read_all_input(struct req_state *s, char **pdata, int *plen,
     if (!data) {
        return -ENOMEM;
     }
-    int ret = STREAM_IO(s)->read(data, cl, &len, s->aws4_auth_needs_complete);
-    if (ret < 0) {
+    len = recv_body(s, data, cl);
+    if (len < 0) {
       free(data);
-      return ret;
+      return len;
     }
     data[len] = '\0';
   } else if (!s->length) {
@@ -1353,11 +1375,13 @@ int RGWDeleteMultiObj_ObjStore::get_params()
       op_ret = -ENOMEM;
       return op_ret;
     }
-    int read_len;
-    op_ret = STREAM_IO(s)->read(data, cl, &read_len, s->aws4_auth_needs_complete);
-    len = read_len;
-    if (op_ret < 0)
+    const auto read_len = recv_body(s, data, cl);
+    if (read_len < 0) {
+      op_ret = read_len;
       return op_ret;
+    } else {
+      len = read_len;
+    }
     data[len] = '\0';
   } else {
     return -EINVAL;
