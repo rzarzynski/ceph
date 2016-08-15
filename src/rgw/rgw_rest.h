@@ -501,6 +501,16 @@ static inline void dump_header_prefixed(struct req_state* s,
   boost::string_ref full_name(full_name_buf, len);
   return dump_header(s, std::move(full_name), std::forward<Args>(args)...);
 }
+
+template <class ValueT>
+static inline void dump_header_if_nonempty(struct req_state* s,
+                                           const boost::string_ref& name,
+                                           const ValueT& value) {
+  if (name.length() > 0 && value.length() > 0) {
+    return dump_header(s, name, value);
+  }
+}
+
 extern void dump_content_length(struct req_state *s, uint64_t len);
 extern void dump_etag(struct req_state *s, const boost::string_ref& etag);
 extern void dump_etag(struct req_state *s, ceph::buffer::list& bl_etag);
@@ -517,7 +527,6 @@ extern void dump_time(struct req_state *s, const char *name, real_time *t);
 extern void dump_bucket_from_state(struct req_state *s);
 extern void dump_uri_from_state(struct req_state *s);
 extern void dump_redirect(struct req_state *s, const string& redirect);
-extern void dump_pair(struct req_state *s, const char *key, const char *value);
 extern bool is_valid_url(const char *url);
 extern void dump_access_control(struct req_state *s, const char *origin,
 				const char *meth,
