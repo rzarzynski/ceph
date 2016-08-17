@@ -108,8 +108,8 @@ public:
   }
 };
 
-template <typename T>
-RGWStreamIOAccountingEngine<T> add_accounting(T&& t) {
+template <typename T> static inline
+RGWStreamIOAccountingEngine<T> rgw_restful_io_add_accounting(T&& t) {
   return RGWStreamIOAccountingEngine<T>(std::move(t));
 }
 
@@ -201,6 +201,11 @@ int RGWStreamIOBufferingEngine<T>::complete_request()
   return sent + RGWDecoratedStreamIO<T>::complete_request();
 }
 
+template <typename T> static inline
+RGWStreamIOBufferingEngine<T> rgw_restful_io_add_buffering(T&& t) {
+  return RGWStreamIOBufferingEngine<T>(std::move(t));
+}
+
 
 template <typename T>
 class RGWStreamIOChunkingEngine : public RGWDecoratedStreamIO<T> {
@@ -264,8 +269,8 @@ public:
   }
 };
 
-template <typename T>
-RGWStreamIOChunkingEngine<T> add_chunking(T&& t) {
+template <typename T> static inline
+RGWStreamIOChunkingEngine<T> rgw_restful_io_add_chunking(T&& t) {
   return RGWStreamIOChunkingEngine<T>(std::move(t));
 }
 
@@ -313,8 +318,8 @@ public:
   }
 };
 
-template <typename T>
-RGWStreamIOConLenControllingEngine<T> add_conlen_controlling(T&& t) {
+template <typename T> static inline
+RGWStreamIOConLenControllingEngine<T> rgw_restful_io_add_conlen_controlling(T&& t) {
   return RGWStreamIOConLenControllingEngine<T>(std::move(t));
 }
 
@@ -394,8 +399,8 @@ public:
   }
 };
 
-template <typename T>
-RGWStreamIOReorderingEngine<T> add_reordering(T&& t) {
+template <typename T> static inline
+RGWStreamIOReorderingEngine<T> rgw_restful_io_add_reordering(T&& t) {
   return RGWStreamIOReorderingEngine<T>(std::move(t));
 }
 
@@ -427,8 +432,8 @@ public:
   }
 };
 
-template <typename T>
-RGWStreamIOUrlPrefixingEngine<T> add_prefixing(
+template <typename T> static inline
+RGWStreamIOUrlPrefixingEngine<T> rgw_restful_io_add_prefixing(
   std::string uri_prefix,
   T&& t
 ) {
