@@ -525,7 +525,13 @@ rgw::auth::Strategy::authenticate(const req_state* const s) const
     const rgw::auth::Engine& engine = kv.first;
     const auto& policy = kv.second;
 
-    auto&& res = engine.authenticate(s);
+    rgw::auth::Engine::result_t res;
+    try {
+      res = engine.authenticate(s);
+    } catch (int err) {
+      /* NOP */
+    }
+
     const auto& applier = res.first;
     if (! applier) {
       /* The current auth engine denied authenticate the request returning
