@@ -412,11 +412,11 @@ public:
  * It's expected that most (if not all) of implementations will also
  * conform to rgw::auth::Identity interface to provide authorization
  * policy (ACLs, account's ownership and entitlement). */
-class Applier {
+class IdentityApplier : public Identity {
 public:
-  typedef std::unique_ptr<Applier> aplptr_t;
+  typedef std::unique_ptr<IdentityApplier> aplptr_t;
 
-  virtual ~Applier() {};
+  virtual ~IdentityApplier() {};
 
   /* Fill provided RGWUserInfo with information about the account that
    * RGWOp will operate on. Errors are handled solely through exceptions.
