@@ -435,7 +435,7 @@ public:
  *
  * An engine is supposed only to authenticate (not authorize!) requests
  * basing on their req_state and provide an upper layer with:
- *  - rgw::auth::Applier to commit all changes to the request state as
+ *  - rgw::auth::IdentityApplier to commit all changes to the request state as
  *    well as to the RADOS store (creating an account, synchronizing
  *    user-related information with external databases and so on).
  *  - rgw::auth::Completer (optionally) to finish the authentication
@@ -450,9 +450,9 @@ public:
  *    returned, after the authenticate() step but before *committing*
  *    those modifications or sending a response (RGWOp::complete).
  *
- * The lifetime of an engine outperforms both Applier and Completer. It's
+ * An engine outlives both Applier and Completer. It's
  * intended to live since RadosGW's initialization and handle multiple
- * requests till the reconfiguration.
+ * requests till a reconfiguration.
  *
  * Auth engine MUST NOT make any changes to req_state nor RADOS store.
  * This is solely an Applier's responsibility!
@@ -465,7 +465,7 @@ class Engine {
 public:
   virtual ~Engine() = default;
 
-  using result_t = std::pair<std::unique_ptr<class Applier>,
+  using result_t = std::pair<std::unique_ptr<class IdentityApplier>,
                              std::unique_ptr<class Completer>>;
 
   /* Get name of the auth engine. */
@@ -501,6 +501,8 @@ public:
  *  E. execute-commit - commit the modifications from point C. */
 class Completer {
 public:
+  typedef std::unique_ptr<Completer> cmplptr_t;
+
   virtual ~Completer() = default;
 
   /* Complete the authentication process. Return boolean indicating whether
