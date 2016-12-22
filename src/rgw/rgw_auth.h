@@ -561,8 +561,7 @@ protected:
  * As the authenticated user may not have an account yet, RGWRemoteAuthApplier
  * must be able to create it basing on data passed by an auth engine. Those
  * data will be used to fill RGWUserInfo structure. */
-class RemoteApplier : public Applier,
-                      public Identity {
+class RemoteApplier : public IdentityApplier {
 public:
   class AuthInfo {
     friend class RemoteApplier;
@@ -613,9 +612,9 @@ protected:
 
 public:
   RemoteApplier(CephContext* const cct,
-                       RGWRados* const store,
-                       acl_strategy_t&& extra_acl_strategy,
-                       const AuthInfo& info)
+                RGWRados* const store,
+                acl_strategy_t&& extra_acl_strategy,
+                const AuthInfo& info)
     : cct(cct),
       store(store),
       extra_acl_strategy(std::move(extra_acl_strategy)),
