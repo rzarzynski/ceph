@@ -646,8 +646,7 @@ public:
  * enclosed in the RGWUserInfo control structure. As a side effect of doing
  * the authentication process, they must have it loaded. Leveraging this is
  * a way to avoid unnecessary calls to underlying RADOS store. */
-class LocalApplier : public Applier,
-                     public Identity {
+class LocalApplier : public IdentityApplier {
   using aclspec_t = RGWIdentityApplier::aclspec_t;
 
 protected:
