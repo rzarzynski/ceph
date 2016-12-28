@@ -1793,13 +1793,18 @@ struct RGWBucketEnt {
   rgw_bucket bucket;
   size_t size;
   size_t size_rounded;
-  real_time creation_time;
+  ceph::real_time creation_time;
   uint64_t count;
+
+  /* The placement_rule is necessary to calculate per-storage-policy statics
+   * of the Swift API. Although the info available in RGWBucketInfo, we need
+   * to duplicate it here to not affect the performance of buckets listing. */
+  std::string placement_rule;
 
   RGWBucketEnt() : size(0), size_rounded(0), count(0) {}
 
-  explicit RGWBucketEnt(const rgw_user& u, const cls_user_bucket_entry& e)
-    : bucket(u, e.bucket),
+  explicit RGWBucketEnt(const rgw_user& u, cls_user_bucket_entry&& e)
+    : bucket(u, std::move(e.bucket)),
       size(e.size),
       size_rounded(e.size_rounded),
       creation_time(e.creation_time),
