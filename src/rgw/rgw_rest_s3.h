@@ -640,7 +640,8 @@ protected:
                                 std::string signature,
                                 std::string expires,
                                 bool qsr,
-                                const req_info& info) const = 0;
+                                const req_info& info,
+                                const req_state* s) const = 0;
 
 public:
   result_t authenticate(const req_state* const s) const final {
@@ -656,7 +657,7 @@ public:
       return std::make_pair(nullptr, nullptr);
     } else {
       return authenticate(std::move(access_key_id), std::move(signature),
-                          std::move(expires), qsr, s->info);
+                          std::move(expires), qsr, s->info, s);
     }
   }
 };
@@ -711,7 +712,8 @@ protected:
                         std::string signature,
                         std::string expires,
                         bool qsr,
-                        const req_info& info) const override;
+                        const req_info& info,
+                        const req_state* s) const override;
 public:
   LDAPEngine(CephContext* const cct,
              RGWRados* const store,
@@ -739,7 +741,8 @@ class LocalVersion2ndEngine : public Version2ndEngine {
                         std::string signature,
                         std::string expires,
                         bool qsr,
-                        const req_info& info) const override;
+                        const req_info& info,
+                        const req_state* s) const override;
 public:
   LocalVersion2ndEngine(CephContext* const cct,
                         RGWRados* const store,
@@ -769,6 +772,7 @@ public:
   }
 
   aplptr_t create_apl_remote(CephContext* const cct,
+                             const req_state* const s,
                              rgw::auth::RemoteApplier::acl_strategy_t&& acl_alg,
                              const rgw::auth::RemoteApplier::AuthInfo info
                             ) const override {
@@ -777,6 +781,7 @@ public:
   }
 
   aplptr_t create_apl_local(CephContext* const cct,
+                            const req_state* const s,
                             const RGWUserInfo& user_info,
                             const std::string& subuser) const override {
       return aplptr_t(
