@@ -33,6 +33,8 @@
 
 KernelDevice::KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv)
   : BlockDevice(cct),
+    clk("_aio_thread(main while)"),
+    clk_priv("_aio_thread(priv_callback)"),
     fd_direct(-1),
     fd_buffered(-1),
     size(0), block_size(0),
@@ -242,6 +244,8 @@ void KernelDevice::_aio_thread()
   dout(10) << __func__ << " start" << dendl;
   int inject_crash_count = 0;
   while (!aio_stop) {
+    Xrange while_range(&clk);
+
     dout(40) << __func__ << " polling" << dendl;
     int max = 16;
     FS::aio_t *aio[max];
@@ -275,6 +279,7 @@ void KernelDevice::_aio_thread()
 	  void *priv = ioc->priv;
 	  ioc->aio_wake();
 	  if (priv) {
+            Xrange priv_cb_range(&clk_priv);
 	    aio_callback(aio_callback_priv, priv);
 	  }
 	}

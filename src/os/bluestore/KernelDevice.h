@@ -22,7 +22,56 @@
 
 #include "BlockDevice.h"
 
+inline uint64_t now_thread_usec()
+{
+  struct timespec x;
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &x);
+  return x.tv_sec*1000000000L + x.tv_nsec;
+}
+inline uint64_t now_wall_usec()
+{
+  struct timespec x;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &x);
+  return x.tv_sec*1000000000L + x.tv_nsec;
+}
+class Xclock
+{
+public:
+  const char* name;
+  uint64_t t = 0;
+  uint64_t wall_t = 0;
+  Xclock(const char* name) : name(name) {
+  }
+  ~Xclock()
+  {
+    cout << name << "(cpu)=" << t << std::endl;
+    cout << name << "(wall)=" << wall_t << std::endl;
+  }
+};
+class Xrange
+{
+public:
+  Xclock* p;
+  Xrange(Xclock* p) : p(p) {
+    p->t -= now_thread_usec();
+    p->wall_t -= now_wall_usec();
+  }
+  ~Xrange() {
+    {
+      uint64_t m1 = now_thread_usec();
+      uint64_t m2 = now_thread_usec();
+      p->t += m1 - (m2 - m1);
+    }
+    {
+      uint64_t m1 = now_wall_usec();
+      uint64_t m2 = now_wall_usec();
+      p->wall_t += m1 - (m2 - m1);
+    }
+  }
+};
 class KernelDevice : public BlockDevice {
+    Xclock clk;
+    Xclock clk_priv;
   int fd_direct, fd_buffered;
   uint64_t size;
   uint64_t block_size;

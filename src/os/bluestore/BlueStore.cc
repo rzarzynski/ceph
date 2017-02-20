@@ -110,6 +110,54 @@ const string PREFIX_SHARED_BLOB = "X"; // u64 offset -> shared_blob_t
  */
 #define EXTENT_SHARD_KEY_SUFFIX 'x'
 
+inline uint64_t now_thread_usec()
+{
+  struct timespec x;
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &x);
+  return x.tv_sec*1000000000L + x.tv_nsec;
+}
+inline uint64_t now_wall_usec()
+{
+  struct timespec x;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &x);
+  return x.tv_sec*1000000000L + x.tv_nsec;
+}
+class Xclock
+{
+public:
+  const char* name;
+  uint64_t t = 0;
+  uint64_t wall_t = 0;
+  Xclock(const char* name) : name(name) {
+  }
+  ~Xclock()
+  {
+    cout << name << "(cpu)=" << t << std::endl;
+    cout << name << "(wall)=" << wall_t << std::endl;
+  }
+};
+class Xrange
+{
+public:
+  Xclock* p;
+  Xrange(Xclock* p) : p(p) {
+    p->t -= now_thread_usec();
+    p->wall_t -= now_wall_usec();
+  }
+  ~Xrange() {
+    {
+      uint64_t m1 = now_thread_usec();
+      uint64_t m2 = now_thread_usec();
+      p->t += m1 - (m2 - m1);
+    }
+    {
+      uint64_t m1 = now_wall_usec();
+      uint64_t m2 = now_wall_usec();
+      p->wall_t += m1 - (m2 - m1);
+    }
+  }
+};
+
 /*
  * string encoding in the key
  *
@@ -1248,6 +1296,7 @@ BlueStore::OnodeRef BlueStore::OnodeSpace::add(const ghobject_t& oid, OnodeRef o
   }
   ldout(cache->cct, 30) << __func__ << " " << oid << " " << o << dendl;
   onode_map[oid] = o;
+  std::cout << "oid=" << oid << std::endl;
   cache->_add_onode(o, 1);
   return o;
 }
@@ -1256,6 +1305,7 @@ BlueStore::OnodeRef BlueStore::OnodeSpace::lookup(const ghobject_t& oid)
 {
   std::lock_guard<std::recursive_mutex> l(cache->lock);
   ldout(cache->cct, 30) << __func__ << dendl;
+  //std::cout << "onode_map.size()=" << onode_map.size() << std::endl;
   ceph::unordered_map<ghobject_t,OnodeRef>::iterator p = onode_map.find(oid);
   if (p == onode_map.end()) {
     ldout(cache->cct, 30) << __func__ << " " << oid << " miss" << dendl;
@@ -7300,6 +7350,8 @@ void BlueStore::_kv_sync_thread()
       kv_cond.wait(l);
       dout(20) << __func__ << " wake" << dendl;
     } else {
+      static Xclock clk("_kv_sync_thread(main else)");
+      Xrange main_range(&clk);
       deque<TransContext*> kv_submitting;
       deque<TransContext*> wal_cleaning;
       dout(20) << __func__ << " committing " << kv_queue.size()
@@ -7406,6 +7458,9 @@ void BlueStore::_kv_sync_thread()
       dout(20) << __func__ << " committed " << kv_committing.size()
 	       << " cleaned " << wal_cleaning.size()
 	       << " in " << dur << dendl;
+      {
+        static Xclock clk("_kv_sync_thread(kv_commiting while)");
+        Xrange while_range(&clk);
       while (!kv_committing.empty()) {
 	TransContext *txc = kv_committing.front();
 	assert(txc->state == TransContext::STATE_KV_SUBMITTED);
@@ -7418,6 +7473,7 @@ void BlueStore::_kv_sync_thread()
 	_txc_release_alloc(txc);
 	_txc_state_proc(txc);
 	wal_cleaning.pop_front();
+      }
       }
 
       // this is as good a place as any ...
@@ -7568,6 +7624,9 @@ int BlueStore::queue_transactions(
     ThreadPool::TPHandle *handle)
 {
   FUNCTRACE();
+  static Xclock clk("queue_transactions(whole)");
+  Xrange whole_range(&clk);
+
   Context *onreadable;
   Context *ondisk;
   Context *onreadable_sync;

@@ -9,6 +9,53 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "finisher(" << this << ") "
 
+inline uint64_t now_thread_usec()
+{
+  struct timespec x;
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &x);
+  return x.tv_sec*1000000000L + x.tv_nsec;
+}
+inline uint64_t now_wall_usec()
+{
+  struct timespec x;
+  clock_gettime(CLOCK_MONOTONIC_RAW, &x);
+  return x.tv_sec*1000000000L + x.tv_nsec;
+}
+class Xclock_fin
+{
+public:
+  const char* name;
+  uint64_t t = 0;
+  uint64_t wall_t = 0;
+  Xclock_fin(const char* name) : name(name) {
+  }
+  ~Xclock_fin()
+  {
+    cout << std::endl << name << "(cpu)=" << t << ";;;;;;" << std::endl;
+    cout << name << "(wall)=" << wall_t << std::endl;
+  }
+};
+class Xrange
+{
+public:
+  Xclock_fin* p;
+  Xrange(Xclock_fin* p) : p(p) {
+    p->t -= now_thread_usec();
+    p->wall_t -= now_wall_usec();
+  }
+  ~Xrange() {
+    {
+      uint64_t m1 = now_thread_usec();
+      uint64_t m2 = now_thread_usec();
+      p->t += m1 - (m2 - m1);
+    }
+    {
+      uint64_t m1 = now_wall_usec();
+      uint64_t m2 = now_wall_usec();
+      p->wall_t += m1 - (m2 - m1);
+    }
+  }
+};
 void Finisher::start()
 {
   ldout(cct, 10) << __func__ << dendl;
@@ -41,9 +88,11 @@ void Finisher::wait_for_empty()
 
 void *Finisher::finisher_thread_entry()
 {
+  Xclock_fin clk("finisher(queue processing)");
   finisher_lock.Lock();
   ldout(cct, 10) << "finisher_thread start" << dendl;
 
+      Xrange queue_range(&clk);
   utime_t start, end;
   while (!finisher_stop) {
     /// Every time we are woken up, we process the queue until it is empty.
