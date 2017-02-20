@@ -3,15 +3,29 @@
 ioengine=libfio_ceph_objectstore.so # must be found in your LD_LIBRARY_PATH
 
 conf=ceph-bluestore.conf # must point to a valid ceph configuration file
-directory=/mnt/fio-bluestore # directory for osd_data
+directory=/tmp/bs # directory for osd_data
 
 rw=randwrite
-iodepth=16
+iodepth=256
+thread=1
 
 time_based=1
-runtime=20s
+runtime=200s
+runtime=30s
 
 [bluestore]
 nr_files=64
-size=256m
-bs=64k
+#nr_files=65536
+#size=256m
+size=256k
+bs=4k
+
+#randrepeat=1
+#direct=1
+#gtod_reduce=1
+#name=/tmp/bs/test
+#filename=/tmp/bs/test
+#bs=4k
+#iodepth=128
+#readwrite=randwrite
+#ramp_time=4
