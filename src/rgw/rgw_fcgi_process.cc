@@ -118,9 +118,7 @@ void RGWFCGXProcess::handle_request(RGWRequest* r)
 
   RGWFCGX fcgxfe(req->fcgx);
   auto real_client_io = rgw::io::add_reordering(
-                          rgw::io::add_buffering(
-                            rgw::io::add_chunking(
-                              &fcgxfe)));
+                            &fcgxfe);
   RGWRestfulIO client_io(&real_client_io);
 
  
