@@ -128,12 +128,14 @@ public:
   const char* name;
   uint64_t t = 0;
   uint64_t wall_t = 0;
+  uint64_t num = 0;
   Xclock(const char* name) : name(name) {
   }
   ~Xclock()
   {
     cout << name << "(cpu)=" << t << std::endl;
     cout << name << "(wall)=" << wall_t << std::endl;
+    cout << name << "(num)=" << num << std::endl;
   }
 };
 class Xrange
@@ -143,6 +145,7 @@ public:
   Xrange(Xclock* p) : p(p) {
     p->t -= now_thread_usec();
     p->wall_t -= now_wall_usec();
+    p->num++;
   }
   ~Xrange() {
     {
