@@ -1625,6 +1625,23 @@ public:
     }
   };
 
+  struct NagleBatcherThread : public Thread {
+    BlueStore* const store;
+    explicit NagleBatcherThread(BlueStore* store)
+      : store(store) {
+    }
+
+    void *entry() {
+      //store->_kv_sync_thread();
+      return nullptr;;
+    }
+  };
+
+  typedef deque<std::tuple<Sequencer*,
+                std::vector<Transaction>,
+                ThreadPool::TPHandle*>> submit_queue_t;
+  submit_queue_t submit_queue;
+
   struct KVSyncThread : public Thread {
     BlueStore *store;
     explicit KVSyncThread(BlueStore *s) : store(s) {}
@@ -1823,6 +1840,7 @@ private:
   void _dump_extent_map(ExtentMap& em, int log_level=30);
   void _dump_transaction(Transaction *t, int log_level = 30);
 
+  void _submit_queued();
   TransContext *_txc_create(OpSequencer *osr);
   void _txc_update_store_statfs(TransContext *txc);
   void _txc_add_transaction(TransContext *txc, Transaction *t);
