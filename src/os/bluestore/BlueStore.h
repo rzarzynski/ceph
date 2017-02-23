@@ -22,6 +22,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <chrono>
 #include <functional>
 
 #include <boost/intrusive/list.hpp>
@@ -1627,20 +1628,23 @@ public:
 
   struct NagleBatcherThread : public Thread {
     BlueStore* const store;
-    explicit NagleBatcherThread(BlueStore* store)
-      : store(store) {
+    std::atomic<uint64_t> touched;
+
+    explicit NagleBatcherThread(BlueStore* store) noexcept
+      : store(store),
+        touched({0}) {
     }
+    ~NagleBatcherThread() = default;
 
     void *entry() {
-      //store->_kv_sync_thread();
-      return nullptr;;
+      store->_prepare_thread();
+      return nullptr;
+    }
+
+    void touch() noexcept {
+      touched.store(ceph_clock_now().usec());
     }
   };
-
-  typedef deque<std::tuple<Sequencer*,
-                std::vector<Transaction>,
-                ThreadPool::TPHandle*>> submit_queue_t;
-  submit_queue_t submit_queue;
 
   struct KVSyncThread : public Thread {
     BlueStore *store;
@@ -1712,6 +1716,18 @@ private:
 
   int m_finisher_num;
   vector<Finisher*> finishers;
+
+
+  NagleBatcherThread nagle_submit_thread;
+  typedef deque<std::tuple<Sequencer*,
+                std::vector<Transaction>,
+                ThreadPool::TPHandle*>> submit_queue_t;
+  submit_queue_t submit_queue;
+  std::mutex submit_lock;
+  std::mutex prepare_ctl_lock;
+  std::condition_variable prepare_ctl_cond;
+  bool prepare_stop;
+
 
   KVSyncThread kv_sync_thread;
   std::mutex kv_lock;
@@ -1840,7 +1856,11 @@ private:
   void _dump_extent_map(ExtentMap& em, int log_level=30);
   void _dump_transaction(Transaction *t, int log_level = 30);
 
-  void _submit_queued();
+  void _submit_queued(submit_queue_t& submitting_queue);
+
+  TransContext *_txc_prepare(Sequencer *posr,
+                             std::vector<Transaction>& tls,
+                             ThreadPool::TPHandle *handle);
   TransContext *_txc_create(OpSequencer *osr);
   void _txc_update_store_statfs(TransContext *txc);
   void _txc_add_transaction(TransContext *txc, Transaction *t);
@@ -1860,6 +1880,20 @@ private:
   void _txc_finish(TransContext *txc);
 
   void _osr_reap_done(OpSequencer *osr);
+
+  void _prepare_thread();
+  void _prepare_stop() {
+    {
+      std::lock_guard<std::mutex> l(prepare_ctl_lock);
+      prepare_stop = true;
+      prepare_ctl_cond.notify_all();
+    }
+    nagle_submit_thread.join();
+    {
+      std::lock_guard<std::mutex> l(prepare_ctl_lock);
+      prepare_stop = false;
+    }
+  }
 
   void _kv_sync_thread();
   void _kv_stop() {
