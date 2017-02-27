@@ -1991,7 +1991,8 @@ public:
     _txc_state_proc(batch);
   }
 private:
-  void _txc_finish_io(TransContext *txc);
+  void _txc_finish_io_osr(OpSequencer* osr, TransBatch& batch);
+  void _txc_finish_io(TransBatch& batch);
   void _txc_finalize_kv(TransContext *txc, KeyValueDB::Transaction t);
   void _txc_release_alloc(TransBatch& batch);
   void _txc_release_alloc(TransContext *txc);
