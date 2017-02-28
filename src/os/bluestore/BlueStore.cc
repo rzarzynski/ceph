@@ -7114,14 +7114,16 @@ void BlueStore::_txc_state_proc(TransBatch batch)
       batch.log_state_latency(logger, l_bluestore_state_prepare_lat);
       {
       TransBatch pending_aios = batch.dissect([](TransContext* txc) {
-        return txc->ioc.has_pending_aios();
+        if (txc->ioc.has_pending_aios()) {
+	  txc->had_ios = true;
+          return true;
+        } else {
+          return false;
+        }
       });
 
       pending_aios.set_state(TransContext::STATE_AIO_WAIT);
-      pending_aios.for_each([this](TransContext* txc) {
-	txc->had_ios = true;
-	_txc_aio_submit(txc);
-      });
+      _txc_aio_submit(pending_aios);
       }
       // ** fall-thru **
 
@@ -7216,7 +7218,7 @@ void BlueStore::_txc_state_proc(TransBatch batch)
       batch.dissect([this](TransContext* txc) {
         if (txc->ioc.has_pending_aios()) {
           txc->state = TransContext::STATE_WAL_AIO_WAIT;
-          _txc_aio_submit(txc);
+          //_txc_aio_submit(txc);
           return true;
         } else {
           return false;
@@ -8078,10 +8080,12 @@ void BlueStore::_op_queue_release_wal_throttle(TransContext *txc)
   logger->set(l_bluestore_cur_bytes_in_wal_queue, throttle_wal_bytes.get_current());
 }
 
-void BlueStore::_txc_aio_submit(TransContext *txc)
+void BlueStore::_txc_aio_submit(TransBatch& batch)
 {
-  dout(10) << __func__ << " txc " << txc << dendl;
-  bdev->aio_submit(&txc->ioc);
+  for (auto txc : batch) {
+    dout(10) << __func__ << " txc " << txc << dendl;
+    bdev->aio_submit(&txc->ioc);
+  }
 }
 
 void BlueStore::_txc_add_transaction(TransContext *txc, Transaction *t)
