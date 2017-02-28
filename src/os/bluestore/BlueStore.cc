@@ -7129,7 +7129,7 @@ void BlueStore::_txc_state_proc(TransBatch batch)
 
     case TransContext::STATE_AIO_WAIT:
       batch.log_state_latency(logger, l_bluestore_state_aio_wait_lat);
-      batch.set_state(TransContext::STATE_IO_DONE);
+      //batch.set_state(TransContext::STATE_IO_DONE);
       _txc_finish_io(batch);  // may trigger blocked txc's too
       return;
 
@@ -7259,15 +7259,31 @@ void BlueStore::_txc_finish_io_osr(OpSequencer* const osr, TransBatch& batch)
    * even though aio will complete in any order.
    */
 
+  for (auto txc : batch) {
+    if (txc->osr == osr) {
+      txc->state = TransContext::STATE_IO_DONE;
+    }
+  }
+
+#if 1
+  OpSequencer::q_list_t::iterator txc = osr->q.begin();
+  for (; txc != osr->q.end(); txc++) {
+     std::cout << "batch=" << &batch << "osr="<<osr<<" txc.state="<<txc->state<<std::endl;
+   }
+#endif
+
   //assert(osr->qlock.is_locked());  // see _txc_finish_io
   OpSequencer::q_list_t::iterator p = osr->q.end();
   while (p != osr->q.begin()) {
     --p;
 
-    if (std::find(std::begin(batch), std::end(batch), &*p) ==
-        std::end(batch)) {
-      continue;
+    if (p->state == TransContext::STATE_IO_DONE) {
+      break;
     }
+  }
+
+  while (p != osr->q.begin()) {
+    --p;
 
     if (p->state < TransContext::STATE_IO_DONE) {
       dout(20) << __func__ << " blocked by " << &*p << " "
@@ -7281,12 +7297,17 @@ void BlueStore::_txc_finish_io_osr(OpSequencer* const osr, TransBatch& batch)
     }
   }
 
+#if 0
+  OpSequencer::q_list_t::iterator txc = osr->q.begin();
+#endif
+
   /* It should be fine don't care about transaction order across *different*
    * sequencers. */
   TransBatch new_batch(TransContext::STATE_IO_DONE);
   while (p != osr->q.end() &&
          p->state == TransContext::STATE_IO_DONE) {
-    new_batch.emplace_back(&*p++);
+    new_batch.emplace_back(&*p);
+    p++;
   }
 
   if (! new_batch.empty()) {
