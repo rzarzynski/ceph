@@ -1997,7 +1997,7 @@ private:
   void _txc_release_alloc(TransBatch& batch);
   void _txc_release_alloc(TransContext *txc);
   void _txc_finish_kv(TransBatch& batch);
-  void _txc_finish(TransContext *txc);
+  void _txc_finish(TransBatch& txc);
 
   void _osr_reap_done(OpSequencer *osr);
 

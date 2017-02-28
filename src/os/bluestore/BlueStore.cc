@@ -7240,9 +7240,7 @@ void BlueStore::_txc_state_proc(TransBatch batch)
 
     case TransContext::STATE_FINISHING:
       batch.log_state_latency(logger, l_bluestore_state_finishing_lat);
-      batch.for_each([this](TransContext* txc) {
-        _txc_finish(txc);
-      });
+      _txc_finish(batch);
       return;
 
     default:
@@ -7452,11 +7450,14 @@ void BlueStore::BSPerfTracker::update_from_perfcounters(
       l_bluestore_commit_lat));
 }
 
-void BlueStore::_txc_finish(TransContext *txc)
+void BlueStore::_txc_finish(TransBatch& batch)
 {
-  dout(20) << __func__ << " " << txc << " onodes " << txc->onodes << dendl;
-  assert(txc->state == TransContext::STATE_FINISHING);
+//  dout(20) << __func__ << " " << txc << " onodes " << txc->onodes << dendl;
 
+  std::set<OpSequencer*> osrs;
+
+  for (auto txc : batch) {
+    assert(txc->state == TransContext::STATE_FINISHING);
   for (auto ls : { &txc->onodes, &txc->modified_objects }) {
     for (auto& o : *ls) {
       std::lock_guard<std::mutex> l(o->flush_lock);
@@ -7472,20 +7473,21 @@ void BlueStore::_txc_finish(TransContext *txc)
     ls->clear();  // clear out refs
   }
 
-  while (!txc->removed_collections.empty()) {
-    _queue_reap_collection(txc->removed_collections.front());
-    txc->removed_collections.pop_front();
-  }
+    while (!txc->removed_collections.empty()) {
+      _queue_reap_collection(txc->removed_collections.front());
+      txc->removed_collections.pop_front();
+    }
 
-  _op_queue_release_wal_throttle(txc);
-
-  OpSequencerRef osr = txc->osr;
-  {
-    std::lock_guard<std::mutex> l(osr->qlock);
     txc->state = TransContext::STATE_DONE;
+    osrs.insert(txc->osr.get());
   }
 
-  _osr_reap_done(osr.get());
+  _op_queue_release_wal_throttle(batch);
+
+  for (auto osr : osrs) {
+    _osr_reap_done(osr);
+  }
+  //std::cout << "batch.size=" << batch.size() << " osrs.count=" << osrs.size() << std::endl;
 }
 
 void BlueStore::_osr_reap_done(OpSequencer *osr)
