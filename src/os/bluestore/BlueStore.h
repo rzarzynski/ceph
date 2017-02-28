@@ -2568,7 +2568,7 @@ private:
   void _op_queue_reserve_throttle(TransContext *txc);
   void op_queue_release_throttle(TransBatch& batch);
   void _op_queue_reserve_wal_throttle(TransContext *txc);
-  void _op_queue_release_wal_throttle(TransContext *txc);
+  void _op_queue_release_wal_throttle(const TransBatch& batch);
 };
 
 inline ostream& operator<<(ostream& out, const BlueStore::OpSequencer& s) {
