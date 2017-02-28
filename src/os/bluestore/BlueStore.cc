@@ -8071,10 +8071,24 @@ void BlueStore::_op_queue_reserve_wal_throttle(TransContext *txc)
   logger->set(l_bluestore_cur_bytes_in_wal_queue, throttle_wal_bytes.get_current());
 }
 
-void BlueStore::_op_queue_release_wal_throttle(TransContext *txc)
+void BlueStore::_op_queue_release_wal_throttle(const TransBatch& batch)
 {
-  throttle_wal_ops.put(txc->ops);
-  throttle_wal_bytes.put(txc->bytes);
+  uint64_t total_ops = 0, total_bytes = 0;
+
+  for (auto txc : batch) {
+//    total_ops += txc->ops;
+//    total_bytes += txc->bytes;
+    throttle_wal_ops.put(txc->ops);
+    throttle_wal_bytes.put(txc->bytes);
+  }
+
+  if (total_ops) {
+//    throttle_wal_ops.put(total_ops);
+  }
+
+  if (total_bytes) {
+//    throttle_wal_bytes.put(total_bytes);
+  }
 
   logger->set(l_bluestore_cur_ops_in_wal_queue, throttle_wal_ops.get_current());
   logger->set(l_bluestore_cur_bytes_in_wal_queue, throttle_wal_bytes.get_current());
