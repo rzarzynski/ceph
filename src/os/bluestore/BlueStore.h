@@ -430,7 +430,7 @@ public:
 
   /// in-memory blob metadata and associated cached buffers (if any)
   struct Blob {
-    MEMPOOL_CLASS_HELPERS();
+    //MEMPOOL_CLASS_HELPERS();
 
     std::atomic_int nref = {0};     ///< reference count
     int16_t id = -1;                ///< id, for spanning blobs only, >= 0
@@ -513,8 +513,9 @@ public:
       ++nref;
     }
     void put() {
-      if (--nref == 0)
-	delete this;
+      if (--nref == 0) {
+	//delete this;
+      }
     }
 
 
@@ -593,7 +594,7 @@ public:
 #endif
   };
   typedef boost::intrusive_ptr<Blob> BlobRef;
-  typedef mempool::bluestore_meta_other::map<int,BlobRef> blob_map_t;
+  typedef std::map<int,BlobRef> blob_map_t;
 
   /// a logical extent, pointing to (some portion of) a blob
   typedef boost::intrusive::set_base_hook<boost::intrusive::optimize_size<true> > ExtentBase; //making an alias to avoid build warnings
@@ -961,6 +962,7 @@ public:
     bluestore_onode_t onode;  ///< metadata stored as value in kv store
     bool exists;              ///< true if object logically exists
 
+    boost::object_pool<Blob> blob_pool{4096};
     boost::object_pool<Extent> extent_pool{4096,4096};
     ExtentMap extent_map;
 
@@ -1295,8 +1297,8 @@ public:
     void load_shared_blob(SharedBlobRef sb);
     void make_blob_shared(uint64_t sbid, BlobRef b);
 
-    BlobRef new_blob() {
-      BlobRef b = new Blob();
+    BlobRef new_blob(Onode* const onode) {
+      BlobRef b = onode->blob_pool.construct();
       b->shared_blob = new SharedBlob(this);
       return b;
     }
