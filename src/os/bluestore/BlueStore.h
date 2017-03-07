@@ -426,7 +426,7 @@ public:
     }
   };
 
-//#define CACHE_BLOB_BL  // not sure if this is a win yet or not... :/
+#define CACHE_BLOB_BL
 
   /// in-memory blob metadata and associated cached buffers (if any)
   struct Blob {
@@ -440,7 +440,10 @@ public:
   private:
     mutable bluestore_blob_t blob;  ///< decoded blob metadata
 #ifdef CACHE_BLOB_BL
-    mutable bufferlist blob_bl;     ///< cached encoded blob, blob is dirty if empty
+    mutable struct {
+      size_t size = 0;
+      char buffer[128 - sizeof(size)];
+    } blob_cache;                   ///< cached encoded blob, blob is dirty if empty
 #endif
     /// refs from this shard.  ephemeral if id<0, persisted if spanning.
     bluestore_blob_use_tracker_t used_in_blob;
@@ -482,8 +485,17 @@ public:
     void dup(Blob& o) {
       o.shared_blob = shared_blob;
       o.blob = blob;
+
 #ifdef CACHE_BLOB_BL
-      o.blob_bl = blob_bl;
+      if (likely(blob_cache.size > 0 &&
+          blob_cache.size <= sizeof(blob_cache.buffer))) {
+        /* Copy also the buffer only if it actually contains encoded blob.
+         * As the data cache is fixed sized, blob can be too large. */
+        o.blob_cache = blob_cache;
+      } else {
+        /* Copy only size cache. */
+        o.blob_cache.size = blob_cache.size;
+      }
 #endif
     }
 
@@ -492,7 +504,7 @@ public:
     }
     bluestore_blob_t& dirty_blob() {
 #ifdef CACHE_BLOB_BL
-      blob_bl.clear();
+      blob_cache.size = 0;
 #endif
       return blob;
     }
@@ -520,44 +532,71 @@ public:
 
 
 #ifdef CACHE_BLOB_BL
-    void _encode(const uint64_t struct_v) const {
-      if (blob_bl.length() == 0) {
-        size_t bound = 0;
-        denc(blob, bound, struct_v);
-        auto app = blob_bl.get_contiguous_appender(bound);
-        denc(blob, app, struct_v);
-      } else {
-	assert(blob_bl.length());
+    void _encode_blob_to_cache(const uint64_t struct_v) const {
+      /* XXX: we don't memorize struct_v in the cache as it's supposed that
+       * value doesn't change. */
+
+      if (unlikely(blob_cache.size == 0)) {
+        /* Neither cached size nor data -- we need to fill the cache now. */
+        denc(blob, blob_cache.size, struct_v);
+
+        if (unlikely(blob.is_shared())) {
+          denc(shared_blob->get_sbid(), blob_cache.size, struct_v);
+        }
+
+        if (likely(blob_cache.size <= sizeof(blob_cache.buffer))) {
+          /* Great, data is small enough to fit in the cache. It is a part
+           * of the Blob object itself to allow CPU's prefetchers do their
+           * job effectively. */
+          auto bl = ceph::buffer::list(
+                      ceph::buffer::create_static(blob_cache.size,
+                                                  blob_cache.buffer));
+          auto ap = bl.get_contiguous_appender(blob_cache.size, true);
+          denc(blob, ap, struct_v);
+
+          if (unlikely(blob.is_shared())) {
+            denc(shared_blob->get_sbid(), ap, struct_v);
+          }
+
+          /* The real size can be smaller than the bound. The rationale is
+           * to make the computations optimizable at compile-time. */
+          blob_cache.size = ap.get_pos() - blob_cache.buffer;
+        }
       }
     }
+
     void bound_encode(
       size_t& p,
       const uint64_t struct_v,
       const bool include_ref_map) const {
-      _encode(struct_v);
-      p += blob_bl.length();
 
-      if (blob.is_shared()) {
-        denc(shared_blob->get_sbid(), p);
-      }
+      _encode_blob_to_cache(struct_v);
+      p += blob_cache.size;
+
       if (include_ref_map) {
 	used_in_blob.bound_encode(p);
       }
     }
+
     void encode(
       bufferlist::contiguous_appender& p,
       const uint64_t struct_v,
       const bool include_ref_map) const {
-      _encode(struct_v);
-      p.append(blob_bl);
 
-      if (blob.is_shared()) {
-        denc(shared_blob->get_sbid(), p);
+      _encode_blob_to_cache(struct_v);
+      if (unlikely(blob_cache.size > sizeof(blob_cache.buffer))) {
+        /* Buffer too small -- no data caching, sorry. */
+        denc(blob, p, struct_v);
+      } else {
+        /* OK, we can use data cache here. */
+        p.append(blob_cache.buffer, blob_cache.size);
       }
+
       if (include_ref_map) {
 	used_in_blob.encode(p);
       }
     }
+
     void decode(
       Collection* const coll,
       bufferptr::iterator& p,
@@ -567,13 +606,14 @@ public:
 
       const char *start = p.get_pos();
       denc(blob, p, struct_v);
-      const char *end = p.get_pos();
-      blob_bl.clear();
-      blob_bl.append(start, end - start);
-
       if (blob.is_shared()) {
         denc(*sbid, p);
       }
+      blob_cache.size = p.get_pos() - start;
+      if (blob_cache.size <= sizeof(blob_cache.buffer)) {
+        memcpy(blob_cache.buffer, start, blob_cache.size);
+      }
+
       if (include_ref_map) {
         if (struct_v > 1) {
           used_in_blob.decode(p);
