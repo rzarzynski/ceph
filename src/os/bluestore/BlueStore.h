@@ -15,6 +15,8 @@
 #ifndef CEPH_OSD_BLUESTORE_H
 #define CEPH_OSD_BLUESTORE_H
 
+#define BOOST_DISABLE_ASSERTS
+
 #include "acconfig.h"
 
 #include <unistd.h>
