@@ -2357,7 +2357,7 @@ bool BlueStore::ExtentMap::encode_some(
        ++p, ++n) {
 //    assert(p->logical_offset >= offset);
     p->blob->last_encoded_id = -1;
-    if (!p->blob->is_spanning() && p->blob_escapes_range(offset, length)) {
+    if (likely(!p->blob->is_spanning()) && unlikely(p->blob_escapes_range(offset, length))) {
 #if 0
       dout(30) << __func__ << " 0x" << std::hex << offset << "~" << length
 	       << std::dec << " hit new spanning blob " << *p << dendl;
