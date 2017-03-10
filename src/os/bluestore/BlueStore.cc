@@ -2360,6 +2360,7 @@ bool BlueStore::ExtentMap::encode_some(
     denc_varint(0ul, bound[n % 4]); // logical_offset
     denc_varint(0ul, bound[n % 4]); // len
     denc_varint(0ul, bound[n % 4]); // blob_offset
+    bound[n % 4] += 12;
 
     p->blob->bound_encode(
       bound[n % 4],

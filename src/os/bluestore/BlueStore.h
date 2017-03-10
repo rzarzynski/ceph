@@ -428,7 +428,7 @@ public:
     }
   };
 
-#define CACHE_BLOB_BL
+//#define CACHE_BLOB_BL
 
   /// in-memory blob metadata and associated cached buffers (if any)
   struct Blob {
@@ -576,7 +576,7 @@ public:
           //blob_cache.size = ap.get_pos() - blob_cache.buffer;
           //std::cout << "blob_cache.size=" << blob_cache.size << std::endl;
           //std::cout << "ap.get_pos() - blob_cache.buffer=" << (size_t)(ap.get_pos() - blob_cache.buffer) << std::endl;
-          //blob_cache.size = ap.get_pos() - blob_cache.buffer;
+         blob_cache.size = ap.get_pos() - blob_cache.buffer;
         }
 
         return blob_cache.size;// = p_blob + p_blob_shared;
