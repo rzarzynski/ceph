@@ -244,6 +244,13 @@ template<typename T>
 inline void denc_varint(T v, size_t& p) {
   static_assert(std::is_unsigned<T>::value,
                 "denc_varint() operates on unsigned integers only");
+  p += sizeof(v) + 1;
+}
+
+template<typename T>
+inline void denc_varint_exact(T v, size_t& p) {
+  static_assert(std::is_unsigned<T>::value,
+                "denc_varint() operates on unsigned integers only");
   register size_t i;
   for (i = 1; v; i++) {
     v >>= 7;
@@ -253,7 +260,7 @@ inline void denc_varint(T v, size_t& p) {
 
 #if 1
 template<>
-inline void denc_varint<unsigned>(const unsigned v, size_t& p) {
+inline void denc_varint_exact<unsigned>(const unsigned v, size_t& p) {
   if (v == 0) {
     p++;
   } else {
@@ -262,7 +269,7 @@ inline void denc_varint<unsigned>(const unsigned v, size_t& p) {
 }
 
 template<>
-inline void denc_varint<unsigned long>(const unsigned long v, size_t& p) {
+inline void denc_varint_exact<unsigned long>(const unsigned long v, size_t& p) {
   if (v == 0) {
     p++;
   } else {
@@ -271,7 +278,7 @@ inline void denc_varint<unsigned long>(const unsigned long v, size_t& p) {
 }
 
 template<>
-inline void denc_varint<unsigned long long>(const unsigned long long v,
+inline void denc_varint_exact<unsigned long long>(const unsigned long long v,
                                             size_t& p) {
 
   if (v == 0) {
