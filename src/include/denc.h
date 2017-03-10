@@ -342,7 +342,11 @@ inline void denc_signed_varint(T& v, bufferptr::iterator& p)
 // high bit of each byte = another byte follows
 // (so, 5 bits data in first byte, 7 bits data thereafter)
 inline void denc_varint_lowz(uint64_t v, size_t& p) {
-  p += sizeof(v) + 2;
+  int lowznib = v ? (ctz(v) / 4) : 0;
+  if (lowznib > 3)
+    lowznib = 3;
+  v >>= lowznib * 4 - 2;
+  denc_varint(v, p);
 }
 inline void denc_varint_lowz(uint64_t v, bufferlist::contiguous_appender& p) {
   int lowznib = v ? (ctz(v) / 4) : 0;
