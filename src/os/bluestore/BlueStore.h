@@ -440,18 +440,22 @@ public:
     SharedBlobRef shared_blob;      ///< shared blob state (if any)
 
   private:
-    mutable bluestore_blob_t blob;  ///< decoded blob metadata
 #ifdef CACHE_BLOB_BL
     mutable struct {
       size_t size = 0;
-      char buffer[128 - sizeof(size)];
+      char buffer[50 - sizeof(size)];
     } blob_cache;                   ///< cached encoded blob, blob is dirty if empty
+    //static const char MAGIC_CACHE_END_MARKER = 0x80;
+    mutable ceph::buffer::list::contiguous_appender ap;
 #endif
+    mutable bluestore_blob_t blob;  ///< decoded blob metadata
     /// refs from this shard.  ephemeral if id<0, persisted if spanning.
     bluestore_blob_use_tracker_t used_in_blob;
 
   public:
-
+#ifdef CACHE_BLOB_BL
+    Blob() : ap(blob_cache.buffer) {}
+#endif
     friend void intrusive_ptr_add_ref(Blob *b) { b->get(); }
     friend void intrusive_ptr_release(Blob *b) { b->put(); }
 
@@ -507,6 +511,7 @@ public:
     bluestore_blob_t& dirty_blob() {
 #ifdef CACHE_BLOB_BL
       blob_cache.size = 0;
+      //blob_cache.used = 0;
 #endif
       return blob;
     }
@@ -532,29 +537,35 @@ public:
       }
     }
 
-
 #ifdef CACHE_BLOB_BL
-    void _encode_blob_to_cache(const uint64_t struct_v) const {
+    size_t _encode_blob_to_cache(const uint64_t struct_v) const __attribute__((always_inline)) {
       /* XXX: we don't memorize struct_v in the cache as it's supposed that
        * value doesn't change. */
 
-      if (unlikely(blob_cache.size == 0)) {
+      if (likely(blob_cache.size != 0)) {
+        return blob_cache.size;
+      } else {
         /* Neither cached size nor data -- we need to fill the cache now. */
-        denc(blob, blob_cache.size, struct_v);
+        size_t p_blob = 0;
+        blob.bound_encode(p_blob, struct_v);
 
+        size_t p_blob_shared = 0;
         if (unlikely(blob.is_shared())) {
-          denc(shared_blob->get_sbid(), blob_cache.size, struct_v);
+          denc(shared_blob->get_sbid(), p_blob_shared, struct_v);
         }
 
-        if (likely(blob_cache.size <= sizeof(blob_cache.buffer))) {
+        blob_cache.size = p_blob + p_blob_shared;
+        if (likely((p_blob + p_blob_shared) <= sizeof(blob_cache.buffer))) {
           /* Great, data is small enough to fit in the cache. It is a part
            * of the Blob object itself to allow CPU's prefetchers do their
            * job effectively. */
-          auto bl = ceph::buffer::list(
-                      ceph::buffer::create_static(blob_cache.size,
-                                                  blob_cache.buffer));
-          auto ap = bl.get_contiguous_appender(blob_cache.size, true);
-          denc(blob, ap, struct_v);
+          auto ap = ceph::buffer::list::contiguous_appender(blob_cache.buffer);
+          //auto bl = ceph::buffer::list(
+          //            ceph::buffer::create_static(blob_cache.size,
+          //                                        blob_cache.buffer));
+          //auto ap = bl.get_contiguous_appender(blob_cache.size, true);
+
+          blob.encode(ap, struct_v);
 
           if (unlikely(blob.is_shared())) {
             denc(shared_blob->get_sbid(), ap, struct_v);
@@ -562,8 +573,13 @@ public:
 
           /* The real size can be smaller than the bound. The rationale is
            * to make the computations optimizable at compile-time. */
-          blob_cache.size = ap.get_pos() - blob_cache.buffer;
+          //blob_cache.size = ap.get_pos() - blob_cache.buffer;
+          //std::cout << "blob_cache.size=" << blob_cache.size << std::endl;
+          //std::cout << "ap.get_pos() - blob_cache.buffer=" << (size_t)(ap.get_pos() - blob_cache.buffer) << std::endl;
+          //blob_cache.size = ap.get_pos() - blob_cache.buffer;
         }
+
+        return blob_cache.size;// = p_blob + p_blob_shared;
       }
     }
 
@@ -572,28 +588,49 @@ public:
       const uint64_t struct_v,
       const bool include_ref_map) const {
 
-      _encode_blob_to_cache(struct_v);
-      p += blob_cache.size;
+      size_t p_blob = _encode_blob_to_cache(struct_v);
 
+      size_t p_ref_map = 0;
       if (include_ref_map) {
-	used_in_blob.bound_encode(p);
+	used_in_blob.bound_encode(p_ref_map);
       }
+
+      p += p_ref_map + p_blob;
     }
 
     void encode(
       bufferlist::contiguous_appender& p,
       const uint64_t struct_v,
-      const bool include_ref_map) const {
+      const bool include_ref_map) const __attribute__((always_inline)) {
 
-      _encode_blob_to_cache(struct_v);
-      if (unlikely(blob_cache.size > sizeof(blob_cache.buffer))) {
-        /* Buffer too small -- no data caching, sorry. */
+#ifdef CACHE_BLOB_BL
+      //_encode_blob_to_cache(struct_v);
+      if (unlikely(blob_cache.size == 0)) {
+        /* Buffer was too small -- no data caching, sorry. */
         denc(blob, p, struct_v);
-      } else {
-        /* OK, we can use data cache here. */
-        p.append(blob_cache.buffer, blob_cache.size);
-      }
 
+        if (unlikely(blob.is_shared())) {
+          denc(shared_blob->get_sbid(), ap, struct_v);
+        }
+      } else {
+# if 0
+        while (blob_cache.buffer[blob_cache.size - 1] !=
+               MAGIC_CACHE_END_MARKER) {
+          --blob_cache.size;
+        }
+# endif
+        /* OK, we can use data cache here. The cast is for compiler. */
+        p.append(blob_cache.buffer,
+                 static_cast<uint8_t>(blob_cache.size));
+        static_assert(sizeof(blob_cache.buffer) <= UINT8_MAX,
+                      "blob_cache.buffer is too long");
+      }
+#else
+      denc(blob, ap, struct_v);
+      if (unlikely(blob.is_shared())) {
+        denc(shared_blob->get_sbid(), ap, struct_v);
+      }
+#endif
       if (include_ref_map) {
 	used_in_blob.encode(p);
       }
@@ -613,7 +650,15 @@ public:
       }
       blob_cache.size = p.get_pos() - start;
       if (blob_cache.size <= sizeof(blob_cache.buffer)) {
-        memcpy(blob_cache.buffer, start, blob_cache.size);
+        /* The cache is supposed to cover small blobs only. If we're
+         * here, we can safely assume the data size is less than 256
+         * bytes. Thus, We can cast from size_t to uint8_t. Compiler
+         * can treat this as a hint for inlining the memcpy. GCC 5.4
+         * on AMD64 behaves exactly in that way. */
+        memcpy(blob_cache.buffer, start,
+               static_cast<uint8_t>(blob_cache.size));
+        static_assert(sizeof(blob_cache.buffer) <= UINT8_MAX,
+                      "blob_cache.buffer is too long");
       }
 
       if (include_ref_map) {
