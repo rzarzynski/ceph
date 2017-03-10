@@ -169,13 +169,13 @@ typedef mempool::bluestore_meta_other::vector<bluestore_pextent_t> PExtentVector
 template<>
 struct denc_traits<PExtentVector> {
   static constexpr bool supported = true;
-  static constexpr bool bounded = false;
+  static constexpr bool bounded = true;
   static constexpr bool featured = false;
   static void bound_encode(const PExtentVector& v, size_t& p) {
-    p += sizeof(uint32_t);
-    size_t per = 0;
-    denc(*(bluestore_pextent_t*)nullptr, per);
-    p += per * v.size();
+    denc_varint(v.size(), p);
+    for (auto& i : v) {
+      denc(i, p);
+    }
   }
   static void encode(const PExtentVector& v,
 		     bufferlist::contiguous_appender& p) {
