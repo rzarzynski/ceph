@@ -399,7 +399,7 @@ struct bluestore_blob_use_tracker_t {
       }
     }
   }
-  void encode(bufferlist::contiguous_appender& p) const {
+  void encode(bufferlist::contiguous_appender& p) const __attribute__((always_inline)) {
     denc_varint(au_size, p);
     if (au_size) {
       denc_varint(num_au, p);
@@ -833,7 +833,8 @@ struct bluestore_blob_t {
     return res;
   }
 };
-WRITE_CLASS_DENC_FEATURED(bluestore_blob_t)
+WRITE_CLASS_DENC_FEATURED_ATTR(bluestore_blob_t,
+                               __attribute__((always_inline)))
 
 ostream& operator<<(ostream& out, const bluestore_blob_t& o);
 

@@ -2339,37 +2339,40 @@ bool BlueStore::ExtentMap::encode_some(
                      // handling at ExtentMap level.
 
   unsigned n = 0;
-  size_t bound = 0;
-  denc(struct_v, bound);
-  denc_varint(0, bound);
+  size_t bound[4] = {0};
+  denc(struct_v, bound[0]);
+  denc_varint(0ul, bound[0]);
   bool must_reshard = false;
   for (auto p = start;
        p != extent_map.end() && p->logical_offset < end;
        ++p, ++n) {
-    assert(p->logical_offset >= offset);
+//    assert(p->logical_offset >= offset);
     p->blob->last_encoded_id = -1;
     if (!p->blob->is_spanning() && p->blob_escapes_range(offset, length)) {
+#if 0
       dout(30) << __func__ << " 0x" << std::hex << offset << "~" << length
 	       << std::dec << " hit new spanning blob " << *p << dendl;
+#endif
       request_reshard(p->blob_start(), p->blob_end());
       must_reshard = true;
     }
-    denc_varint(0, bound); // blobid
-    denc_varint(0, bound); // logical_offset
-    denc_varint(0, bound); // len
-    denc_varint(0, bound); // blob_offset
+    denc_varint(0ul, bound[n % 4]); // blobid
+    denc_varint(0ul, bound[n % 4]); // logical_offset
+    denc_varint(0ul, bound[n % 4]); // len
+    denc_varint(0ul, bound[n % 4]); // blob_offset
 
     p->blob->bound_encode(
-      bound,
+      bound[n % 4],
       struct_v,
       false);
   }
+
   if (must_reshard) {
     return true;
   }
 
   {
-    auto app = bl.get_contiguous_appender(bound);
+    auto app = bl.get_contiguous_appender(bound[0] + bound[1] + bound[2] + bound[3]);
     denc(struct_v, app);
     denc_varint(n, app);
     if (pn) {
