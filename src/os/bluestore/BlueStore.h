@@ -716,7 +716,7 @@ public:
   /// a logical extent, pointing to (some portion of) a blob
   typedef boost::intrusive::set_base_hook<boost::intrusive::optimize_size<true> > ExtentBase; //making an alias to avoid build warnings
   struct Extent : public ExtentBase {
-//    MEMPOOL_CLASS_HELPERS();
+    MEMPOOL_CLASS_HELPERS();
 
     uint32_t logical_offset = 0;      ///< logical offset
     uint32_t blob_offset = 0;         ///< blob offset
