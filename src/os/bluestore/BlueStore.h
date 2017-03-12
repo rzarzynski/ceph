@@ -432,7 +432,7 @@ public:
 
   /// in-memory blob metadata and associated cached buffers (if any)
   struct Blob {
-    //MEMPOOL_CLASS_HELPERS();
+    MEMPOOL_CLASS_HELPERS();
 
     std::atomic_int nref = {0};     ///< reference count
     int16_t id = -1;                ///< id, for spanning blobs only, >= 0
