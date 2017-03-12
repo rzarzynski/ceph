@@ -428,7 +428,7 @@ public:
     }
   };
 
-//#define CACHE_BLOB_BL
+#define CACHE_BLOB_BL
 
   /// in-memory blob metadata and associated cached buffers (if any)
   struct Blob {
@@ -538,7 +538,8 @@ public:
     }
 
 #ifdef CACHE_BLOB_BL
-    size_t _encode_blob_to_cache(const uint64_t struct_v) const __attribute__((always_inline)) {
+    size_t _encode_blob_to_cache(const uint64_t struct_v
+    ) const __attribute__((always_inline)) {
       /* XXX: we don't memorize struct_v in the cache as it's supposed that
        * value doesn't change. */
 
@@ -547,15 +548,16 @@ public:
       } else {
         /* Neither cached size nor data -- we need to fill the cache now. */
         size_t p_blob = 0;
-        blob.bound_encode(p_blob, struct_v);
+        size_t q_blob = 0;
+        blob.bound_encode(p_blob, q_blob, struct_v);
 
         size_t p_blob_shared = 0;
         if (unlikely(blob.is_shared())) {
           denc(shared_blob->get_sbid(), p_blob_shared, struct_v);
         }
 
-        blob_cache.size = p_blob + p_blob_shared;
-        if (likely((p_blob + p_blob_shared) <= sizeof(blob_cache.buffer))) {
+        blob_cache.size = q_blob + p_blob + p_blob_shared;
+        if (likely((q_blob + p_blob + p_blob_shared) <= sizeof(blob_cache.buffer))) {
           /* Great, data is small enough to fit in the cache. It is a part
            * of the Blob object itself to allow CPU's prefetchers do their
            * job effectively. */
@@ -585,6 +587,14 @@ public:
 
     void bound_encode(
       size_t& p,
+      uint64_t struct_v,
+      bool include_ref_map) const {
+      return bound_encode(p, p, struct_v, include_ref_map);
+    }
+
+    void bound_encode(
+      size_t& p,
+      size_t& q,
       const uint64_t struct_v,
       const bool include_ref_map) const {
 
@@ -595,7 +605,8 @@ public:
 	used_in_blob.bound_encode(p_ref_map);
       }
 
-      p += p_ref_map + p_blob;
+      p += p_blob;
+      q += p_ref_map;
     }
 
     void encode(
@@ -680,6 +691,14 @@ public:
 #else
     void bound_encode(
       size_t& p,
+      uint64_t struct_v,
+      bool include_ref_map) const {
+      return bound_encode(p, p, struct_v, include_ref_map);
+    }
+
+    void bound_encode(
+      size_t& p,
+      size_t& q,
       uint64_t struct_v,
       bool include_ref_map) const {
       denc(blob, p, struct_v);

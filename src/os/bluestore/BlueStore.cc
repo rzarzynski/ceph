@@ -2356,14 +2356,15 @@ bool BlueStore::ExtentMap::encode_some(
       request_reshard(p->blob_start(), p->blob_end());
       must_reshard = true;
     }
-    denc_varint(0ul, bound[n % 4]); // blobid
-    denc_varint(0ul, bound[n % 4]); // logical_offset
-    denc_varint(0ul, bound[n % 4]); // len
-    denc_varint(0ul, bound[n % 4]); // blob_offset
-    bound[n % 4] += 12;
+    denc_signed_varint(p->blob->id, bound[0]); // blobid
+    denc_varint_lowz(p->logical_offset, bound[0]); // logical_offset
+    denc_varint_lowz(p->length, bound[0]); // len
+    denc_varint_lowz(p->blob_offset, bound[0]); // blob_offset
+//    bound[n % 4] += 12;
 
     p->blob->bound_encode(
-      bound[n % 4],
+      bound[0],
+      bound[0],
       struct_v,
       false);
   }
@@ -2522,9 +2523,12 @@ void BlueStore::ExtentMap::bound_encode_spanning_blobs(size_t& p)
   size_t key_size = 0;
   denc_varint((uint32_t)0, key_size);
   p += spanning_blob_map.size() * key_size;
+  size_t p1 = 0, q = 0;
   for (const auto& i : spanning_blob_map) {
     i.second->bound_encode(p, struct_v, true);
   }
+
+  //p = p1 + q;
 }
 
 void BlueStore::ExtentMap::encode_spanning_blobs(

@@ -467,6 +467,9 @@ struct bluestore_blob_t {
 
   DENC_HELPERS;
   void bound_encode(size_t& p, uint64_t struct_v) const {
+          return bound_encode(p, p, struct_v);
+  }
+  void bound_encode(size_t& p, size_t& q, uint64_t struct_v) const {
  //   assert(struct_v == 1 || struct_v == 2);
     size_t p_ct = 0;
     size_t p_cco = 0;
@@ -476,11 +479,14 @@ struct bluestore_blob_t {
       denc(csum_type, p_ct);
       denc(csum_chunk_order, p_cco);
 
-      denc_varint(csum_data.length(), p_cdi);
-      p_cdl += csum_data.length();
+      //denc_varint(csum_data.length(), p_cdi);
+      denc_varint(csum_data.length(), q);
+      //p_cdl += csum_data.length();
+      p += csum_data.length();
     }
     p += p_ct + p_cdl + p_cdi + p_cco;
 
+#if 0
     size_t p_extents = 0;
     denc(extents, p_extents);
     p += p_extents;
@@ -488,15 +494,19 @@ struct bluestore_blob_t {
     size_t p_flags = 0;
     denc_varint(flags, p_flags);
     p += p_flags;
+#else
+    denc(extents, p);
+    denc_varint(flags, q);
+#endif
 
     if (is_compressed()) {
       size_t p_clo = 0;
       denc_varint_lowz(compressed_length_orig, p_clo);
-      p += p_clo;
+      q += p_clo;
 
       size_t p_cl = 0;
       denc_varint_lowz(compressed_length, p_cl);
-      p += p_cl;
+      q += p_cl;
     }
 
     if (has_unused()) {
