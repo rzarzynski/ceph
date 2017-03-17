@@ -93,7 +93,7 @@ public:
   }
 
   const char* get_name() const noexcept override {
-    return "RGWSignedTokenAuthEngine";
+    return "rgw::auth::swift::SignedTokenEngine";
   }
 
   result_t authenticate(const req_state* const s) const override {
