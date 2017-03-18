@@ -293,7 +293,7 @@ bool rgw::auth::RemoteApplier::is_owner_of(const rgw_user& uid) const
 
 void rgw::auth::RemoteApplier::to_str(std::ostream& out) const
 {
-  out << "RGWRemoteAuthApplier(acct_user=" << info.acct_user
+  out << "rgw::auth::RemoteApplier(acct_user=" << info.acct_user
       << ", acct_name=" << info.acct_name
       << ", perm_mask=" << info.perm_mask
       << ", is_admin=" << info.is_admin << ")";
