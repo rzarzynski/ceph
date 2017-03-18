@@ -289,7 +289,7 @@ public:
     REQUISITE,
 
     /* Success of an engine injected with the SUFFICIENT specifier ends
-     * strategy's authentication process successfully. However, failure
+     * strategy's authentication process successfully. However, denying
      * doesn't abort it -- there will be fall-back to following engine
      * it the one that failed wasn't the last one. */
     SUFFICIENT,
