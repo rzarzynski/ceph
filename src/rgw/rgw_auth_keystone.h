@@ -35,7 +35,7 @@ class TokenEngine : public rgw::auth::Engine {
   rgw::keystone::TokenCache& token_cache;
 
   /* Helper methods. */
-  bool is_applicable() const noexcept;
+  bool is_applicable(const std::string& token) const noexcept;
   token_envelope_t decode_pki_token(const std::string& token) const;
 
   boost::optional<token_envelope_t>

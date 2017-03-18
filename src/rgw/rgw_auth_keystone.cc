@@ -33,9 +33,9 @@ namespace auth {
 namespace keystone {
 
 bool
-TokenEngine::is_applicable() const noexcept
+TokenEngine::is_applicable(const std::string& token) const noexcept
 {
-  return ! cct->_conf->rgw_keystone_url.empty();
+  return ! token.empty() && ! cct->_conf->rgw_keystone_url.empty();
 }
 
 TokenEngine::token_envelope_t
@@ -218,6 +218,10 @@ TokenEngine::authenticate(const std::string& token,
     std::vector<std::string> plain;
     std::vector<std::string> admin;
   } roles(cct);
+
+  if (! is_applicable(token)) {
+    return result_t::deny();
+  }
 
   /* Token ID is a concept that makes dealing with PKI tokens more effective.
    * Instead of storing several kilobytes, a short hash can be burried. */
