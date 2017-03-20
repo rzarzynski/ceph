@@ -2079,6 +2079,7 @@ int RGWREST::preprocess(struct req_state *s, rgw::io::BasicClient* cio)
 
 RGWHandler_REST* RGWREST::get_handler(RGWRados * const store,
                                       struct req_state* const s,
+                                      const rgw::auth::registry::StrategyRegistry& auth_registry,
                                       const std::string& frontend_prefix,
                                       RGWRestfulIO* const rio,
                                       RGWRESTMgr** const pmgr,
@@ -2100,7 +2101,7 @@ RGWHandler_REST* RGWREST::get_handler(RGWRados * const store,
     *pmgr = m;
   }
 
-  RGWHandler_REST* handler = m->get_handler(s, frontend_prefix);
+  RGWHandler_REST* handler = m->get_handler(s, auth_registry, frontend_prefix);
   if (! handler) {
     *init_error = -ERR_METHOD_NOT_ALLOWED;
     return NULL;
