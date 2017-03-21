@@ -1810,7 +1810,7 @@ int RGWPostObj_ObjStore_S3::get_policy()
       return -EINVAL;
     }
     string received_signature_str;
-    if (!part_str("signature", &s->auth.s3_postobj_creds.signature)) {
+    if (! part_str("signature", &s->auth.s3_postobj_creds.signature)) {
       ldout(s->cct, 0) << "No signature found!" << dendl;
       err_msg = "Missing signature";
       return -EINVAL;
