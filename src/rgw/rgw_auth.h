@@ -187,7 +187,7 @@ public:
     }
 
     /* Allow only the reasonable combintations - returning just Completer
-     * without ccompanying IdentityApplier is strictly prohibited! */
+     * without accompanying IdentityApplier is strictly prohibited! */
     AuthResult(IdentityApplier::aplptr_t&& applier)
       : result_pair(std::move(applier), nullptr) {
     }
