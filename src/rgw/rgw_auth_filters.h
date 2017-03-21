@@ -23,7 +23,7 @@ class DecoratedApplier : public rgw::auth::IdentityApplier {
 
   static_assert(std::is_base_of<rgw::auth::IdentityApplier,
                                 DerefedDecorateeT>::value,
-                "DecorateeT must be a subclass of rgw::io::RestfulClient");
+                "DecorateeT must be a subclass of rgw::auth::IdentityApplier");
 
   DecorateeT decoratee;
 
