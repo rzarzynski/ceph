@@ -30,7 +30,7 @@ class DecoratedApplier : public rgw::auth::IdentityApplier {
   /* There is an indirection layer over accessing decoratee to share the same
    * code base between dynamic and static decorators. The difference is about
    * what we store internally: pointer to a decorated object versus the whole
-   * object itself. */
+   * object itself. Googling for "SFINAE" can help to understand the code. */
   template <typename T = void,
             typename std::enable_if<
     std::is_pointer<DecorateeT>::value, T>::type* = nullptr>
