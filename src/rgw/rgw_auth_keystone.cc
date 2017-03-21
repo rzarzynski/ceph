@@ -62,6 +62,8 @@ TokenEngine::decode_pki_token(const std::string& token) const
 boost::optional<TokenEngine::token_envelope_t>
 TokenEngine::get_from_keystone(const std::string& token) const
 {
+  /* Unfortunately, we can't use the short form of "using" here. It's because
+   * we're aliasing a class' member, not namespace. */
   using RGWValidateKeystoneToken = \
     rgw::keystone::Service::RGWValidateKeystoneToken;
 
