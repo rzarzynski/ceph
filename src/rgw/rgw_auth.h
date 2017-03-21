@@ -147,7 +147,7 @@ public:
  *
  * Both of them are supposed to be wrapped in Engine::AuthResult.
  *
- * The authentication process consists two steps:
+ * The authentication process consists of two steps:
  *  - Engine::authenticate() supposed to be called before *initiating*
  *    any modifications to RADOS store that are related to an operation
  *    a client wants to perform (RGWOp::execute).
