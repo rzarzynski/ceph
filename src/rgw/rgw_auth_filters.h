@@ -144,7 +144,7 @@ void ThirdPartyAccountApplier<T>::load_acct_info(RGWUserInfo& user_info) const
     DecoratedApplier<T>::load_acct_info(user_info);
   } else {
     /* Compatibility mechanism for multi-tenancy. For more details refer to
-     * load_acct_info method of RGWRemoteAuthApplier. */
+     * load_acct_info method of rgw::auth::RemoteApplier. */
     if (acct_user_override.tenant.empty()) {
       const rgw_user tenanted_uid(acct_user_override.id, acct_user_override.id);
 
