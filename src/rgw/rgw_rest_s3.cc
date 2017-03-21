@@ -4315,6 +4315,8 @@ rgw::auth::s3::LDAPEngine::get_acl_strategy() const
 rgw::auth::RemoteApplier::AuthInfo
 rgw::auth::s3::LDAPEngine::get_creds_info(const rgw::RGWToken& token) const noexcept
 {
+  /* The short form of "using" can't be used here -- we're aliasing a class'
+   * member. */
   using acct_privilege_t = \
     rgw::auth::RemoteApplier::AuthInfo::acct_privilege_t;
 
