@@ -293,7 +293,7 @@ public:
     /* Success of an engine injected with the SUFFICIENT specifier ends
      * strategy's authentication process successfully. However, denying
      * doesn't abort it -- there will be fall-back to following engine
-     * it the one that failed wasn't the last one. */
+     * if the one that failed wasn't the last one. */
     SUFFICIENT,
 
     /* Like SUFFICIENT with the exception that on failure the reason code
