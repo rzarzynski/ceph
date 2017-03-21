@@ -283,7 +283,7 @@ public:
 class Strategy : public Engine {
 public:
   /* Specifiers controlling what happens when an associated engine fails.
-   * The names and semantic has been borrowed from libpam. */
+   * The names and semantic has been borrowed mostly from libpam. */
   enum class Control {
     /* Failure of an engine injected with the REQUISITE specifier aborts
      * the strategy's authentication process immediately. No other engine
@@ -296,7 +296,10 @@ public:
      * it the one that failed wasn't the last one. */
     SUFFICIENT,
 
-    /* */
+    /* Like SUFFICIENT with the exception that on failure the reason code
+     * is not overridden. Instead, it's taken directly from the last tried
+     * non-FALLBACK engine. If there was no previous non-FALLBACK engine
+     * in a Strategy, then the result_t::deny(reason = -EACCES) is used. */
     FALLBACK,
   };
 
