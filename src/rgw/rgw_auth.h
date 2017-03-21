@@ -199,12 +199,14 @@ public:
 
   public:
     enum class Status {
-      /* Engine does */
+      /* Engine doesn't grant the access but also doesn't reject it. */
       DENIED,
 
+      /* Engine successfully authenticated requester. */
       GRANTED,
 
-      /* Engine strictly indicates that a request shall be */
+      /* Engine strictly indicates that a request should be rejected
+       * without trying any further engine. */
       REJECTED
     };
 
