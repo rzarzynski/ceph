@@ -362,7 +362,7 @@ public:
   typedef std::function<uint32_t(const aclspec_t&)> acl_strategy_t;
 
 protected:
-  CephContext * const cct;
+  CephContext* const cct;
 
   /* Read-write is intensional here due to RGWUserInfo creation process. */
   RGWRados* const store;
