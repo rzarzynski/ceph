@@ -3881,7 +3881,7 @@ int RGWCopyObj::verify_permission()
     /* admin request overrides permission checks */
     if (! s->auth.identity->is_admin_of(src_policy.get_owner().get_id()) &&
         ! src_policy.verify_permission(*s->auth.identity, s->perm_mask,
-                                      RGW_PERM_READ)) {
+                                       RGW_PERM_READ)) {
       return -EACCES;
     }
   }
