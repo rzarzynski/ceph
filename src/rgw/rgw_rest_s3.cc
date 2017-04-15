@@ -783,11 +783,9 @@ int RGWSetBucketVersioning_ObjStore_S3::get_params()
   
   auto data_deleter = std::unique_ptr<char, decltype(free)*>{data, free};
 
-  if (s->aws4_auth_needs_complete) {
-    int ret_auth = do_aws4_auth_completion();
-    if (ret_auth < 0) {
-      return ret_auth;
-    }
+  r = do_aws4_auth_completion();
+  if (r < 0) {
+    return r;
   }
 
   RGWSetBucketVersioningParser parser;
@@ -835,11 +833,9 @@ int RGWSetBucketWebsite_ObjStore_S3::get_params()
 
   auto data_deleter = std::unique_ptr<char, decltype(free)*>{data, free};
 
-  if (s->aws4_auth_needs_complete) {
-      int ret_auth = do_aws4_auth_completion();
-      if (ret_auth < 0) {
-        return ret_auth;
-      }
+  r = do_aws4_auth_completion();
+  if (r < 0) {
+    return r;
   }
 
   RGWXMLDecoder::XMLParser parser;
@@ -1006,11 +1002,9 @@ int RGWCreateBucket_ObjStore_S3::get_params()
 
   auto data_deleter = std::unique_ptr<char, decltype(free)*>{data, free};
 
-  if (s->aws4_auth_needs_complete) {
-    int ret_auth = do_aws4_auth_completion();
-    if (ret_auth < 0) {
-      return ret_auth;
-    }
+  const int auth_ret = do_aws4_auth_completion();
+  if (auth_ret < 0) {
+    return auth_ret;
   }
   
   bufferptr in_ptr(data, len);
@@ -1322,20 +1316,13 @@ int RGWPutObj_ObjStore_S3::validate_and_unwrap_available_aws4_chunked_data(buffe
 int RGWPutObj_ObjStore_S3::get_data(bufferlist& bl)
 {
   int ret = RGWPutObj_ObjStore::get_data(bl);
-  if (ret < 0)
-    s->aws4_auth_needs_complete = false;
-
-  int ret_auth;
-
-  if (s->aws4_auth_streaming_mode && ret > 0) {
-    ret_auth = validate_and_unwrap_available_aws4_chunked_data(bl, s->aws4_auth->bl);
+  if (ret > 0 && s->aws4_auth_streaming_mode) {
+    int ret_auth = validate_and_unwrap_available_aws4_chunked_data(bl, s->aws4_auth->bl);
     if (ret_auth < 0) {
       return ret_auth;
     }
-  }
-
-  if ((ret == 0) && s->aws4_auth_needs_complete) {
-    ret_auth = do_aws4_auth_completion();
+  } else if (ret == 0) {
+    int ret_auth = do_aws4_auth_completion();
     if (ret_auth < 0) {
       return ret_auth;
     }
@@ -2202,10 +2189,8 @@ void RGWGetACLs_ObjStore_S3::send_response()
 int RGWPutACLs_ObjStore_S3::get_params()
 {
   int ret =  RGWPutACLs_ObjStore::get_params();
-  if (ret < 0)
-    s->aws4_auth_needs_complete = false;
-  if (s->aws4_auth_needs_complete) {
-    int ret_auth = do_aws4_auth_completion();
+  if (ret >= 0) {
+    const int ret_auth = do_aws4_auth_completion();
     if (ret_auth < 0) {
       return ret_auth;
     }
@@ -2343,11 +2328,9 @@ int RGWPutCORS_ObjStore_S3::get_params()
 
   auto data_deleter = std::unique_ptr<char, decltype(free)*>{data, free};
 
-  if (s->aws4_auth_needs_complete) {
-    r = do_aws4_auth_completion();
-    if (r < 0) {
-      return r;
-    }
+  r = do_aws4_auth_completion();
+  if (r < 0) {
+    return r;
   }
 
   if (!parser.init()) {
@@ -2552,13 +2535,7 @@ int RGWCompleteMultipart_ObjStore_S3::get_params()
     return ret;
   }
 
-  if (s->aws4_auth_needs_complete) {
-    int ret_auth = do_aws4_auth_completion();
-    if (ret_auth < 0) {
-      return ret_auth;
-    }
-  }
-  return 0;
+  return do_aws4_auth_completion();
 }
 
 void RGWCompleteMultipart_ObjStore_S3::send_response()
@@ -2722,13 +2699,7 @@ int RGWDeleteMultiObj_ObjStore_S3::get_params()
     return ret;
   }
 
-  if (s->aws4_auth_needs_complete) {
-    int ret_auth = do_aws4_auth_completion();
-    if (ret_auth < 0) {
-      return ret_auth;
-    }
-  }
-  return 0;
+  return do_aws4_auth_completion();
 }
 
 void RGWDeleteMultiObj_ObjStore_S3::send_status()
