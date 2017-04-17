@@ -1348,7 +1348,7 @@ class RGWEnv;
 namespace rgw {
   namespace auth {
     namespace s3 {
-      class RGWGetPolicyV2Extractor;
+      class AWSBrowserUploadAbstractor;
     }
   }
   namespace io {
@@ -1749,7 +1749,7 @@ struct req_state {
       /* Writer. */
       friend class RGWPostObj_ObjStore_S3;
       /* Reader. */
-      friend class rgw::auth::s3::RGWGetPolicyV2Extractor;
+      friend class rgw::auth::s3::AWSBrowserUploadAbstractor;
 
       std::string access_key;
       std::string signature;
