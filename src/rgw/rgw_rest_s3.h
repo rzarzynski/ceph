@@ -679,10 +679,17 @@ protected:
   }
 
   using result_t = rgw::auth::Engine::result_t;
+  using signature_factory_t = VersionAbstractor::signature_factory_t;
+  using completer_factory_t = VersionAbstractor::completer_factory_t;
 
+  /* TODO(rzarzynski): clean up. We've too many input parameter hee. Also
+   * the signature get_auth_data() of VersionAbstractor is too complicated.
+   * Replace these thing with a simple, dedicated structure. */
   virtual result_t authenticate(const std::string& access_key_id,
                                 const std::string& signature,
                                 const std::string& string_to_sign,
+                                const signature_factory_t& signature_factory,
+                                const completer_factory_t& completer_factory,
                                 const req_state* s) const = 0;
 
 public:
@@ -704,7 +711,8 @@ public:
     if (access_key_id.empty() || signature.empty()) {
       return result_t::deny(-EINVAL);
     } else {
-      return authenticate(access_key_id, signature, string_to_sign, s);
+      return authenticate(access_key_id, signature, string_to_sign,
+                          signature_factory, completer_factory, s);
     }
   }
 };
@@ -768,6 +776,8 @@ protected:
   result_t authenticate(const std::string& access_key_id,
                         const std::string& signature,
                         const std::string& string_to_sign,
+                        const signature_factory_t& signature_factory,
+                        const completer_factory_t& completer_factory,
                         const req_state* s) const override;
 public:
   LDAPEngine(CephContext* const cct,
@@ -795,6 +805,8 @@ class LocalEngine : public AWSEngine {
   result_t authenticate(const std::string& access_key_id,
                         const std::string& signature,
                         const std::string& string_to_sign,
+                        const signature_factory_t& signature_factory,
+                        const completer_factory_t& completer_factory,
                         const req_state* s) const override;
 public:
   LocalEngine(CephContext* const cct,
