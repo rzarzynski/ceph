@@ -222,5 +222,9 @@ std::string string_join_reserve(char delim, const Args&... args)
 {
   return string_join_reserve(boost::string_view{&delim, 1}, args...);
 }
-
+template <typename... Args>
+std::string string_concat_reserve(const Args&... args)
+{
+  return string_join_reserve(boost::string_view{}, args...);
+}
 #endif
