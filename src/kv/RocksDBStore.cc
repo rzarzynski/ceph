@@ -582,18 +582,17 @@ RocksDBStore::RocksDBTransactionImpl::RocksDBTransactionImpl(RocksDBStore *_db)
 
 static void put_bat(
   rocksdb::WriteBatch& bat, 
-  const string &key, 
+  const rocksdb::SliceParts& key_slice_parts,
   const bufferlist &to_set_bl)
 {
   // bufferlist::c_str() is non-constant, so we can't call c_str()
   if (to_set_bl.is_contiguous() && to_set_bl.length() > 0) {
-    bat.Put(rocksdb::Slice(key),
-	     rocksdb::Slice(to_set_bl.buffers().front().c_str(),
-			    to_set_bl.length()));
+    rocksdb::Slice value_slice(to_set_bl.buffers().front().c_str(),
+			       to_set_bl.length());
+    bat.Put(key_slice_parts, rocksdb::SliceParts(&value_slice, 1));
   } else {
-    rocksdb::Slice key_slice(key);
     vector<rocksdb::Slice> value_slices(to_set_bl.buffers().size());
-    bat.Put(nullptr, rocksdb::SliceParts(&key_slice, 1),
+    bat.Put(nullptr, key_slice_parts,
             prepare_sliceparts(to_set_bl, &value_slices));
   }
 }
@@ -603,9 +602,14 @@ void RocksDBStore::RocksDBTransactionImpl::set(
   const string &k,
   const bufferlist &to_set_bl)
 {
-  string key = combine_strings(prefix, k);
-
-  put_bat(bat, key, to_set_bl);
+  std::array<rocksdb::Slice, 3> key_slices = {
+    prefix,
+    rocksdb::Slice("\0", 1),
+    k
+  };
+  put_bat(bat,
+          rocksdb::SliceParts(key_slices.data(), key_slices.size()),
+          to_set_bl);
 }
 
 void RocksDBStore::RocksDBTransactionImpl::set(
@@ -613,10 +617,14 @@ void RocksDBStore::RocksDBTransactionImpl::set(
   const char *k, size_t keylen,
   const bufferlist &to_set_bl)
 {
-  string key;
-  combine_strings(prefix, k, keylen, &key);
-
-  put_bat(bat, key, to_set_bl);
+  std::array<rocksdb::Slice, 3> key_slices = {
+    prefix,
+    rocksdb::Slice("\0", 1),
+    rocksdb::Slice(k, keylen)
+  };
+  put_bat(bat,
+          rocksdb::SliceParts(key_slices.data(), key_slices.size()),
+          to_set_bl);
 }
 
 void RocksDBStore::RocksDBTransactionImpl::rmkey(const string &prefix,
