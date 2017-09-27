@@ -8294,6 +8294,81 @@ void BlueStore::_kv_stop()
   dout(10) << __func__ << " stopped" << dendl;
 }
 
+#include "rocksdb/write_batch.h"
+#include "rocksdb/perf_context.h"
+#include "rocksdb/iostats_context.h"
+#include "rocksdb/statistics.h"
+#include "rocksdb/table.h"
+#include "kv/RocksDBStore.h"
+
+struct  WriteFuzer: public rocksdb::WriteBatch::Handler {
+  enum class OpType {
+    PUT,
+    MERGE,
+    SINGLE_DELETE,
+    DELETE
+  };
+
+  std::map<std::string, std::pair<rocksdb::Slice, OpType>> reorderer;
+
+  WriteFuzer() = default;
+
+  void fuse_reordered(KeyValueDB::Transaction& out) {
+    for (auto& kvt : reorderer) {
+      const auto& key = kvt.first;
+      auto& vt = kvt.second;
+      auto& value = vt.first;
+      const auto type = vt.second;
+
+      RocksDBStore::RocksDBTransactionImpl * _t = \
+        static_cast<RocksDBStore::RocksDBTransactionImpl *>(out.get());
+
+      if (likely(type == OpType::PUT)) {
+        _t->bat.Put(key, std::move(value));
+      } else if (type == OpType::MERGE) {
+        _t->bat.Merge(key, std::move(value));
+      } else if (type == OpType::SINGLE_DELETE) {
+        _t->bat.SingleDelete(key);
+      } else if (type == OpType::DELETE) {
+        _t->bat.Delete(key);
+      }
+    }
+  }
+
+  void Put(const rocksdb::Slice& key,
+                  const rocksdb::Slice& value) override {
+    reorderer[key.ToString()] = std::make_pair(value, OpType::PUT);
+  }
+  void SingleDelete(const rocksdb::Slice& key) override {
+    reorderer[key.ToString()] = std::make_pair(rocksdb::Slice(), OpType::SINGLE_DELETE);
+  }
+  void Delete(const rocksdb::Slice& key) override {
+    reorderer[key.ToString()] = std::make_pair(rocksdb::Slice(), OpType::DELETE);
+  }
+  void Merge(const rocksdb::Slice& key,
+                    const rocksdb::Slice& value) override {
+    // WARNING! WARNING! WARNING!
+    // Merges aren't idempotent! This is for testing only!
+    reorderer[key.ToString()] = std::make_pair(value, OpType::MERGE);
+  }
+
+};
+
+void fuse_and_reorder_transactions(
+  KeyValueDB::Transaction* transactions,
+  const size_t size,
+  KeyValueDB::Transaction& out)
+{
+  WriteFuzer fuzer;
+  for (size_t i = 0; i < size; ++i) {
+    RocksDBStore::RocksDBTransactionImpl * _t = \
+      static_cast<RocksDBStore::RocksDBTransactionImpl *>(transactions[i].get());
+    _t->bat.Iterate(&fuzer);
+  }
+
+  fuzer.fuse_reordered(out);
+}
+
 void BlueStore::_kv_sync_thread()
 {
   dout(10) << __func__ << " start" << dendl;
@@ -8377,29 +8452,29 @@ void BlueStore::_kv_sync_thread()
       // we submit.
       uint64_t new_nid_max = 0, new_blobid_max = 0;
       if (nid_last + cct->_conf->bluestore_nid_prealloc/2 > nid_max) {
-	KeyValueDB::Transaction t =
-	  kv_submitting.empty() ? synct : kv_submitting.front()->t;
 	new_nid_max = nid_last + cct->_conf->bluestore_nid_prealloc;
 	bufferlist bl;
 	::encode(new_nid_max, bl);
-	t->set(PREFIX_SUPER, "nid_max", bl);
+	synct->set(PREFIX_SUPER, "nid_max", bl);
 	dout(10) << __func__ << " new_nid_max " << new_nid_max << dendl;
       }
       if (blobid_last + cct->_conf->bluestore_blobid_prealloc/2 > blobid_max) {
-	KeyValueDB::Transaction t =
-	  kv_submitting.empty() ? synct : kv_submitting.front()->t;
 	new_blobid_max = blobid_last + cct->_conf->bluestore_blobid_prealloc;
 	bufferlist bl;
 	::encode(new_blobid_max, bl);
-	t->set(PREFIX_SUPER, "blobid_max", bl);
+	synct->set(PREFIX_SUPER, "blobid_max", bl);
 	dout(10) << __func__ << " new_blobid_max " << new_blobid_max << dendl;
       }
 
+      std::vector<KeyValueDB::Transaction> dbts;
+      dbts.reserve(kv_committing.size());
+
       for (auto txc : kv_committing) {
 	if (txc->state == TransContext::STATE_KV_QUEUED) {
+	  if (!cct->_conf->bluestore_debug_omit_kv_commit) {
+	    dbts.emplace_back(txc->t);
+	  }
 	  txc->log_state_latency(logger, l_bluestore_state_kv_queued_lat);
-	  int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction(txc->t);
-	  assert(r == 0);
 	  _txc_applied_kv(txc);
 	  --txc->osr->kv_committing_serially;
 	  txc->state = TransContext::STATE_KV_SUBMITTED;
@@ -8418,6 +8493,8 @@ void BlueStore::_kv_sync_thread()
 	  --txc->osr->txc_with_unstable_io;
 	}
       }
+
+      fuse_and_reorder_transactions(&dbts.front(), dbts.size(), synct);
 
       // release throttle *before* we commit.  this allows new ops
       // to be prepared and enter pipeline while we are waiting on
