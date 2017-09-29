@@ -8309,7 +8309,9 @@ struct  WriteFuzer: public rocksdb::WriteBatch::Handler {
     DELETE
   };
 
-  std::map<std::string, std::pair<rocksdb::Slice, OpType>> reorderer;
+  std::map<std::string,
+           std::pair<rocksdb::Slice, OpType>,
+           std::greater> reorderer;
 
   WriteFuzer() = default;
 
