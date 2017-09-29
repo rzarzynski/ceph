@@ -11,6 +11,7 @@
 #include "include/memory.h"
 #include <boost/scoped_ptr.hpp>
 #include "include/encoding.h"
+#include "common/batch.h"
 #include "common/Formatter.h"
 
 using std::string;
@@ -133,6 +134,7 @@ public:
     virtual ~TransactionImpl() {}
   };
   typedef ceph::shared_ptr< TransactionImpl > Transaction;
+  typedef ceph::continous_batch< Transaction > TransactionBatch;
 
   /// create a new instance
   static KeyValueDB *create(CephContext *cct, const std::string& type,
@@ -148,6 +150,17 @@ public:
 
   virtual Transaction get_transaction() = 0;
   virtual int submit_transaction(Transaction) = 0;
+  virtual int submit_transaction_sync(continous_batch<Transaction> batch) {
+    /// TODO(rzarzynski): move all implementations to the bulky variant
+    /// and make this a pure-virtual.
+    for (auto& elem : batch) {
+      const int ret = submit_transaction_sync(elem);
+      if (ret) {
+        return ret;
+      }
+    }
+    return 0;
+  }
   virtual int submit_transaction_sync(Transaction t) {
     return submit_transaction(t);
   }
