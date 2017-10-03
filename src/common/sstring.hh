@@ -326,6 +326,14 @@ public:
     }
 
     /**
+     *  Append a single character at the end of current string
+     *  @param c  The C character to append.
+     */
+    void push_back (const char_type c) {
+      append(&c, 1);
+    }
+
+    /**
      *  Replace characters with a value of a C style substring.
      *
      */
