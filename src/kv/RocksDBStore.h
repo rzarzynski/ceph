@@ -10,6 +10,9 @@
 #include <map>
 #include <string>
 #include <memory>
+// FIXME(rzarzynski): replace all small_vectors with the slabbed, mempooled
+// counterpart we'll have in Ceph
+#include <boost/container/small_vector.hpp>
 #include <boost/scoped_ptr.hpp>
 #include "rocksdb/write_batch.h"
 #include "rocksdb/perf_context.h"
@@ -22,6 +25,7 @@
 #include "include/assert.h"
 #include "common/Formatter.h"
 #include "common/Cond.h"
+#include "common/sstring.hh"
 
 #include "common/ceph_context.h"
 class PerfCounters;
@@ -253,6 +257,24 @@ public:
 
   class RocksDBTransactionImpl : public KeyValueDB::TransactionImpl {
   public:
+    struct RecordedItem {
+      typedef basic_sstring<char, uint16_t, 127> key_t;
+
+      enum class op_type_t {
+        PUT,
+        MERGE,
+        SINGLE_DELETE,
+        DELETE
+      };
+
+      key_t key;
+      op_type_t op_type;
+      ceph::bufferlist value;
+    };
+
+    boost::container::small_vector<RecordedItem, 4> records;
+    boost::container::small_vector<RecordedItem, 4> to_sort_records;
+
     rocksdb::WriteBatch bat;
     RocksDBStore *db;
 
@@ -293,8 +315,10 @@ public:
     return std::make_shared<RocksDBTransactionImpl>(this);
   }
 
+  rocksdb::WriteBatch fuse_and_reorder(KeyValueDB::TransactionBatch tb);
   int submit_transaction(KeyValueDB::Transaction t) override;
   int submit_transaction_sync(KeyValueDB::Transaction t) override;
+  int submit_transaction_sync(KeyValueDB::TransactionBatch tb) override;
   int get(
     const string &prefix,
     const std::set<string> &key,

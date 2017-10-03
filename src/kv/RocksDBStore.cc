@@ -575,27 +575,124 @@ int RocksDBStore::submit_transaction_sync(KeyValueDB::Transaction t)
   return result;
 }
 
-RocksDBStore::RocksDBTransactionImpl::RocksDBTransactionImpl(RocksDBStore *_db)
-{
-  db = _db;
-}
-
 static void put_bat(
   rocksdb::WriteBatch& bat, 
-  const string &key, 
+  const basic_sstring<char, uint16_t, 127>& key, 
   const bufferlist &to_set_bl)
 {
   // bufferlist::c_str() is non-constant, so we can't call c_str()
   if (to_set_bl.is_contiguous() && to_set_bl.length() > 0) {
-    bat.Put(rocksdb::Slice(key),
+    bat.Put(rocksdb::Slice(key.c_str(), key.size()),
 	     rocksdb::Slice(to_set_bl.buffers().front().c_str(),
 			    to_set_bl.length()));
   } else {
-    rocksdb::Slice key_slice(key);
+    rocksdb::Slice key_slice(key.c_str(), key.size());
     vector<rocksdb::Slice> value_slices(to_set_bl.buffers().size());
     bat.Put(nullptr, rocksdb::SliceParts(&key_slice, 1),
             prepare_sliceparts(to_set_bl, &value_slices));
   }
+}
+
+static void merge_bat(
+  rocksdb::WriteBatch& bat, 
+  const basic_sstring<char, uint16_t, 127>& key, 
+  const bufferlist &to_set_bl)
+{
+  // bufferlist::c_str() is non-constant, so we can't call c_str()
+  if (to_set_bl.is_contiguous() && to_set_bl.length() > 0) {
+    bat.Merge(rocksdb::Slice(key.c_str(), key.size()),
+	       rocksdb::Slice(to_set_bl.buffers().front().c_str(),
+			    to_set_bl.length()));
+  } else {
+    // make a copy
+    rocksdb::Slice key_slice(key.c_str(), key.size());
+    vector<rocksdb::Slice> value_slices(to_set_bl.buffers().size());
+    bat.Merge(nullptr, rocksdb::SliceParts(&key_slice, 1),
+              prepare_sliceparts(to_set_bl, &value_slices));
+  }
+}
+
+static inline bool _compare(
+RocksDBStore::RocksDBTransactionImpl::RecordedItem* const& r1,
+RocksDBStore::RocksDBTransactionImpl::RecordedItem* const& r2)
+{
+  return r1->key < r2->key;
+}
+
+rocksdb::WriteBatch RocksDBStore::fuse_and_reorder(KeyValueDB::TransactionBatch tb)
+{
+  std::vector<RocksDBTransactionImpl::RecordedItem*> all_records;
+  all_records.reserve(5 * tb.size());
+  for (auto& t : tb) {
+    RocksDBStore::RocksDBTransactionImpl * _t = \
+      static_cast<RocksDBStore::RocksDBTransactionImpl *>(t.get());
+    for (auto& record : _t->to_sort_records) {
+      all_records.emplace_back(&record);
+      __builtin_prefetch(&record.op_type, 0, 1);
+    }
+  }
+
+  std::sort(std::begin(all_records), std::end(all_records), _compare);
+
+  for (auto& t : tb) {
+    RocksDBStore::RocksDBTransactionImpl * _t = \
+      static_cast<RocksDBStore::RocksDBTransactionImpl *>(t.get());
+    for (auto& record : _t->records) {
+      all_records.emplace_back(&record);
+      __builtin_prefetch(&record.op_type, 0, 1);
+    }
+  }
+
+  rocksdb::WriteBatch bat;
+  using OpType = RocksDBTransactionImpl::RecordedItem::op_type_t;
+  for (auto& record : all_records) {
+    switch (record->op_type) {
+    case OpType::PUT:
+      put_bat(bat, record->key, std::move(record->value));
+      break;
+    case OpType::MERGE:
+      merge_bat(bat, record->key, std::move(record->value));
+      break;
+      //bat.Merge(record.key, std::move(record.value));
+    case OpType::SINGLE_DELETE:
+      //bat.SingleDelete(record.key);
+    case OpType::DELETE:
+      //bat.Delete(record.key);
+      break;
+    }
+  }
+
+  return bat;
+}
+
+int RocksDBStore::submit_transaction_sync(KeyValueDB::TransactionBatch tb)
+{
+  const utime_t start = ceph_clock_now();
+  
+//  std::sort(std::begin(tb), std::end(tb), _compare);
+
+
+  rocksdb::WriteBatch bat = fuse_and_reorder(tb);
+  rocksdb::WriteOptions woptions;
+  woptions.sync = true;
+  rocksdb::Status s = db->Write(woptions, &bat);
+  if (!s.ok()) {
+    RocksWBHandler rocks_txc;
+    bat.Iterate(&rocks_txc);
+    derr << __func__ << " error: " << s.ToString() << " code = " << s.code()
+         << " Rocksdb transaction: " << rocks_txc.seen << dendl;
+  }
+
+  utime_t lat = ceph_clock_now() - start;
+  logger->inc(l_rocksdb_txns_sync);
+  logger->tinc(l_rocksdb_submit_sync_latency, lat);
+
+  return s.ok() ? 0 : -1;
+}
+
+RocksDBStore::RocksDBTransactionImpl::RocksDBTransactionImpl(RocksDBStore *_db)
+{
+  db = _db;
 }
 
 void RocksDBStore::RocksDBTransactionImpl::set(
@@ -603,6 +700,14 @@ void RocksDBStore::RocksDBTransactionImpl::set(
   const string &k,
   const bufferlist &to_set_bl)
 {
+  RocksDBStore::RocksDBTransactionImpl::RecordedItem new_record;
+  new_record.key.append(prefix.data(), prefix.size());
+  new_record.key.push_back('\0');
+  new_record.key.append(k.data(), k.size());
+  new_record.op_type = RecordedItem::op_type_t::PUT;
+  new_record.value = to_set_bl;
+  records.emplace_back(std::move(new_record));
+
   string key = combine_strings(prefix, k);
 
   put_bat(bat, key, to_set_bl);
@@ -613,6 +718,14 @@ void RocksDBStore::RocksDBTransactionImpl::set(
   const char *k, size_t keylen,
   const bufferlist &to_set_bl)
 {
+  RocksDBStore::RocksDBTransactionImpl::RecordedItem new_record;
+  new_record.key.append(prefix.data(), prefix.size());
+  new_record.key.push_back('\0');
+  new_record.key.append(k, keylen);
+  new_record.op_type = RecordedItem::op_type_t::PUT;
+  new_record.value = to_set_bl;
+  records.emplace_back(std::move(new_record));
+
   string key;
   combine_strings(prefix, k, keylen, &key);
 
@@ -622,6 +735,13 @@ void RocksDBStore::RocksDBTransactionImpl::set(
 void RocksDBStore::RocksDBTransactionImpl::rmkey(const string &prefix,
 					         const string &k)
 {
+  RocksDBStore::RocksDBTransactionImpl::RecordedItem new_record;
+  new_record.key.append(prefix.data(), prefix.size());
+  new_record.key.push_back('\0');
+  new_record.key.append(k.data(), k.size());
+  new_record.op_type = RecordedItem::op_type_t::DELETE;
+  records.emplace_back(std::move(new_record));
+
   bat.Delete(combine_strings(prefix, k));
 }
 
@@ -629,6 +749,13 @@ void RocksDBStore::RocksDBTransactionImpl::rmkey(const string &prefix,
 					         const char *k,
 						 size_t keylen)
 {
+  RocksDBStore::RocksDBTransactionImpl::RecordedItem new_record;
+  new_record.key.append(prefix.data(), prefix.size());
+  new_record.key.push_back('\0');
+  new_record.key.append(k, keylen);
+  new_record.op_type = RecordedItem::op_type_t::DELETE;
+  records.emplace_back(std::move(new_record));
+
   string key;
   combine_strings(prefix, k, keylen, &key);
   bat.Delete(key);
@@ -637,6 +764,13 @@ void RocksDBStore::RocksDBTransactionImpl::rmkey(const string &prefix,
 void RocksDBStore::RocksDBTransactionImpl::rm_single_key(const string &prefix,
 					                 const string &k)
 {
+  RocksDBStore::RocksDBTransactionImpl::RecordedItem new_record;
+  new_record.key.append(prefix.data(), prefix.size());
+  new_record.key.push_back('\0');
+  new_record.key.append(k.data(), k.size());
+  new_record.op_type = RecordedItem::op_type_t::SINGLE_DELETE;
+  records.emplace_back(std::move(new_record));
+
   bat.SingleDelete(combine_strings(prefix, k));
 }
 
@@ -681,6 +815,12 @@ void RocksDBStore::RocksDBTransactionImpl::merge(
   const string &k,
   const bufferlist &to_set_bl)
 {
+  RocksDBStore::RocksDBTransactionImpl::RecordedItem new_record;
+  new_record.key.append(prefix.data(), prefix.size());
+  new_record.key.append(k.data(), k.size());
+  new_record.op_type = RecordedItem::op_type_t::MERGE;
+  to_sort_records.emplace_back(std::move(new_record));
+
   string key = combine_strings(prefix, k);
 
   // bufferlist::c_str() is non-constant, so we can't call c_str()

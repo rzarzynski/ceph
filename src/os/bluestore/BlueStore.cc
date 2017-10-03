@@ -8535,7 +8535,8 @@ void BlueStore::_kv_sync_thread()
       }
 
       // submit synct synchronously (block and wait for it to commit)
-      int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction_sync(synct);
+      KeyValueDB::TransactionBatch tb(dbts.data(), dbts.size());
+      int r = cct->_conf->bluestore_debug_omit_kv_commit ? 0 : db->submit_transaction_sync(tb);
       assert(r == 0);
 
       if (new_nid_max) {
