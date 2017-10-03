@@ -8467,7 +8467,7 @@ void BlueStore::_kv_sync_thread()
       }
 
       std::vector<KeyValueDB::Transaction> dbts;
-      dbts.reserve(kv_committing.size());
+      dbts.reserve(kv_committing.size() + 1);
 
       for (auto txc : kv_committing) {
 	if (txc->state == TransContext::STATE_KV_QUEUED) {
@@ -8493,8 +8493,9 @@ void BlueStore::_kv_sync_thread()
 	  --txc->osr->txc_with_unstable_io;
 	}
       }
+      dbts.push_back(synct);
 
-      fuse_and_reorder_transactions(&dbts.front(), dbts.size(), synct);
+      //fuse_and_reorder_transactions(&dbts.front(), dbts.size(), synct);
 
       // release throttle *before* we commit.  this allows new ops
       // to be prepared and enter pipeline while we are waiting on
