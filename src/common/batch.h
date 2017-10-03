@@ -33,6 +33,10 @@ public:
       n(n) {
   }
 
+  size_t size() const {
+    return n;
+  }
+
   T* begin() {
     return &data[0];
   }
