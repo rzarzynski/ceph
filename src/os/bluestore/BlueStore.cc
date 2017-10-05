@@ -329,21 +329,15 @@ static int get_key_object(const S& key, ghobject_t *oid)
 
   if (key.length() < 1 + 8 + 4)
     return -1;
-  p = _key_decode_shard(p, &oid->shard_id);
 
+  // TODO: handle the old format - it has first bit always set
   uint64_t pool;
   p = _key_decode_u64(p, &pool);
   oid->hobj.pool = pool - 0x8000000000000000ull;
 
   unsigned hash;
   p = _key_decode_u32(p, &hash);
-
   oid->hobj.set_bitwise_key_u32(hash);
-
-  r = decode_escaped(p, &oid->hobj.nspace);
-  if (r < 0)
-    return -2;
-  p += r + 1;
 
   string k;
   r = decode_escaped(p, &k);
@@ -367,8 +361,14 @@ static int get_key_object(const S& key, ghobject_t *oid)
     return -6;
   }
 
+  r = decode_escaped(p, &oid->hobj.nspace);
+  if (r < 0)
+    return -2;
+  p += r + 1;
+
   p = _key_decode_u64(p, &oid->hobj.snap.val);
   p = _key_decode_u64(p, &oid->generation);
+  p = _key_decode_shard(p, &oid->shard_id);
 
   if (*p != ONODE_KEY_SUFFIX) {
     return -7;
@@ -396,11 +396,9 @@ static void get_object_key(CephContext *cct, const ghobject_t& oid, S *key)
                    8 + 8 + 1;
   key->reserve(max_len);
 
-  _key_encode_shard(oid.shard_id, key);
+  // TODO: varint
   _key_encode_u64(oid.hobj.pool + 0x8000000000000000ull, key);
   _key_encode_u32(oid.hobj.get_bitwise_key_u32(), key);
-
-  append_escaped(oid.hobj.nspace, key);
 
   if (oid.hobj.get_key().length()) {
     // is a key... could be < = or >.
@@ -420,8 +418,11 @@ static void get_object_key(CephContext *cct, const ghobject_t& oid, S *key)
     key->append("=");
   }
 
+  append_escaped(oid.hobj.nspace, key);
+  // TODO: varints, please!
   _key_encode_u64(oid.hobj.snap, key);
   _key_encode_u64(oid.generation, key);
+  _key_encode_shard(oid.shard_id, key);
 
   key->push_back(ONODE_KEY_SUFFIX);
 
