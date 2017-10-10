@@ -781,7 +781,8 @@ void PGLog::_write_log_and_missing_wo_missing(
   }
 
   if (!to_remove.empty())
-    t.omap_rmkeys(coll, log_oid, to_remove);
+    t.omap_rmkeyrange(coll, log_oid, *to_remove.begin(),
+                                     *(--to_remove.end()));
 }
 
 // static
@@ -928,7 +929,8 @@ void PGLog::_write_log_and_missing(
   }
 
   if (!to_remove.empty())
-    t.omap_rmkeys(coll, log_oid, to_remove);
+    t.omap_rmkeyrange(coll, log_oid, *to_remove.begin(),
+                                     *(--to_remove.end()));
 }
 
 void PGLog::rebuild_missing_set_with_deletes(ObjectStore *store,
