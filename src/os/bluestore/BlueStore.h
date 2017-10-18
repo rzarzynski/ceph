@@ -23,6 +23,7 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <boost/container/flat_map.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/unordered_set.hpp>
 #include <boost/intrusive/set.hpp>
@@ -1828,7 +1829,8 @@ private:
   bool mounted = false;
 
   RWLock coll_lock = {"BlueStore::coll_lock"};  ///< rwlock to protect coll_map
-  mempool::bluestore_cache_other::unordered_map<coll_t, CollectionRef> coll_map;
+  // FIXME(rzarzynski): integrate flat_map with the Ceph's mempool infra
+  boost::container::flat_map<coll_t, CollectionRef> coll_map;
 
   vector<Cache*> cache_shards;
 

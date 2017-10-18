@@ -5729,12 +5729,9 @@ int BlueStore::_fsck(bool deep, bool repair)
 	  oid.hobj.pool != (int64_t)pgid.pool() ||
 	  !c->contains(oid)) {
 	c = nullptr;
-	for (ceph::unordered_map<coll_t, CollectionRef>::iterator p =
-	       coll_map.begin();
-	     p != coll_map.end();
-	     ++p) {
-	  if (p->second->contains(oid)) {
-	    c = p->second;
+	for (const auto& kv : coll_map) {
+	  if (kv.second->contains(oid)) {
+	    c = kv.second;
 	    break;
 	  }
 	}
@@ -6224,7 +6221,7 @@ int BlueStore::statfs(struct store_statfs_t *buf)
 BlueStore::CollectionRef BlueStore::_get_collection(const coll_t& cid)
 {
   RWLock::RLocker l(coll_lock);
-  ceph::unordered_map<coll_t,CollectionRef>::iterator cp = coll_map.find(cid);
+  const auto cp = coll_map.find(cid);
   if (cp == coll_map.end())
     return CollectionRef();
   return cp->second;
@@ -7060,10 +7057,9 @@ int BlueStore::getattrs(
 int BlueStore::list_collections(vector<coll_t>& ls)
 {
   RWLock::RLocker l(coll_lock);
-  for (ceph::unordered_map<coll_t, CollectionRef>::iterator p = coll_map.begin();
-       p != coll_map.end();
-       ++p)
-    ls.push_back(p->first);
+  for (const auto& kv : coll_map) {
+    ls.push_back(kv.first);
+  }
   return 0;
 }
 
