@@ -1276,26 +1276,6 @@ using namespace ceph;
   }
 
   template<bool is_const>
-  void buffer::list::iterator_impl<is_const>::copy(unsigned len, std::string &dest)
-  {
-    if (p == ls->end())
-      seek(off);
-    while (len > 0) {
-      if (p == ls->end())
-	throw end_of_buffer();
-
-      unsigned howmuch = p->length() - p_off;
-      const char *c_str = p->c_str();
-      if (len < howmuch)
-	howmuch = len;
-      dest.append(c_str + p_off, howmuch);
-
-      len -= howmuch;
-      advance(howmuch);
-    }
-  }
-
-  template<bool is_const>
   void buffer::list::iterator_impl<is_const>::copy_all(list &dest)
   {
     if (p == ls->end())
@@ -1415,11 +1395,6 @@ using namespace ceph;
   }
 
   void buffer::list::iterator::copy(unsigned len, list &dest)
-  {
-    buffer::list::iterator_impl<false>::copy(len, dest);
-  }
-
-  void buffer::list::iterator::copy(unsigned len, std::string &dest)
   {
     buffer::list::iterator_impl<false>::copy(len, dest);
   }

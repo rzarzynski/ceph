@@ -411,7 +411,24 @@ namespace buffer CEPH_BUFFER_API {
       void copy_deep(unsigned len, ptr &dest);
       void copy_shallow(unsigned len, ptr &dest);
       void copy(unsigned len, list &dest);
-      void copy(unsigned len, std::string &dest);
+      template<class StringT>
+      void copy(unsigned len, StringT &dest) {
+        if (p == ls->end())
+          seek(off);
+        while (len > 0) {
+          if (p == ls->end())
+            throw end_of_buffer();
+
+          unsigned howmuch = p->length() - p_off;
+          const char *c_str = p->c_str();
+          if (len < howmuch)
+            howmuch = len;
+          dest.append(c_str + p_off, howmuch);
+
+          len -= howmuch;
+          advance(howmuch);
+        }
+      }
       void copy_all(list &dest);
 
       // get a pointer to the currenet iterator position, return the
@@ -454,7 +471,11 @@ namespace buffer CEPH_BUFFER_API {
       void copy_deep(unsigned len, ptr &dest);
       void copy_shallow(unsigned len, ptr &dest);
       void copy(unsigned len, list &dest);
-      void copy(unsigned len, std::string &dest);
+      template<class StringT>
+      void copy(unsigned len, StringT &dest) {
+        buffer::list::iterator_impl<false>::copy(len, dest);
+      }
+
       void copy_all(list &dest);
 
       // copy data in
