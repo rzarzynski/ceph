@@ -462,6 +462,9 @@ public:
         u.internal.size = 0;
         u.internal.str[0] = '\0';
     }
+    void clear() noexcept {
+        reset();
+    }
 
     int compare(const basic_sstring& x) const noexcept {
         auto n = traits_type::compare(begin(), x.begin(), std::min(size(), x.size()));
@@ -519,6 +522,9 @@ public:
     }
     bool operator<(const basic_sstring& x) const {
         return compare(x) < 0;
+    }
+    bool operator>(const basic_sstring& x) const {
+        return compare(x) > 0;
     }
     basic_sstring operator+(const basic_sstring& x) const {
         basic_sstring ret(initialized_later(), size() + x.size());
