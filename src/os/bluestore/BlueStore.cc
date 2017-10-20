@@ -166,7 +166,8 @@ inline unsigned h2i(char c)
   }
 }
 
-static int decode_escaped(const char *p, string *out)
+template <class StringT>
+static int decode_escaped(const char *p, StringT* const out)
 {
   char buff[256];
   char* ptr = &buff[0];

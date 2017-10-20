@@ -15,6 +15,8 @@
 #ifndef __CEPH_OS_HOBJECT_H
 #define __CEPH_OS_HOBJECT_H
 
+#include "common/sstring.hh"
+
 #include "include/types.h"
 #include "include/cmp.h"
 
@@ -46,8 +48,15 @@ private:
   static const int64_t POOL_TEMP_START = -2; // and then negative
   friend class spg_t;  // for POOL_TEMP_START
 public:
+  // denc_traits<std::string> as well as the ghobject_t::encoded_size()
+  // method assume the size_type is uint32_t. Following this assumption
+  // allows us to preserve backward compatibility without extra code.
+  using sstring = basic_sstring<char, uint32_t, 48>;
+  static_assert(sizeof(sstring::size_type) == sizeof(uint32_t),
+                "sstring must abid the size limits due to legacy");
+
   int64_t pool;
-  string nspace;
+  sstring nspace;
 
 private:
   string key;
@@ -267,7 +276,7 @@ public:
     (*this) = temp;
   }
 
-  const string &get_namespace() const {
+  const sstring &get_namespace() const {
     return nspace;
   }
 

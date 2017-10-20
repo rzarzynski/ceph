@@ -98,7 +98,8 @@ static void append_escaped(const string &in, string *out)
   out->push_back('!');
 }
 
-static int decode_escaped(const char *p, string *out)
+template <class StringT>
+static int decode_escaped(const char *p, StringT* const out)
 {
   const char *orig_p = p;
   while (*p && *p != '!') {

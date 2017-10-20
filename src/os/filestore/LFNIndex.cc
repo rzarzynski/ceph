@@ -594,11 +594,12 @@ string LFNIndex::lfn_generate_object_name_keyless(const ghobject_t &oid)
   return string(s);
 }
 
-static void append_escaped(string::const_iterator begin,
-			   string::const_iterator end,
+template <class IteratorT>
+static void append_escaped(IteratorT begin,
+			   IteratorT end,
 			   string *out)
 {
-  for (string::const_iterator i = begin; i != end; ++i) {
+  for (auto i = begin; i != end; ++i) {
     if (*i == '\\') {
       out->append("\\\\");
     } else if (*i == '/') {
