@@ -37,6 +37,8 @@
 #include <boost/intrusive/set.hpp>
 #include <boost/optional.hpp>
 
+#include "common/sstring.hh"
+
 #include "include/assert.h"	// boost clobbers this
 #include "include/intarith.h"
 #include "include/int_types.h"
@@ -699,6 +701,70 @@ public:
   static void encode_nohead(const value_type& s,
 			    buffer::list::contiguous_appender& p) {
     p.append(s.data(), s.length());
+  }
+};
+
+//
+// sstring
+//
+template <typename Char, typename Size, Size Max>
+struct denc_traits<basic_sstring<Char, Size, Max>> {
+private:
+  using value_type = basic_sstring<Char, Size, Max>;
+public:
+  static constexpr bool supported = true;
+  static constexpr bool featured = false;
+  static constexpr bool bounded = false;
+  static constexpr bool need_contiguous = false;
+
+  static void bound_encode(const value_type& s, size_t& p, uint64_t f=0) {
+    p += sizeof(Size) + s.size();
+  }
+
+  static void encode_nohead(const value_type& s,
+                            buffer::list::contiguous_appender& p)
+  {
+    auto len = s.size();
+    if (len) {
+      p.append(reinterpret_cast<const char*>(s.c_str()), len);
+    }
+  }
+
+  static void decode_nohead(size_t len, value_type& s,
+                            buffer::ptr::iterator& p)
+  {
+    s.reset();
+    if (len) {
+      s.append(reinterpret_cast<const Char*>(p.get_pos_add(len)), len);
+    }
+  }
+
+  static void encode(const value_type& s,
+                     buffer::list::contiguous_appender& p,
+                     uint64_t f=0)
+  {
+    Size len = (Size)(s.size());
+    ::denc(len, p);
+    if (len) {
+      p.append(reinterpret_cast<const char*>(s.c_str()), len);
+    }
+  }
+
+  static void decode(value_type& s,
+                     buffer::ptr::iterator& p,
+                     uint64_t f=0)
+  {
+    Size len;
+    ::denc(len, p);
+    decode_nohead(len, s, p);
+  }
+
+  static void decode(value_type& s, buffer::list::iterator& p)
+  {
+    Size len;
+    ::denc(len, p);
+    s.clear();
+    p.copy(len, s);
   }
 };
 
