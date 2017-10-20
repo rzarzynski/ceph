@@ -24,19 +24,30 @@ using namespace std;
 
 #include "include/unordered_map.h"
 
+#include "common/sstring.hh"
+
 #include "hash.h"
 #include "encoding.h"
 #include "ceph_hash.h"
 #include "cmp.h"
 
+// denc_traits<std::string> as well as the ghobject_t::encoded_size()
+// method assume the size_type is uint32_t. Following this assumption
+// allows us to preserve backward compatibility without extra code.
+typedef basic_sstring<char, uint32_t, 48> object_name_t;
+static_assert(sizeof(object_name_t::size_type) == sizeof(uint32_t),
+              "object_name_t must abid the size limits due to legacy");
+
 struct object_t {
-  string name;
+  object_name_t name;
 
   object_t() {}
   // cppcheck-suppress noExplicitConstructor
   object_t(const char *s) : name(s) {}
   // cppcheck-suppress noExplicitConstructor
-  object_t(const string& s) : name(s) {}
+  object_t(const std::string& s) : name(s) {}
+  // cppcheck-suppress noExplicitConstructor
+  object_t(const object_name_t& name) : name(name) {}
 
   void swap(object_t& o) {
     name.swap(o.name);

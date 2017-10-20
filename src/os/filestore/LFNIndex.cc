@@ -617,7 +617,7 @@ static void append_escaped(IteratorT begin,
 string LFNIndex::lfn_generate_object_name_current(const ghobject_t &oid)
 {
   string full_name;
-  string::const_iterator i = oid.hobj.oid.name.begin();
+  object_name_t::const_iterator i = oid.hobj.oid.name.begin();
   if (oid.hobj.oid.name.substr(0, 4) == "DIR_") {
     full_name.append("\\d");
     i += 4;
@@ -678,7 +678,7 @@ string LFNIndex::lfn_generate_object_name_poolless(const ghobject_t &oid)
 
   assert(oid.generation == ghobject_t::NO_GEN);
   string full_name;
-  string::const_iterator i = oid.hobj.oid.name.begin();
+  object_name_t::const_iterator i = oid.hobj.oid.name.begin();
   if (oid.hobj.oid.name.substr(0, 4) == "DIR_") {
     full_name.append("\\d");
     i += 4;

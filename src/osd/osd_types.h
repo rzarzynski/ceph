@@ -216,7 +216,7 @@ namespace std {
 struct object_locator_t {
   // You specify either the hash or the key -- not both
   int64_t pool;     ///< pool id
-  string key;       ///< key string (if non-empty)
+  object_name_t key;///< key string (if non-empty)
   string nspace;    ///< namespace
   int64_t hash;     ///< hash position (if >= 0)
 
@@ -277,7 +277,7 @@ inline ostream& operator<<(ostream& out, const object_locator_t& loc)
 struct request_redirect_t {
 private:
   object_locator_t redirect_locator; ///< this is authoritative
-  string redirect_object; ///< If non-empty, the request goes to this object name
+  object_name_t redirect_object; ///< If non-empty, the request goes to this object name
   bufferlist osd_instructions; ///< a bufferlist for the OSDs, passed but not interpreted by clients
 
   friend ostream& operator<<(ostream& out, const request_redirect_t& redir);
@@ -298,7 +298,7 @@ public:
   bool empty() const { return redirect_locator.empty() &&
 			      redirect_object.empty(); }
 
-  void combine_with_locator(object_locator_t& orig, string& obj) const {
+  void combine_with_locator(object_locator_t& orig, object_name_t& obj) const {
     orig = redirect_locator;
     if (!redirect_object.empty())
       obj = redirect_object;

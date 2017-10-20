@@ -59,16 +59,16 @@ public:
   sstring nspace;
 
 private:
-  string key;
+  sstring key;
 
   class hobject_t_max {};
 
 public:
-  const string &get_key() const {
+  const sstring &get_key() const {
     return key;
   }
 
-  void set_key(const std::string &key_) {
+  void set_key(const sstring &key_) {
     if (key_ == oid.name)
       key.clear();
     else
@@ -121,19 +121,19 @@ public:
     return hobject_t_max();
   }
 
-  hobject_t(object_t oid, const string& key, snapid_t snap, uint32_t hash,
+  hobject_t(object_t oid, const sstring& key, snapid_t snap, uint32_t hash,
 	    int64_t pool, string nspace)
     : oid(oid), snap(snap), hash(hash), max(false),
       pool(pool), nspace(nspace),
-      key(oid.name == key ? string() : key) {
+      key(oid.name == key ? sstring() : key) {
     build_hash_cache();
   }
 
-  hobject_t(const sobject_t &soid, const string &key, uint32_t hash,
+  hobject_t(const sobject_t &soid, const sstring &key, uint32_t hash,
 	    int64_t pool, string nspace)
     : oid(soid.oid), snap(soid.snap), hash(hash), max(false),
       pool(pool), nspace(nspace),
-      key(soid.oid.name == key ? string() : key) {
+      key(soid.oid.name == key ? sstring() : key) {
     build_hash_cache();
   }
 
@@ -258,7 +258,7 @@ public:
     hash_reverse_bits = value;
   }
 
-  const string& get_effective_key() const {
+  const sstring& get_effective_key() const {
     if (key.length())
       return key;
     return oid.name;

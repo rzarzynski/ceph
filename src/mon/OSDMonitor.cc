@@ -3793,7 +3793,7 @@ bool OSDMonitor::preprocess_command(MonOpRequestRef op)
 
     string fullobjname;
     if (!namespacestr.empty())
-      fullobjname = namespacestr + string("/") + oid.name;
+      fullobjname = namespacestr + "/" + oid.name.c_str();
     else
       fullobjname = oid.name;
     if (f) {
