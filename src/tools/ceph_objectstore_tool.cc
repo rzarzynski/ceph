@@ -259,10 +259,10 @@ struct pgid_object_list {
 struct lookup_ghobject : public action_on_object_t {
   pgid_object_list _objects;
   const string _name;
-  const boost::optional<std::string> _namespace;
+  const boost::optional<hobject_t::sstring> _namespace;
   bool _need_snapset;
 
-  lookup_ghobject(const string& name, const boost::optional<std::string>& nspace, bool need_snapset = false) : _name(name),
+  lookup_ghobject(const string& name, const boost::optional<hobject_t::sstring>& nspace, bool need_snapset = false) : _name(name),
 		  _namespace(nspace), _need_snapset(need_snapset) { }
 
   int call(ObjectStore *store, coll_t coll, ghobject_t &ghobj, object_info_t &oi) override {
@@ -1433,7 +1433,7 @@ int ObjectStoreTool::do_import(ObjectStore *store, OSDSuperblock& sb,
   return 0;
 }
 
-int do_list(ObjectStore *store, string pgidstr, string object, boost::optional<std::string> nspace,
+int do_list(ObjectStore *store, string pgidstr, string object, boost::optional<hobject_t::sstring> nspace,
 	    Formatter *formatter, bool debug, bool human_readable, bool head)
 {
   int r;
@@ -1453,7 +1453,7 @@ int do_list(ObjectStore *store, string pgidstr, string object, boost::optional<s
 int do_meta(ObjectStore *store, string object, Formatter *formatter, bool debug, bool human_readable)
 {
   int r;
-  boost::optional<std::string> nspace; // Not specified
+  boost::optional<hobject_t::sstring> nspace; // Not specified
   lookup_ghobject lookup(object, nspace);
   r = action_on_all_objects_in_exact_pg(store, coll_t::meta(), lookup, debug);
   if (r)
@@ -2510,7 +2510,7 @@ int main(int argc, char **argv)
   string dpath, jpath, pgidstr, op, file, mountpoint, mon_store_path, object;
   string target_data_path, fsid;
   string objcmd, arg1, arg2, type, format, argnspace, pool;
-  boost::optional<std::string> nspace;
+  boost::optional<hobject_t::sstring> nspace;
   spg_t pgid;
   unsigned epoch = 0;
   ghobject_t ghobj;
