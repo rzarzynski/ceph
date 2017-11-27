@@ -2376,6 +2376,22 @@ public:
     bufferlist& bl,
     uint32_t op_flags = 0);
 
+  int async_read(
+    const coll_t& cid,
+    const ghobject_t& oid,
+    uint64_t offset,
+    size_t len,
+    bufferlist& bl,
+    Context* on_complete,
+    uint32_t op_flags = 0) override;
+  int async_read(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    uint64_t offset,
+    size_t len,
+    bufferlist& bl,
+    Context* on_complete,
+    uint32_t op_flags = 0) override;
 private:
   int _fiemap(CollectionHandle &c_, const ghobject_t& oid,
  	     uint64_t offset, size_t len, interval_set<uint64_t>& destset);

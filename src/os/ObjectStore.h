@@ -1735,6 +1735,46 @@ public:
      return read(c->get_cid(), oid, offset, len, bl, op_flags);
    }
 
+  virtual bool has_async_read() const {
+    return false;
+  }
+
+  /**
+   * async_read -- asynchronously read a byte range of data from an object
+   *
+   * Note: if reading from an offset past the end of the object, we
+   * return 0 (not, say, -EINVAL).
+   *
+   * @param cid collection for object
+   * @param oid oid of object
+   * @param offset location offset of first byte to be read
+   * @param len number of bytes to be read
+   * @param bl output bufferlist
+   * @param on_complete callback to be called when data are ready
+   * @param op_flags is CEPH_OSD_OP_FLAG_*
+   * @returns number of bytes read on success, or negative error code on failure.
+   */
+  virtual int async_read(
+    const coll_t& cid,
+    const ghobject_t& oid,
+    uint64_t offset,
+    size_t len,
+    bufferlist& bl,
+    Context* on_complete,
+    uint32_t op_flags = 0) {
+    return -EOPNOTSUPP;
+  }
+  virtual int async_read(
+    CollectionHandle &c,
+    const ghobject_t& oid,
+    uint64_t offset,
+    size_t len,
+    bufferlist& bl,
+    Context* on_complete,
+    uint32_t op_flags = 0) {
+    return async_read(c->get_cid(), oid, offset, len, bl,
+                      on_complete, op_flags);
+  }
   /**
    * fiemap -- get extent map of data of an object
    *
