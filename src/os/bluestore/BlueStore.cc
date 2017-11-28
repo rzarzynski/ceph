@@ -3496,6 +3496,7 @@ static void aio_cb(void *priv, void *priv2)
   BlueStore *store = static_cast<BlueStore*>(priv);
   BlueStore::AioContext *c = static_cast<BlueStore::AioContext*>(priv2);
   c->aio_finish(store);
+  c->put();
 }
 
 BlueStore::BlueStore(CephContext *cct, const string& path)
@@ -6518,6 +6519,143 @@ int BlueStore::read(
 	   << " 0x" << std::hex << offset << "~" << length << std::dec
 	   << " = " << r << dendl;
   return r;
+}
+
+int BlueStore::async_read(
+  const coll_t& cid,
+  const ghobject_t& oid,
+  uint64_t offset,
+  size_t length,
+  bufferlist& bl,
+  Context* on_complete,
+  uint32_t op_flags)
+{
+  CollectionHandle c = _get_collection(cid);
+  if (!c)
+    return -ENOENT;
+  return async_read(c, oid, offset, length, bl, on_complete, op_flags);
+}
+
+int BlueStore::async_read(
+  CollectionHandle &c_,
+  const ghobject_t& oid,
+  uint64_t offset,
+  size_t length,
+  bufferlist& bl,
+  Context* on_complete,
+  uint32_t op_flags)
+{
+  PerfGuard(logger, l_bluestore_read_lat);
+  Collection *c = static_cast<Collection *>(c_.get());
+  const coll_t &cid = c->get_cid();
+  dout(15) << __func__ << " " << cid << " " << oid
+	   << " 0x" << std::hex << offset << "~" << length << std::dec
+	   << dendl;
+  if (!c->exists)
+    return -ENOENT;
+
+  bl.clear();
+  int r;
+  {
+    RWLock::RLocker l(c->lock);
+    PerfGuard(logger, l_bluestore_read_onode_meta_lat);
+    OnodeRef o = c->get_onode(oid, false);
+    if (!o || !o->exists) {
+      r = -ENOENT;
+      goto out;
+    }
+
+    if (offset == length && offset == 0)
+      length = o->onode.size;
+
+    r = _do_async_read(c, o, offset, length, bl, on_complete, op_flags);
+    if (r == -EIO) {
+      logger->inc(l_bluestore_read_eio);
+    }
+  }
+
+ out:
+  if (r == 0 && _debug_data_eio(oid)) {
+    r = -EIO;
+    derr << __func__ << " " << c->cid << " " << oid << " INJECT EIO" << dendl;
+  } else if (cct->_conf->bluestore_debug_random_read_err &&
+    (rand() % (int)(cct->_conf->bluestore_debug_random_read_err * 100.0)) == 0) {
+    dout(0) << __func__ << ": inject random EIO" << dendl;
+    r = -EIO;
+  }
+  dout(10) << __func__ << " " << cid << " " << oid
+	   << " 0x" << std::hex << offset << "~" << length << std::dec
+	   << " = " << r << dendl;
+  return r;
+}
+
+int BlueStore::_do_async_read(
+  Collection *c,
+  OnodeRef o,
+  const uint64_t offset,
+  size_t length,
+  ceph::bufferlist& bl,
+  Context* const on_complete,
+  uint32_t op_flags)
+{
+  FUNCTRACE();
+  dout(20) << __func__ << " 0x" << std::hex << offset << "~" << length
+           << " size 0x" << o->onode.size << " (" << std::dec
+           << o->onode.size << ")" << dendl;
+
+  bl.clear();
+
+  if (offset >= o->onode.size) {
+    return 0;
+  }
+  if (offset + length > o->onode.size) {
+    length = o->onode.size - offset;
+  }
+
+  // build blob-wise list to of stuff read (that isn't cached)
+  AioReadBatch* const aio = \
+    new AioReadBatch(cct, offset, length, bl, on_complete, op_flags);
+
+  std::tie(aio->ready_regions, aio->blobs2read, aio->num_all_regions) = \
+    _consult_cache(o, offset, length);
+
+  {
+    PerfGuard(logger, l_bluestore_read_onode_meta_lat);
+    o->extent_map.fault_range(db, offset, length);
+  }
+
+  _dump_onode(o);
+
+  // read raw blob data.  use aio if we have >1 blobs to read.
+  for (auto& p : aio->blobs2read) {
+    p.second->issue_io([&](const uint64_t offset,
+                           const uint64_t length,
+                           ceph::bufferlist* blobbl,
+                           const size_t regions_num) {
+      int r = this->bdev->aio_read(offset, length, blobbl, &aio->ioc);
+      return r < 0 ? r : 0;
+    });
+  }
+  if (aio->ioc.has_pending_aios()) {
+    bdev->aio_submit(&aio->ioc);
+  }
+  return 0;
+}
+
+void BlueStore::AioReadBatch::aio_finish(BlueStore* const store)
+{
+  const bool buffered = store->_do_read_is_buffered(op_flags);
+  // enumerate and postprocess (i.e. decompress) desired blobs
+  for (auto& b2r : blobs2read) {
+    b2r.second->postprocess(ready_regions, buffered);
+  }
+
+  // generate a resulting buffer
+  bl = store->_do_read_compose_result(ready_regions, offset, length);
+
+  assert(bl.length() == length);
+  on_complete->complete(length);
+  return;
 }
 
 

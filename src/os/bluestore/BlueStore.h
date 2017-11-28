@@ -145,6 +145,7 @@ public:
 
   struct AioContext {
     virtual void aio_finish(BlueStore *store) = 0;
+    virtual void put() { };
     virtual ~AioContext() {}
   };
 
@@ -1770,6 +1771,38 @@ public:
     const uint64_t offset,
     const size_t length);
 
+  struct AioReadBatch : public AioContext {
+    const uint64_t offset;
+    const size_t length;
+    ceph::bufferlist& bl;
+    Context* const on_complete;
+    const uint32_t op_flags;
+
+    IOContext ioc;
+    ready_regions_t ready_regions;
+    blobs2read_t blobs2read;
+    size_t num_all_regions;
+
+    AioReadBatch(CephContext* const cct,
+                 const uint64_t offset,
+                 const size_t length,
+                 ceph::bufferlist& bl,
+                 Context* const on_complete,
+                 const uint32_t op_flags)
+      : offset(offset),
+        length(length),
+        bl(bl),
+        on_complete(on_complete),
+        op_flags(op_flags),
+        ioc(cct, this, true) { // allow EIO
+    }
+
+    void aio_finish(BlueStore *store) override;
+    void put() override {
+      delete this;
+    }
+  };
+
   class OpSequencer : public Sequencer_impl {
   public:
     std::mutex qlock;
@@ -2376,6 +2409,9 @@ public:
     bufferlist& bl,
     uint32_t op_flags = 0);
 
+  bool has_async_read() const override {
+    return true;
+  }
   int async_read(
     const coll_t& cid,
     const ghobject_t& oid,
@@ -2392,6 +2428,15 @@ public:
     bufferlist& bl,
     Context* on_complete,
     uint32_t op_flags = 0) override;
+  int _do_async_read(
+    Collection *c,
+    OnodeRef o,
+    uint64_t offset,
+    size_t len,
+    bufferlist& bl,
+    Context* on_complete,
+    uint32_t op_flags = 0);
+
 private:
   int _fiemap(CollectionHandle &c_, const ghobject_t& oid,
  	     uint64_t offset, size_t len, interval_set<uint64_t>& destset);
