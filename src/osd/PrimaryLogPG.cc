@@ -263,7 +263,7 @@ void PrimaryLogPG::OpContext::finish_read(PrimaryLogPG *pg)
   --inflightreads;
   if (async_reads_complete()) {
     assert(pg->in_progress_async_reads.size());
-    assert(pg->in_progress_async_reads.front().second == this);
+//    assert(pg->in_progress_async_reads.front().second == this);
     pg->in_progress_async_reads.pop_front();
 
     // Restart the op context now that all reads have been

@@ -6599,7 +6599,7 @@ int BlueStore::_do_async_read(
   uint32_t op_flags)
 {
   FUNCTRACE();
-  dout(20) << __func__ << " 0x" << std::hex << offset << "~" << length
+  dout(0) << __func__ << " 0x" << std::hex << offset << "~" << length
            << " size 0x" << o->onode.size << " (" << std::dec
            << o->onode.size << ")" << dendl;
 
@@ -6637,6 +6637,7 @@ int BlueStore::_do_async_read(
     });
   }
   if (aio->ioc.has_pending_aios()) {
+    dout(0) << __func__ << " submitting aios" << dendl;
     bdev->aio_submit(&aio->ioc);
   }
   return 0;
