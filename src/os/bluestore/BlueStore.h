@@ -1774,7 +1774,7 @@ public:
   struct AioReadBatch : public AioContext {
     const uint64_t offset;
     const size_t length;
-    ceph::bufferlist& bl;
+    ceph::bufferlist& resbl;
     Context* const on_complete;
     const uint32_t op_flags;
 
@@ -1786,12 +1786,12 @@ public:
     AioReadBatch(CephContext* const cct,
                  const uint64_t offset,
                  const size_t length,
-                 ceph::bufferlist& bl,
+                 ceph::bufferlist& resbl,
                  Context* const on_complete,
                  const uint32_t op_flags)
       : offset(offset),
         length(length),
-        bl(bl),
+        resbl(resbl),
         on_complete(on_complete),
         op_flags(op_flags),
         ioc(cct, this, true) { // allow EIO

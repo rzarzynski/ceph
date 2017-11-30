@@ -6651,9 +6651,9 @@ void BlueStore::AioReadBatch::aio_finish(BlueStore* const store)
   }
 
   // generate a resulting buffer
-  bl = store->_do_read_compose_result(ready_regions, offset, length);
+  resbl = store->_do_read_compose_result(ready_regions, offset, length);
 
-  assert(bl.length() == length);
+  assert(resbl.length() == length);
   on_complete->complete(length);
   return;
 }
