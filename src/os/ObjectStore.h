@@ -18,6 +18,7 @@
 #include "include/buffer.h"
 #include "include/types.h"
 #include "osd/osd_types.h"
+#include "common/batch.h"
 #include "common/TrackedOp.h"
 #include "common/WorkQueue.h"
 #include "ObjectMap.h"
@@ -1739,6 +1740,27 @@ public:
     return false;
   }
 
+  struct async_read_params_t {
+    uint64_t offset = 0;
+    uint64_t length = 0;
+    ceph::bufferlist* outbl = nullptr;
+    Context* on_complete = nullptr;
+    uint32_t flags = 0;
+
+    async_read_params_t(
+      const uint64_t offset,
+      const uint64_t length,
+      ceph::bufferlist* const outbl,
+      Context* const on_complete,
+      const uint32_t flags)
+    : offset(offset),
+      length(length),
+      outbl(outbl),
+      on_complete(on_complete),
+      flags(flags) {
+    }
+  };
+
   /**
    * async_read -- asynchronously read a byte range of data from an object
    *
@@ -1757,23 +1779,17 @@ public:
   virtual int async_read(
     const coll_t& cid,
     const ghobject_t& oid,
-    uint64_t offset,
-    size_t len,
-    bufferlist& bl,
-    Context* on_complete,
-    uint32_t op_flags = 0) {
+    ceph::continous_batch<async_read_params_t> params_batch,
+    Context* on_all_complete) {
     return -EOPNOTSUPP;
   }
   virtual int async_read(
     CollectionHandle &c,
     const ghobject_t& oid,
-    uint64_t offset,
-    size_t len,
-    bufferlist& bl,
-    Context* on_complete,
-    uint32_t op_flags = 0) {
-    return async_read(c->get_cid(), oid, offset, len, bl,
-                      on_complete, op_flags);
+    ceph::continous_batch<async_read_params_t> params_batch,
+    Context* on_all_complete) {
+    return async_read(c->get_cid(), oid, std::move(params_batch),
+                      on_all_complete);
   }
   /**
    * fiemap -- get extent map of data of an object

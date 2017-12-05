@@ -6521,40 +6521,67 @@ int BlueStore::read(
   return r;
 }
 
+#define pderr(parent)                           \
+{                                               \
+  CephContext* cct = parent->cct;               \
+  const std::string& path = parent->path;       \
+  derr
+
+#define pdout(parent, level)                    \
+{                                               \
+  CephContext* cct = parent->cct;               \
+  const std::string& path = parent->path;       \
+  dout(level)
+
+#define pdendl                                  \
+  dendl;                                        \
+}
+
 int BlueStore::async_read(
   const coll_t& cid,
   const ghobject_t& oid,
-  uint64_t offset,
-  size_t length,
-  bufferlist& bl,
-  Context* on_complete,
-  uint32_t op_flags)
+  ceph::continous_batch<BlueStore::async_read_params_t> params_batch,
+  Context* const on_all_complete)
 {
   CollectionHandle c = _get_collection(cid);
-  if (!c)
+  if (!c) {
+    for (const auto& p : params_batch) {
+      p.on_complete->complete(-ENOENT);
+    }
+    on_all_complete->complete(-ENOENT);
     return -ENOENT;
-  return async_read(c, oid, offset, length, bl, on_complete, op_flags);
+  }
+  return async_read(c, oid, std::move(params_batch), on_all_complete);
 }
 
 int BlueStore::async_read(
   CollectionHandle &c_,
   const ghobject_t& oid,
-  uint64_t offset,
-  size_t length,
-  bufferlist& bl,
-  Context* on_complete,
-  uint32_t op_flags)
+  ceph::continous_batch<BlueStore::async_read_params_t> params_batch,
+  Context* const on_all_complete)
 {
   PerfGuard(logger, l_bluestore_read_lat);
   Collection *c = static_cast<Collection *>(c_.get());
   const coll_t &cid = c->get_cid();
-  dout(15) << __func__ << " " << cid << " " << oid
-	   << " 0x" << std::hex << offset << "~" << length << std::dec
-	   << dendl;
-  if (!c->exists)
-    return -ENOENT;
 
-  bl.clear();
+  for (const auto& p : params_batch) {
+    dout(15) << __func__ << " " << cid << " " << oid
+             << " 0x" << std::hex << p.offset << "~" << p.length
+             << std::dec << dendl;
+  }
+
+  if (!c->exists) {
+    for (const auto& p : params_batch) {
+      p.on_complete->complete(-ENOENT);
+    }
+    on_all_complete->complete(-ENOENT);
+    return -ENOENT;
+  }
+
+  for (auto& p : params_batch) {
+    p.outbl->clear();
+  }
+
   int r;
   {
     RWLock::RLocker l(c->lock);
@@ -6565,10 +6592,13 @@ int BlueStore::async_read(
       goto out;
     }
 
-    if (offset == length && offset == 0)
-      length = o->onode.size;
+    for (auto& p : params_batch) {
+      if (p.offset == p.length && p.offset == 0) {
+        p.length = o->onode.size;
+      }
+    }
 
-    r = _do_async_read(c, o, offset, length, bl, on_complete, op_flags);
+    r = _do_async_read(c, o, params_batch, on_all_complete);
     if (r == -EIO) {
       logger->inc(l_bluestore_read_eio);
     }
@@ -6583,80 +6613,106 @@ int BlueStore::async_read(
     dout(0) << __func__ << ": inject random EIO" << dendl;
     r = -EIO;
   }
-  dout(10) << __func__ << " " << cid << " " << oid
-	   << " 0x" << std::hex << offset << "~" << length << std::dec
-	   << " = " << r << dendl;
+  for (const auto& p : params_batch) {
+    dout(10) << __func__ << " " << cid << " " << oid
+             << " 0x" << std::hex << p.offset << "~" << p.length
+             << std::dec << " = " << r << dendl;
+  }
   return r;
 }
 
 int BlueStore::_do_async_read(
   Collection *c,
   OnodeRef o,
-  const uint64_t offset,
-  size_t length,
-  ceph::bufferlist& bl,
-  Context* const on_complete,
-  uint32_t op_flags)
+  ceph::continous_batch<BlueStore::async_read_params_t> params_batch,
+  Context* const on_all_complete)
 {
   FUNCTRACE();
-  dout(0) << __func__ << " 0x" << std::hex << offset << "~" << length
-           << " size 0x" << o->onode.size << " (" << std::dec
-           << o->onode.size << ")" << dendl;
-
-  bl.clear();
-
-  if (offset >= o->onode.size) {
-    return 0;
-  }
-  if (offset + length > o->onode.size) {
-    length = o->onode.size - offset;
+  for (const auto& p : params_batch) {
+    dout(0) << __func__ << " 0x" << std::hex << p.offset << "~" << p.length
+            << " size 0x" << o->onode.size << " (" << std::dec
+            << o->onode.size << ")" << dendl;
   }
 
   // build blob-wise list to of stuff read (that isn't cached)
-  AioReadBatch* const aio = \
-    new AioReadBatch(cct, offset, length, bl, on_complete, op_flags);
+  AioReadBatch* const aio = new AioReadBatch(cct, on_all_complete);
+  for (auto p : params_batch) {
+    if (p.offset >= o->onode.size) {
+      p.on_complete->complete(0);
+      continue;
+    }
 
-  std::tie(aio->ready_regions, aio->blobs2read, aio->num_all_regions) = \
-    _consult_cache(o, offset, length);
+    if (p.offset + p.length > o->onode.size) {
+      p.length = o->onode.size - p.offset;
+    }
 
+    AioReadBatch::read_ctx_t& ctx = aio->create_read_ctx(p);
+    std::tie(ctx.ready_regions,
+             ctx.blobs2read,
+             ctx.num_all_regions) = _consult_cache(o, p.offset, p.length);
+  }
+
+  // load shards of extent map if needed
   {
     PerfGuard(logger, l_bluestore_read_onode_meta_lat);
-    o->extent_map.fault_range(db, offset, length);
+    for (const auto& p : params_batch) {
+      // I bet we'll want batch-aware variant of fault_range() because
+      // of the locking it's out there.
+      o->extent_map.fault_range(db, p.offset, p.length);
+    }
   }
 
   _dump_onode(o);
 
   // read raw blob data.  use aio if we have >1 blobs to read.
-  for (auto& p : aio->blobs2read) {
-    p.second->issue_io([&](const uint64_t offset,
-                           const uint64_t length,
-                           ceph::bufferlist* blobbl,
-                           const size_t regions_num) {
-      int r = this->bdev->aio_read(offset, length, blobbl, &aio->ioc);
-      return r < 0 ? r : 0;
-    });
+  for (auto& ctx : aio->read_ctx_batch) {
+    for (auto& b : ctx.blobs2read) {
+      b.second->issue_io([&](const uint64_t offset,
+                             const uint64_t length,
+                             ceph::bufferlist* blobbl,
+                             const size_t regions_num) {
+        int r = this->bdev->aio_read(offset, length, blobbl, &aio->ioc);
+        return r < 0 ? r : 0;
+      });
+    }
   }
+
   if (aio->ioc.has_pending_aios()) {
     dout(0) << __func__ << " submitting aios" << dendl;
     bdev->aio_submit(&aio->ioc);
+  } else {
+    // nothing, maybe offset >= o->onode.size in for all items of the batch.
+    // we need to call the main on_complete now and directly as the will be
+    // no callback from BlockDevice.
+    on_all_complete->complete(0);
   }
+
   return 0;
 }
 
 void BlueStore::AioReadBatch::aio_finish(BlueStore* const store)
 {
-  const bool buffered = store->_do_read_is_buffered(op_flags);
-  // enumerate and postprocess (i.e. decompress) desired blobs
-  for (auto& b2r : blobs2read) {
-    b2r.second->postprocess(ready_regions, buffered);
+  for (auto& ctx : read_ctx_batch) {
+    const bool buffered = store->_do_read_is_buffered(ctx.params.flags);
+
+    // enumerate and postprocess (i.e. decompress) desired blobs
+    for (auto& b2r : ctx.blobs2read) {
+      b2r.second->postprocess(ctx.ready_regions, buffered);
+    }
+
+    // generate a resulting buffer
+    *ctx.params.outbl = \
+      store->_do_read_compose_result(ctx.ready_regions, ctx.params.offset,
+                                     ctx.params.length);
+    pdout(store, 0) << __func__
+                    << " got resbl.length() = " << ctx.params.outbl->length()
+                    << ", requested length = " << ctx.params.length << pdendl;
+
+    assert(ctx.params.outbl->length() == ctx.params.length);
+    ctx.params.on_complete->complete(ctx.params.length);
   }
 
-  // generate a resulting buffer
-  resbl = store->_do_read_compose_result(ready_regions, offset, length);
-
-  assert(resbl.length() == length);
-  on_complete->complete(length);
-  return;
+  on_all_complete->complete(0);
 }
 
 
@@ -6775,22 +6831,6 @@ bool BlueStore::_do_read_is_buffered(const uint32_t op_flags) const
   }
 
   return false;
-}
-
-#define pderr(parent)                           \
-{                                               \
-  CephContext* cct = parent->cct;               \
-  const std::string& path = parent->path;       \
-  derr
-
-#define pdout(parent, level)                    \
-{                                               \
-  CephContext* cct = parent->cct;               \
-  const std::string& path = parent->path;       \
-  dout(level)
-
-#define pdendl                                  \
-  dendl;                                        \
 }
 
 int BlueStore::PlainRegionReader::issue_io(
