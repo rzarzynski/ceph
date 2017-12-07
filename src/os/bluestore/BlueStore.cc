@@ -6684,7 +6684,7 @@ int BlueStore::_do_async_read(
     // nothing, maybe offset >= o->onode.size in for all items of the batch.
     // we need to call the main on_complete now and directly as the will be
     // no callback from BlockDevice.
-    on_all_complete->complete(0);
+    aio->aio_finish(this);
   }
 
   return 0;
