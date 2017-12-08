@@ -6704,9 +6704,9 @@ void BlueStore::AioReadBatch::aio_finish(BlueStore* const store)
     *ctx.params.outbl = \
       store->_do_read_compose_result(ctx.ready_regions, ctx.params.offset,
                                      ctx.params.length);
-    pdout(store, 0) << __func__
-                    << " got resbl.length() = " << ctx.params.outbl->length()
-                    << ", requested length = " << ctx.params.length << pdendl;
+    pdout(store, 20) << __func__
+                     << " got resbl.length() = " << ctx.params.outbl->length()
+                     << ", requested length = " << ctx.params.length << pdendl;
 
     assert(ctx.params.outbl->length() == ctx.params.length);
     ctx.params.on_complete->complete(ctx.params.length);
