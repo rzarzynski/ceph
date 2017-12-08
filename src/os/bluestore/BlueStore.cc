@@ -6678,7 +6678,7 @@ int BlueStore::_do_async_read(
   }
 
   if (aio->ioc.has_pending_aios()) {
-    dout(0) << __func__ << " submitting aios" << dendl;
+    dout(20) << __func__ << " submitting aios" << dendl;
     bdev->aio_submit(&aio->ioc);
   } else {
     // nothing, maybe offset >= o->onode.size in for all items of the batch.
