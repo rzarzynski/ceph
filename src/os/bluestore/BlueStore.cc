@@ -6629,7 +6629,7 @@ int BlueStore::_do_async_read(
 {
   FUNCTRACE();
   for (const auto& p : params_batch) {
-    dout(0) << __func__ << " 0x" << std::hex << p.offset << "~" << p.length
+    dout(20) << __func__ << " 0x" << std::hex << p.offset << "~" << p.length
             << " size 0x" << o->onode.size << " (" << std::dec
             << o->onode.size << ")" << dendl;
   }
