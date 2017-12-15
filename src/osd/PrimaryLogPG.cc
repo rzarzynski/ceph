@@ -258,12 +258,21 @@ void PrimaryLogPG::OpContext::start_async_reads(PrimaryLogPG *pg)
 }
 void PrimaryLogPG::OpContext::finish_read(PrimaryLogPG *pg)
 {
+  // TODO(rzarzynski): we're going to need this to be thread-safe.
+  // Currently, BlueStore async_read's completion is always called
+  // from the same bstore_aio thread. However, a thread pool might
+  // become necessary because of decryption/decompression.
   assert(inflightreads > 0);
   --inflightreads;
   if (async_reads_complete()) {
     assert(pg->in_progress_async_reads.size());
-//    assert(pg->in_progress_async_reads.front().second == this);
-    pg->in_progress_async_reads.pop_front();
+    // Async reads on replicated pools aren't strictly ordered
+    assert(!pg->pool.info.is_erasure() ||
+           pg->in_progress_async_reads.front().second == this);
+    pg->in_progress_async_reads.remove_if(
+      [this](const std::pair<OpRequestRef, OpContext*>& v) {
+      return v.second == this;
+    });
 
     // Restart the op context now that all reads have been
     // completed. Read failures will be handled by the op finisher
