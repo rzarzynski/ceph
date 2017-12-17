@@ -6804,9 +6804,9 @@ BlueStore::RegionReaderRef BlueStore::RegionReader::create_or_update(
   RegionReaderRef ret = std::move(current);
   if (! ret) {
     if (bptr->get_blob().is_compressed()) {
-      ret = ceph::make_unique<CompressedRegionReader>(store, bptr);
+      ret = std::make_unique<CompressedRegionReader>(store, bptr);
     } else {
-      ret = ceph::make_unique<PlainRegionReader>(store, bptr);
+      ret = std::make_unique<PlainRegionReader>(store, bptr);
     }
   }
   ret->add_region_hint(logical_offset, blob_offset, length);
