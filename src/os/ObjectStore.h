@@ -1736,6 +1736,33 @@ public:
     return read(c->get_cid(), oid, offset, len, bl, op_flags);
   }
 
+  template <typename T>
+  struct future {
+  };
+
+  /*********************************
+   * ReadTransaction
+   *
+   * A Transaction represents a sequence of primitive non-mutating
+   * operations.
+   */
+  class ReadTransaction {
+  public:
+    virtual ~ReadTransaction() = default;
+
+    virtual future<ceph::bufferlist> read(
+      uint64_t offset,
+      uint64_t length,
+      uint32_t flags) = 0;
+
+    virtual bool empty() = 0;
+    virtual future<int> apply() = 0;
+  };
+
+  virtual std::unique_ptr<ReadTransaction> create_read_transaction() {
+    return nullptr;
+  } //= 0;
+
   virtual bool has_async_read() const {
     return false;
   }
