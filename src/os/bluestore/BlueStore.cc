@@ -3496,7 +3496,6 @@ static void aio_cb(void *priv, void *priv2)
   BlueStore *store = static_cast<BlueStore*>(priv);
   BlueStore::AioContext *c = static_cast<BlueStore::AioContext*>(priv2);
   c->aio_finish(store);
-  c->put();
 }
 
 BlueStore::BlueStore(CephContext *cct, const string& path)
@@ -6713,6 +6712,8 @@ void BlueStore::AioReadBatch::aio_finish(BlueStore* const store)
   }
 
   on_all_complete->complete(0);
+
+  delete this;
 }
 
 

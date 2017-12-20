@@ -145,7 +145,6 @@ public:
 
   struct AioContext {
     virtual void aio_finish(BlueStore *store) = 0;
-    virtual void put() { };
     virtual ~AioContext() {}
   };
 
@@ -1800,9 +1799,6 @@ public:
     }
 
     void aio_finish(BlueStore *store) override;
-    void put() override {
-      delete this;
-    }
   };
 
   class OpSequencer : public Sequencer_impl {
