@@ -1736,10 +1736,6 @@ public:
     return read(c->get_cid(), oid, offset, len, bl, op_flags);
   }
 
-  template <typename T>
-  struct future {
-  };
-
   /*********************************
    * ReadTransaction
    *
@@ -1750,13 +1746,14 @@ public:
   public:
     virtual ~ReadTransaction() = default;
 
-    virtual future<ceph::bufferlist> read(
+    virtual int read(
       uint64_t offset,
       uint64_t length,
-      uint32_t flags) = 0;
+      uint32_t flags,
+      Context* on_complete) = 0;
 
     virtual bool empty() = 0;
-    virtual future<int> apply() = 0;
+    virtual int apply(Context* on_complete) = 0;
   };
 
   virtual std::unique_ptr<ReadTransaction> create_read_transaction() {
