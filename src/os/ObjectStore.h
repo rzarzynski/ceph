@@ -1768,6 +1768,7 @@ public:
       uint64_t offset,
       uint64_t length,
       uint32_t flags,
+      ceph::bufferlist& destbl,
       Context* on_complete) = 0;
 
     virtual bool empty() const = 0;
