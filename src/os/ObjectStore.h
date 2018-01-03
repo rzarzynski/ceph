@@ -1740,25 +1740,54 @@ public:
    * ReadTransaction
    *
    * A Transaction represents a sequence of primitive non-mutating
-   * operations.
+   * operations over the same ghobject in the same collection.
    */
   class ReadTransaction {
   public:
     virtual ~ReadTransaction() = default;
 
+    /**
+     * read -- read a byte range of data from an object.
+     *
+     * The operation can be performed synchronously or asynchronously
+     * solely depnding on the implementation's decision.
+     *
+     * Note: if reading from an offset past the end of the object, we
+     * return 0 (not, say, -EINVAL).
+     *
+     * @param offset location offset of first byte to be read
+     * @param len number of bytes to be read
+     * @param op_flags is CEPH_OSD_OP_FLAG_*
+     * @param destbl output bufferlist
+     * @param on_complete callback to be called
+     * @returns number of bytes read on success,
+     *          or negative error code on failure,
+     *          or -EINPROGESS if implementations decided to go async.
+     */
     virtual int read(
       uint64_t offset,
       uint64_t length,
       uint32_t flags,
       Context* on_complete) = 0;
 
-    virtual bool empty() = 0;
+    virtual bool empty() const = 0;
     virtual int apply(Context* on_complete) = 0;
   };
 
-  virtual std::unique_ptr<ReadTransaction> create_read_transaction() {
+  /**
+   * create ReadTransaction -- instantiate concrete implementation
+   * of ReadTransaction.
+   *
+   * @param cid collection for object
+   * @param oid oid of object
+   * @returns valid pointer of nullptr if an implementation doesn't
+   *          support the new ReadTransaction subinterface.
+   */
+  virtual std::unique_ptr<ReadTransaction> create_read_transaction(
+   const coll_t& cid,
+   const ghobject_t& oid) {
     return nullptr;
-  } //= 0;
+  }
 
   virtual bool has_async_read() const {
     return false;
