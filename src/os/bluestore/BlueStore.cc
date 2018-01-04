@@ -6668,6 +6668,27 @@ int BlueStore::read(
   return r;
 }
 
+std::unique_ptr<ObjectStore::ReadTransaction>
+BlueStore::create_read_transaction(
+  const coll_t& cid,
+  const ghobject_t& oid)
+{
+  CollectionHandle c_ = _get_collection(cid);
+  OnodeRef o;
+
+  Collection *c = static_cast<Collection *>(c_.get());
+
+  if (c->exists) {
+    RWLock::RLocker l(c->lock);
+    PerfGuard(logger, l_bluestore_read_onode_meta_lat);
+
+    o = c->get_onode(oid, false);
+  }
+
+  // ENOENTs will be handled later in BlueReadTrans::read().
+  return std::make_unique<BlueReadTrans>(this, std::move(c), std::move(o));
+}
+
 #define pderr(parent)                           \
 {                                               \
   CephContext* cct = parent->cct;               \

@@ -2463,22 +2463,7 @@ public:
   std::unique_ptr<ReadTransaction> create_read_transaction(
     const coll_t& cid,
     const ghobject_t& oid
-  ) override {
-    CollectionHandle c_ = _get_collection(cid);
-    OnodeRef o;
-
-    Collection *c = static_cast<Collection *>(c_.get());
-
-    if (c->exists) {
-      RWLock::RLocker l(c->lock);
-      PerfGuard(logger, l_bluestore_read_onode_meta_lat);
-
-      o = c->get_onode(oid, false);
-    }
-
-    // ENOENTs will be handled later in BlueReadTrans::read().
-    return std::make_unique<BlueReadTrans>(this, std::move(c), std::move(o));
-  }
+  ) override;
 
   bool has_async_read() const override {
     return true;
