@@ -680,12 +680,7 @@ int KernelDevice::read(uint64_t off, uint64_t len, bufferlist *pbl,
   assert((uint64_t)r == len);
   pbl->push_back(std::move(p));
 
-  dout(40) << "data: ";
-  pbl->hexdump(*_dout);
-  *_dout << dendl;
-
  out:
-  _aio_log_finish(ioc, off, len);
   return r < 0 ? r : 0;
 }
 
@@ -695,9 +690,6 @@ int KernelDevice::aio_read(
   bufferlist *pbl,
   IOContext *ioc)
 {
-  dout(5) << __func__ << " 0x" << std::hex << off << "~" << len << std::dec
-	  << dendl;
-
   int r = 0;
 #ifdef HAVE_LIBAIO
   if (aio && dio) {
@@ -706,10 +698,7 @@ int KernelDevice::aio_read(
     ++ioc->num_pending;
     aio_t& aio = ioc->pending_aios.back();
     aio.pread(off, len);
-    dout(30) << aio << dendl;
     pbl->append(aio.bl);
-    dout(5) << __func__ << " 0x" << std::hex << off << "~" << len
-	    << std::dec << " aio " << &aio << dendl;
   } else
 #endif
   {
