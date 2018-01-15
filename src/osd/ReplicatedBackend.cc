@@ -297,19 +297,6 @@ struct AsyncReadEnqueuer : public Context {
   }
 };
 
-void ReplicatedBackend::objects_read_async(
-  const hobject_t &hoid,
-  std::vector<async_read_params_t> to_read,
-  Context *on_complete,
-  bool fast_read)
-{
-  // There is no fast read implementation for replication backend yet
-  assert(!fast_read);
-  store->async_read(ch, ghobject_t(hoid),
-                    { to_read.data(), to_read.size() },
-                    new AsyncReadEnqueuer(this, on_complete));
-}
-
 class C_OSD_OnOpCommit : public Context {
   ReplicatedBackend *pg;
   ReplicatedBackend::InProgressOp *op;
