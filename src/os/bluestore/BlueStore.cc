@@ -3578,7 +3578,7 @@ int BlueStore::BlueReadTrans::_do_read(
   if (!cr.blobs2read.empty()) {
     // yes, at least one region isn't in cache
     if (!aio) {
-      aio = new AioReadBatch(store->cct);
+      aio = std::make_unique<AioReadBatch>(store->cct);
     }
 
     aio->queue_read_ctx(std::move(cr),
@@ -3621,12 +3621,12 @@ int BlueStore::BlueReadTrans::apply(Context* const on_all_complete)
 
   if (aio->ioc.has_pending_aios()) {
     dout(20) << __func__ << " submitting aios" << dendl;
-    store->bdev->aio_submit(&aio->ioc);
+    store->bdev->aio_submit(&aio.release()->ioc);
   } else {
     // nothing, maybe offset >= o->onode.size in for all items of the batch.
     // we need to call the main on_complete now and directly as the will be
     // no callback from BlockDevice.
-    aio->aio_finish(store);
+    aio.release()->aio_finish(store);
   }
 
   return 0;

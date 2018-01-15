@@ -2428,7 +2428,7 @@ public:
     BlueStore* const store;
     CollectionHandle c;
     OnodeRef o;
-    AioReadBatch* aio = nullptr;
+    std::unique_ptr<AioReadBatch> aio;
 
     int _do_read(
       uint64_t offset,
