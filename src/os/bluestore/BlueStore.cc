@@ -6671,14 +6671,13 @@ int BlueStore::read(
 
 std::unique_ptr<ObjectStore::ReadTransaction>
 BlueStore::create_read_transaction(
-  const coll_t& cid,
+  const CollectionHandle& ch,
   const ghobject_t& oid)
 {
-  CollectionHandle c_ = _get_collection(cid);
+
+  Collection *c = static_cast<Collection *>(ch.get());
+
   OnodeRef o;
-
-  Collection *c = static_cast<Collection *>(c_.get());
-
   if (c->exists) {
     RWLock::RLocker l(c->lock);
     PerfGuard(logger, l_bluestore_read_onode_meta_lat);
