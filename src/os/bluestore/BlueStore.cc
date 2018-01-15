@@ -3593,6 +3593,7 @@ int BlueStore::BlueReadTrans::_do_read(
              << ", requested length = " << length << dendl;
 
     assert(destbl.length() == length);
+    on_complete->complete(length);
     return length;
   }
 }
