@@ -1785,7 +1785,7 @@ public:
    *          support the new ReadTransaction subinterface.
    */
   virtual std::unique_ptr<ReadTransaction> create_read_transaction(
-   const coll_t& cid,
+   const CollectionHandle& c,
    const ghobject_t& oid) {
     return nullptr;
   }
