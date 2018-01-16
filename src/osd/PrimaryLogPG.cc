@@ -198,18 +198,6 @@ class PrimaryLogPG::C_OSD_OndiskWriteUnlock : public Context {
   }
 };
 
-struct OnReadComplete : public Context {
-  PrimaryLogPG *pg;
-  PrimaryLogPG::OpContext *opcontext;
-  OnReadComplete(
-    PrimaryLogPG *pg,
-    PrimaryLogPG::OpContext *ctx) : pg(pg), opcontext(ctx) {}
-  void finish(int r) override {
-    opcontext->finish_read(pg);
-  }
-  ~OnReadComplete() override {}
-};
-
 class PrimaryLogPG::C_OSD_AppliedRecoveredObject : public Context {
   PrimaryLogPGRef pg;
   ObjectContextRef obc;
@@ -285,10 +273,67 @@ int PrimaryLogPG::OpContext::read_maybe_async(
   }
   return ret;
 }
+
 void PrimaryLogPG::OpContext::start_async_reads(PrimaryLogPG *pg)
 {
+  struct OnReadComplete : public Context {
+    PrimaryLogPG *pg;
+    PrimaryLogPG::OpContext *opcontext;
+    OnReadComplete(
+      PrimaryLogPG *pg,
+      PrimaryLogPG::OpContext *ctx) : pg(pg), opcontext(ctx) {}
+    void finish(int r) override {
+      opcontext->finish_read(pg);
+    }
+    ~OnReadComplete() override {}
+  };
+
+
+  struct BlessedReadCompleter : public Context,
+                                public GenContext<ThreadPool::TPHandle&> {
+    PrimaryLogPGRef pg;
+    PrimaryLogPG::OpContext *opcontext;
+    epoch_t e;
+
+    BlessedReadCompleter(PrimaryLogPG* const pg,
+                         PrimaryLogPG::OpContext* const opcontext)
+      : pg(pg),
+        opcontext(opcontext),
+        // I would prefer to bless the context later but holding
+        // the PG::lock is a must due to the get_osdmap() call.
+        e(pg->get_epoch()) {
+    }
+
+    void finish(const int) override {
+      pg->schedule_recovery_work(this);
+    }
+
+    /* the purpose of this override is to avoid disposing the object on
+     * the complete() call from ReadTransaction::apply(), and thus let
+     * reuse the GenContext<...> subobject in the recovery work queue. */
+    void complete(const int r) override {
+      finish(r);
+      /* DON'T delete this; */
+    }
+
+    // called by recovery workers
+    void finish(ThreadPool::TPHandle&) override {
+      pg->lock();
+      if (!pg->pg_has_reset_since(e)) {
+        opcontext->finish_read(pg.get());
+      }
+      pg->unlock();
+    }
+  };
+
   inflightreads = 1;
-  read_transaction->apply(new OnReadComplete(pg, this));
+
+  if (pg->pool.info.is_erasure()) {
+    // the EC backend handles blessing contexts on its own
+    read_transaction->apply(new OnReadComplete(pg, this));
+  } else {
+    read_transaction->apply(new BlessedReadCompleter(pg, this));
+  }
 }
 
 void PrimaryLogPG::OpContext::finish_read(PrimaryLogPG *pg)
