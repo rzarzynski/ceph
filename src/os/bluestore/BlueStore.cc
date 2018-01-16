@@ -3521,7 +3521,58 @@ int BlueStore::BlueReadTrans::read(
       length = o->onode.size;
     }
 
-    r = _do_read(offset, length, flags, destbl, on_complete);
+    r = _do_read(offset, length, flags, destbl, on_complete,
+                 HoleMode::ZEROIZE);
+    if (r == -EIO) {
+      store->logger->inc(l_bluestore_read_eio);
+    }
+  }
+
+  if (r == 0 && store->_debug_data_eio(o->oid)) {
+    r = -EIO;
+    derr << __func__ << " " << c->cid << " " << o->oid
+         << " INJECT EIO" << dendl;
+  } else if (store->cct->_conf->bluestore_debug_random_read_err &&
+    (rand() % (int)(store->cct->_conf->bluestore_debug_random_read_err * 100.0)) == 0) {
+    dout(0) << __func__ << ": inject random EIO" << dendl;
+    r = -EIO;
+  }
+
+  dout(10) << __func__ << " " << c->cid << " " << o->oid
+           << " 0x" << std::hex << offset << "~" << length
+           << std::dec << " = " << r << dendl;
+  return r;
+}
+
+int BlueStore::BlueReadTrans::read_sparse(
+  uint64_t offset,
+  uint64_t length,
+  uint32_t flags,
+  ceph::bufferlist& destbl,
+  Context* on_complete)
+{
+  Collection *c = static_cast<Collection *>(this->c.get());
+
+  dout(15) << __func__ << " " << c->get_cid() << " " << o->oid
+           << " 0x" << std::hex << offset << "~" << length
+           << std::dec << dendl;
+
+  if (!c || !c->exists) {
+    return -ENOENT;
+  } else {
+    destbl.clear();
+  }
+
+  int r = -ENOENT;
+  if (o && o->exists) {
+    RWLock::RLocker l(c->lock);
+
+    if (offset == length && offset == 0) {
+      length = o->onode.size;
+    }
+
+    r = _do_read(offset, length, flags, destbl, on_complete,
+                 HoleMode::INDEX);
     if (r == -EIO) {
       store->logger->inc(l_bluestore_read_eio);
     }
@@ -3548,7 +3599,8 @@ int BlueStore::BlueReadTrans::_do_read(
   uint64_t length,
   uint32_t flags,
   ceph::bufferlist& destbl,
-  Context* on_complete)
+  Context* on_complete,
+  BlueStore::HoleMode hm)
 {
   FUNCTRACE(store->cct);
   dout(20) << __func__ << " 0x" << std::hex << offset << "~" << length
@@ -7192,7 +7244,8 @@ int BlueStore::_do_read(
 ceph::bufferlist BlueStore::_do_read_compose_result(
   BlueStore::ready_regions_t& ready_regions,
   const size_t offset,
-  const size_t length)
+  const size_t length,
+  BlueStore::HoleMode hm)
 {
   auto pr = ready_regions.begin();
   const auto pr_end = ready_regions.end();
