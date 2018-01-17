@@ -3638,8 +3638,14 @@ int BlueStore::BlueReadTrans::_do_read(
     return -EINPROGRESS;
   } else {
     // no, everything already cached
-    destbl = store->_do_read_compose_result(cr.ready_regions,
-                                            offset, length);
+    if (hm == HoleMode::ZEROIZE) {
+      destbl = store->_do_read_compose_result(cr.ready_regions,
+                                              offset, length);
+    } else {
+      destbl = store->_do_read_compose_sparse_result(cr.ready_regions,
+                                                     offset, length);
+    }
+
     dout(20) << __func__
              << " got resbl.length() = " << destbl.length()
              << ", requested length = " << length << dendl;
@@ -6919,10 +6925,18 @@ void BlueStore::AioReadBatch::aio_finish(BlueStore* const store)
     }
 
     // generate a resulting buffer
-    *ctx.params.outbl = \
-      store->_do_read_compose_result(ctx.cache_response.ready_regions,
-                                     ctx.params.offset,
-                                     ctx.params.length);
+    if (ctx.hole_mode == HoleMode::ZEROIZE) {
+      *ctx.params.outbl = \
+        store->_do_read_compose_result(ctx.cache_response.ready_regions,
+                                       ctx.params.offset,
+                                       ctx.params.length);
+    } else {
+      *ctx.params.outbl = \
+        store->_do_read_compose_sparse_result(ctx.cache_response.ready_regions,
+                                              ctx.params.offset,
+                                              ctx.params.length);
+    }
+
     pdout(store, 20) << __func__
                      << " got resbl.length() = " << ctx.params.outbl->length()
                      << ", requested length = " << ctx.params.length << pdendl;
@@ -7244,8 +7258,7 @@ int BlueStore::_do_read(
 ceph::bufferlist BlueStore::_do_read_compose_result(
   BlueStore::ready_regions_t& ready_regions,
   const size_t offset,
-  const size_t length,
-  BlueStore::HoleMode hm)
+  const size_t length)
 {
   auto pr = ready_regions.begin();
   const auto pr_end = ready_regions.end();
@@ -7275,6 +7288,48 @@ ceph::bufferlist BlueStore::_do_read_compose_result(
   assert(pos == length);
   assert(pr == pr_end);
   return bl;
+}
+
+ceph::bufferlist BlueStore::_do_read_compose_sparse_result(
+  BlueStore::ready_regions_t& ready_regions,
+  const size_t offset,
+  const size_t length)
+{
+  auto pr = ready_regions.begin();
+  const auto pr_end = ready_regions.end();
+  uint64_t pos = 0;
+  std::map<uint64_t, uint64_t> extents;
+  ceph::bufferlist data_bl;
+  while (pos < length) {
+    if (pr != pr_end && pr->first == pos + offset) {
+      dout(30) << __func__ << " assemble 0x" << std::hex << pos
+	       << ": data from 0x" << pr->first << "~" << pr->second.length()
+	       << std::dec << dendl;
+
+      extents.emplace(pr->first, pr->second.length());
+      data_bl.claim_append(pr->second);
+
+      pos += pr->second.length();
+      ++pr;
+    } else {
+      uint64_t l = length - pos;
+      if (pr != pr_end) {
+        assert(pr->first > pos + offset);
+	l = pr->first - (pos + offset);
+      }
+      dout(30) << __func__ << " skipping 0x" << std::hex << pos
+	       << ": zeros for 0x" << (pos + offset) << "~" << l
+	       << std::dec << dendl;
+      pos += l;
+    }
+  }
+  assert(pos == length);
+  assert(pr == pr_end);
+
+  ceph::bufferlist retbl;
+  ::encode(extents, retbl);
+  ::encode_destructively(data_bl, retbl);
+  return retbl;
 }
 
 int BlueStore::RegionReader::_verify_csum(

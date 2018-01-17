@@ -2706,8 +2706,11 @@ private:
   ceph::bufferlist _do_read_compose_result(
     BlueStore::ready_regions_t& ready_regions,
     size_t offset,
-    size_t length,
-    HoleMode hole_mode = HoleMode::ZEROIZE);
+    size_t length);
+  ceph::bufferlist _do_read_compose_sparse_result(
+    BlueStore::ready_regions_t& ready_regions,
+    size_t offset,
+    size_t length);
 
 
   // --------------------------------------------------------
