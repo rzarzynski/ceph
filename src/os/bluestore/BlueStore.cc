@@ -3641,6 +3641,7 @@ int BlueStore::BlueReadTrans::_do_read(
     if (hm == HoleMode::ZEROIZE) {
       destbl = store->_do_read_compose_result(cr.ready_regions,
                                               offset, length);
+      assert(destbl.length() == length);
     } else {
       destbl = store->_do_read_compose_sparse_result(cr.ready_regions,
                                                      offset, length);
@@ -3650,7 +3651,6 @@ int BlueStore::BlueReadTrans::_do_read(
              << " got resbl.length() = " << destbl.length()
              << ", requested length = " << length << dendl;
 
-    assert(destbl.length() == length);
     on_complete->complete(length);
     return length;
   }

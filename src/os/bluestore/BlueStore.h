@@ -1782,7 +1782,7 @@ public:
     struct read_ctx_t {
       async_read_params_t params;
       cache_response_t cache_response;
-      HoleMode hole_mode;
+      HoleMode hole_mode = HoleMode::ZEROIZE;
 
       read_ctx_t(async_read_params_t params)
         : params(std::move(params)) {
