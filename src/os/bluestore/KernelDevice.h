@@ -24,7 +24,7 @@
 #include "BlockDevice.h"
 
 class KernelDevice : public BlockDevice {
-  friend class AioService;
+  friend class aio_service_t;
 
   int fd_direct, fd_buffered;
   std::string path;
@@ -39,14 +39,14 @@ class KernelDevice : public BlockDevice {
   std::atomic<bool> io_since_flush = {false};
   std::mutex flush_mutex;
 
-  struct AioService : public Thread {
+  struct aio_service_t : public Thread {
     KernelDevice* bdev;
 
     aio_queue_t aio_queue;
     bool aio_stop = false;
 
-    explicit AioService(CephContext* cct,
-                        KernelDevice* const bdev)
+    explicit aio_service_t(CephContext* cct,
+                           KernelDevice* const bdev)
       : bdev(bdev),
         aio_queue(cct->_conf->bdev_aio_max_queue_depth) {
     }
@@ -59,7 +59,7 @@ class KernelDevice : public BlockDevice {
       return nullptr;
     }
   };
-  AioService aio_thread;
+  aio_service_t aio_thread;
 
   std::atomic_int injecting_crash;
 

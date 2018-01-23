@@ -32,7 +32,7 @@
 #undef dout_prefix
 #define dout_prefix *_dout << "bdev(" << this << " " << ") "
 
-int KernelDevice::AioService::start(CephContext* const cct)
+int KernelDevice::aio_service_t::start(CephContext* const cct)
 {
   dout(10) << __func__ << dendl;
   int r = aio_queue.init();
@@ -50,7 +50,7 @@ int KernelDevice::AioService::start(CephContext* const cct)
   return 0;
 }
 
-void KernelDevice::AioService::stop(CephContext* const cct)
+void KernelDevice::aio_service_t::stop(CephContext* const cct)
 {
   dout(10) << __func__ << dendl;
   aio_stop = true;
