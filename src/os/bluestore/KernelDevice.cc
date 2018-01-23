@@ -30,7 +30,8 @@
 #define dout_context cct
 #define dout_subsys ceph_subsys_bdev
 #undef dout_prefix
-#define dout_prefix *_dout << "bdev(" << this << " " << path << ") "
+//#define dout_prefix *_dout << "bdev(" << this << " " << path << ") "
+#define dout_prefix *_dout << "bdev(" << this << " " << ") "
 
 KernelDevice::KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv)
   : BlockDevice(cct, cb, cbpriv),
@@ -38,9 +39,7 @@ KernelDevice::KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv)
     fd_buffered(-1),
     fs(NULL), aio(false), dio(false),
     debug_lock("KernelDevice::debug_lock"),
-    aio_queue(cct->_conf->bdev_aio_max_queue_depth),
-    aio_stop(false),
-    aio_thread(this),
+    aio_thread(cct, this),
     injecting_crash(0)
 {
 }
@@ -312,37 +311,49 @@ int KernelDevice::flush()
   return r;
 }
 
+int KernelDevice::AioService::start()
+{
+  dout(10) << __func__ << dendl;
+  int r = aio_queue.init();
+  if (r < 0) {
+    if (r == -EAGAIN) {
+      derr << __func__ << " io_setup(2) failed with EAGAIN; "
+           << "try increasing /proc/sys/fs/aio-max-nr" << dendl;
+    } else {
+      derr << __func__ << " io_setup(2) failed: " << cpp_strerror(r) << dendl;
+    }
+    return r;
+  }
+  Thread::create("bstore_aio");
+
+  return 0;
+}
+
 int KernelDevice::_aio_start()
 {
   if (aio) {
-    dout(10) << __func__ << dendl;
-    int r = aio_queue.init();
-    if (r < 0) {
-      if (r == -EAGAIN) {
-	derr << __func__ << " io_setup(2) failed with EAGAIN; "
-	     << "try increasing /proc/sys/fs/aio-max-nr" << dendl;
-      } else {
-	derr << __func__ << " io_setup(2) failed: " << cpp_strerror(r) << dendl;
-      }
-      return r;
-    }
-    aio_thread.create("bstore_aio");
+    return aio_thread.start();
   }
   return 0;
+}
+
+void KernelDevice::AioService::stop()
+{
+  dout(10) << __func__ << dendl;
+  aio_stop = true;
+  Thread::join();
+  aio_stop = false;
+  aio_queue.shutdown();
 }
 
 void KernelDevice::_aio_stop()
 {
   if (aio) {
-    dout(10) << __func__ << dendl;
-    aio_stop = true;
-    aio_thread.join();
-    aio_stop = false;
-    aio_queue.shutdown();
+    aio_thread.stop();
   }
 }
 
-void KernelDevice::_aio_thread()
+void KernelDevice::AioService::_aio_thread()
 {
   dout(10) << __func__ << " start" << dendl;
   int inject_crash_count = 0;
@@ -360,7 +371,7 @@ void KernelDevice::_aio_thread()
       dout(30) << __func__ << " got " << r << " completed aios" << dendl;
       for (int i = 0; i < r; ++i) {
 	IOContext *ioc = static_cast<IOContext*>(aio[i]->priv);
-	_aio_log_finish(ioc, aio[i]->offset, aio[i]->length);
+	bdev->_aio_log_finish(ioc, aio[i]->offset, aio[i]->length);
 	if (aio[i]->queue_item.is_linked()) {
 	  std::lock_guard<std::mutex> l(debug_queue_lock);
 	  debug_aio_unlink(*aio[i]);
@@ -372,7 +383,7 @@ void KernelDevice::_aio_thread()
 	// that an earlier, racing flush() could observe and clear this
 	// flag, but that also ensures that the IO will be stable before the
 	// later flush() occurs.
-	io_since_flush.store(true);
+	bdev->io_since_flush.store(true);
 
 	int r = aio[i]->get_return_value();
         if (r < 0) {
@@ -398,7 +409,7 @@ void KernelDevice::_aio_thread()
 	// may free it.
 	if (ioc->priv) {
 	  if (--ioc->num_running == 0) {
-	    aio_callback(aio_callback_priv, ioc->priv);
+	    bdev->aio_callback(bdev->aio_callback_priv, ioc->priv);
 	  }
 	} else {
           ioc->try_aio_wake();
@@ -424,7 +435,7 @@ void KernelDevice::_aio_thread()
 	}
       }
     }
-    reap_ioc();
+    bdev->reap_ioc();
     if (cct->_conf->bdev_inject_crash) {
       ++inject_crash_count;
       if (inject_crash_count * cct->_conf->bdev_aio_poll_ms / 1000 >
@@ -436,7 +447,7 @@ void KernelDevice::_aio_thread()
       }
     }
   }
-  reap_ioc();
+  bdev->reap_ioc();
   dout(10) << __func__ << " end" << dendl;
 }
 
@@ -460,7 +471,7 @@ void KernelDevice::_aio_log_start(
   }
 }
 
-void KernelDevice::debug_aio_link(aio_t& aio)
+void KernelDevice::AioService::debug_aio_link(aio_t& aio)
 {
   if (debug_queue.empty()) {
     debug_oldest = &aio;
@@ -468,7 +479,7 @@ void KernelDevice::debug_aio_link(aio_t& aio)
   debug_queue.push_back(aio);
 }
 
-void KernelDevice::debug_aio_unlink(aio_t& aio)
+void KernelDevice::AioService::debug_aio_unlink(aio_t& aio)
 {
   if (aio.queue_item.is_linked()) {
     debug_queue.erase(debug_queue.iterator_to(aio));
@@ -496,7 +507,7 @@ void KernelDevice::_aio_log_finish(
   }
 }
 
-void KernelDevice::aio_submit(IOContext *ioc)
+void KernelDevice::AioService::aio_submit(IOContext *ioc)
 {
   dout(20) << __func__ << " ioc " << ioc
 	   << " pending " << ioc->num_pending.load()
@@ -539,6 +550,11 @@ void KernelDevice::aio_submit(IOContext *ioc)
     derr << " aio submit got " << cpp_strerror(r) << dendl;
     assert(r == 0);
   }
+}
+
+void KernelDevice::aio_submit(IOContext *ioc)
+{
+  aio_thread.aio_submit(ioc);
 }
 
 int KernelDevice::_sync_write(uint64_t off, bufferlist &bl, bool buffered)

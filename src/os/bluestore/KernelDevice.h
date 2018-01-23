@@ -24,6 +24,8 @@
 #include "BlockDevice.h"
 
 class KernelDevice : public BlockDevice {
+  friend class AioService;
+
   int fd_direct, fd_buffered;
   std::string path;
   FS *fs;
@@ -37,24 +39,43 @@ class KernelDevice : public BlockDevice {
   std::atomic<bool> io_since_flush = {false};
   std::mutex flush_mutex;
 
-  aio_queue_t aio_queue;
-  bool aio_stop;
+  struct AioService : public Thread {
+    CephContext* cct;
+    KernelDevice* bdev;
+    aio_queue_t aio_queue;
+    bool aio_stop = false;
 
-  struct AioCompletionThread : public Thread {
-    KernelDevice *bdev;
-    explicit AioCompletionThread(KernelDevice *b) : bdev(b) {}
-    void *entry() override {
-      bdev->_aio_thread();
-      return NULL;
+    explicit AioService(CephContext* const cct,
+                        KernelDevice* const bdev)
+      : cct(cct),
+        bdev(bdev),
+        aio_queue(cct->_conf->bdev_aio_max_queue_depth) {
     }
-  } aio_thread;
+
+    void aio_submit(IOContext *ioc);
+    void _aio_thread();
+    int start();
+    void stop();
+
+    void *entry() override {
+      _aio_thread();
+      return nullptr;
+    }
+
+    // stalled aio debugging
+    aio_list_t debug_queue;
+    std::mutex debug_queue_lock;
+    aio_t *debug_oldest = nullptr;
+    utime_t debug_stall_since;
+    void debug_aio_link(aio_t& aio);
+    void debug_aio_unlink(aio_t& aio);
+  };
+  AioService aio_thread;
 
   std::atomic_int injecting_crash;
 
-  void _aio_thread();
   int _aio_start();
   void _aio_stop();
-
   void _aio_log_start(IOContext *ioc, uint64_t offset, uint64_t length);
   void _aio_log_finish(IOContext *ioc, uint64_t offset, uint64_t length);
 
@@ -63,14 +84,6 @@ class KernelDevice : public BlockDevice {
   int _lock();
 
   int direct_read_unaligned(uint64_t off, uint64_t len, char *buf);
-
-  // stalled aio debugging
-  aio_list_t debug_queue;
-  std::mutex debug_queue_lock;
-  aio_t *debug_oldest = nullptr;
-  utime_t debug_stall_since;
-  void debug_aio_link(aio_t& aio);
-  void debug_aio_unlink(aio_t& aio);
 
 public:
   KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv);
