@@ -30,8 +30,203 @@
 #define dout_context cct
 #define dout_subsys ceph_subsys_bdev
 #undef dout_prefix
-//#define dout_prefix *_dout << "bdev(" << this << " " << path << ") "
-#define dout_prefix *_dout << "bdev(" << this << " " << ") "
+#define dout_prefix *_dout << "bdev_aioserv(" << this << " " << ") "
+
+int KernelDevice::AioService::start()
+{
+  dout(10) << __func__ << dendl;
+  int r = aio_queue.init();
+  if (r < 0) {
+    if (r == -EAGAIN) {
+      derr << __func__ << " io_setup(2) failed with EAGAIN; "
+           << "try increasing /proc/sys/fs/aio-max-nr" << dendl;
+    } else {
+      derr << __func__ << " io_setup(2) failed: " << cpp_strerror(r) << dendl;
+    }
+    return r;
+  }
+  Thread::create("bstore_aio");
+
+  return 0;
+}
+
+void KernelDevice::AioService::stop()
+{
+  dout(10) << __func__ << dendl;
+  aio_stop = true;
+  Thread::join();
+  aio_stop = false;
+  aio_queue.shutdown();
+}
+
+void KernelDevice::AioService::aio_submit(IOContext *ioc)
+{
+  dout(20) << __func__ << " ioc " << ioc
+	   << " pending " << ioc->num_pending.load()
+	   << " running " << ioc->num_running.load()
+	   << dendl;
+
+  if (ioc->num_pending.load() == 0) {
+    return;
+  }
+
+  // move these aside, and get our end iterator position now, as the
+  // aios might complete as soon as they are submitted and queue more
+  // wal aio's.
+  list<aio_t>::iterator e = ioc->running_aios.begin();
+  ioc->running_aios.splice(e, ioc->pending_aios);
+
+  int pending = ioc->num_pending.load();
+  ioc->num_running += pending;
+  ioc->num_pending -= pending;
+  assert(ioc->num_pending.load() == 0);  // we should be only thread doing this
+  assert(ioc->pending_aios.size() == 0);
+  
+  if (cct->_conf->bdev_debug_aio) {
+    list<aio_t>::iterator p = ioc->running_aios.begin();
+    while (p != e) {
+      dout(30) << __func__ << " " << *p << dendl;
+      std::lock_guard<std::mutex> l(debug_queue_lock);
+      debug_aio_link(*p++);
+    }
+  }
+
+  void *priv = static_cast<void*>(ioc);
+  int r, retries = 0;
+  r = aio_queue.submit_batch(ioc->running_aios.begin(), e, 
+			     pending, priv, &retries);
+  
+  if (retries)
+    derr << __func__ << " retries " << retries << dendl;
+  if (r < 0) {
+    derr << " aio submit got " << cpp_strerror(r) << dendl;
+    assert(r == 0);
+  }
+}
+
+void KernelDevice::AioService::_aio_thread()
+{
+  dout(10) << __func__ << " start" << dendl;
+  int inject_crash_count = 0;
+  while (!aio_stop) {
+    dout(40) << __func__ << " polling" << dendl;
+    int max = cct->_conf->bdev_aio_reap_max;
+    aio_t *aio[max];
+    int r = aio_queue.get_next_completed(cct->_conf->bdev_aio_poll_ms,
+					 aio, max);
+    if (r < 0) {
+      derr << __func__ << " got " << cpp_strerror(r) << dendl;
+      assert(0 == "got unexpected error from io_getevents");
+    }
+    if (r > 0) {
+      dout(30) << __func__ << " got " << r << " completed aios" << dendl;
+      for (int i = 0; i < r; ++i) {
+	IOContext *ioc = static_cast<IOContext*>(aio[i]->priv);
+	bdev->_aio_log_finish(ioc, aio[i]->offset, aio[i]->length);
+	if (aio[i]->queue_item.is_linked()) {
+	  std::lock_guard<std::mutex> l(debug_queue_lock);
+	  debug_aio_unlink(*aio[i]);
+	}
+
+	// set flag indicating new ios have completed.  we do this *before*
+	// any completion or notifications so that any user flush() that
+	// follows the observed io completion will include this io.  Note
+	// that an earlier, racing flush() could observe and clear this
+	// flag, but that also ensures that the IO will be stable before the
+	// later flush() occurs.
+	bdev->io_since_flush.store(true);
+
+	int r = aio[i]->get_return_value();
+        if (r < 0) {
+          derr << __func__ << " got " << cpp_strerror(r) << dendl;
+          if (ioc->allow_eio && r == -EIO) {
+            ioc->set_return_value(r);
+          } else {
+            assert(0 == "got unexpected error from io_getevents");
+          }
+        } else if (aio[i]->length != (uint64_t)r) {
+          derr << "aio to " << aio[i]->offset << "~" << aio[i]->length
+               << " but returned: " << r << dendl;
+          assert(0 == "unexpected aio error");
+        }
+
+        dout(10) << __func__ << " finished aio " << aio[i] << " r " << r
+                 << " ioc " << ioc
+                 << " with " << (ioc->num_running.load() - 1)
+                 << " aios left" << dendl;
+
+	// NOTE: once num_running and we either call the callback or
+	// call aio_wake we cannot touch ioc or aio[] as the caller
+	// may free it.
+	if (ioc->priv) {
+	  if (--ioc->num_running == 0) {
+	    bdev->aio_callback(bdev->aio_callback_priv, ioc->priv);
+	  }
+	} else {
+          ioc->try_aio_wake();
+	}
+      }
+    }
+    if (cct->_conf->bdev_debug_aio) {
+      utime_t now = ceph_clock_now();
+      std::lock_guard<std::mutex> l(debug_queue_lock);
+      if (debug_oldest) {
+	if (debug_stall_since == utime_t()) {
+	  debug_stall_since = now;
+	} else {
+	  utime_t cutoff = now;
+	  cutoff -= cct->_conf->bdev_debug_aio_suicide_timeout;
+	  if (debug_stall_since < cutoff) {
+	    derr << __func__ << " stalled aio " << debug_oldest
+		 << " since " << debug_stall_since << ", timeout is "
+		 << cct->_conf->bdev_debug_aio_suicide_timeout
+		 << "s, suicide" << dendl;
+	    assert(0 == "stalled aio... buggy kernel or bad device?");
+	  }
+	}
+      }
+    }
+    bdev->reap_ioc();
+    if (cct->_conf->bdev_inject_crash) {
+      ++inject_crash_count;
+      if (inject_crash_count * cct->_conf->bdev_aio_poll_ms / 1000 >
+	  cct->_conf->bdev_inject_crash + cct->_conf->bdev_inject_crash_flush_delay) {
+	derr << __func__ << " bdev_inject_crash trigger from aio thread"
+	     << dendl;
+	cct->_log->flush();
+	_exit(1);
+      }
+    }
+  }
+  bdev->reap_ioc();
+  dout(10) << __func__ << " end" << dendl;
+}
+
+void KernelDevice::AioService::debug_aio_link(aio_t& aio)
+{
+  if (debug_queue.empty()) {
+    debug_oldest = &aio;
+  }
+  debug_queue.push_back(aio);
+}
+
+void KernelDevice::AioService::debug_aio_unlink(aio_t& aio)
+{
+  if (aio.queue_item.is_linked()) {
+    debug_queue.erase(debug_queue.iterator_to(aio));
+    if (debug_oldest == &aio) {
+      if (debug_queue.empty()) {
+	debug_oldest = nullptr;
+      } else {
+	debug_oldest = &debug_queue.front();
+      }
+      debug_stall_since = utime_t();
+    }
+  }
+}
+
+#undef dout_prefix
+#define dout_prefix *_dout << "bdev(" << this << " " << path << ") "
 
 KernelDevice::KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv)
   : BlockDevice(cct, cb, cbpriv),
@@ -311,24 +506,6 @@ int KernelDevice::flush()
   return r;
 }
 
-int KernelDevice::AioService::start()
-{
-  dout(10) << __func__ << dendl;
-  int r = aio_queue.init();
-  if (r < 0) {
-    if (r == -EAGAIN) {
-      derr << __func__ << " io_setup(2) failed with EAGAIN; "
-           << "try increasing /proc/sys/fs/aio-max-nr" << dendl;
-    } else {
-      derr << __func__ << " io_setup(2) failed: " << cpp_strerror(r) << dendl;
-    }
-    return r;
-  }
-  Thread::create("bstore_aio");
-
-  return 0;
-}
-
 int KernelDevice::_aio_start()
 {
   if (aio) {
@@ -337,118 +514,11 @@ int KernelDevice::_aio_start()
   return 0;
 }
 
-void KernelDevice::AioService::stop()
-{
-  dout(10) << __func__ << dendl;
-  aio_stop = true;
-  Thread::join();
-  aio_stop = false;
-  aio_queue.shutdown();
-}
-
 void KernelDevice::_aio_stop()
 {
   if (aio) {
     aio_thread.stop();
   }
-}
-
-void KernelDevice::AioService::_aio_thread()
-{
-  dout(10) << __func__ << " start" << dendl;
-  int inject_crash_count = 0;
-  while (!aio_stop) {
-    dout(40) << __func__ << " polling" << dendl;
-    int max = cct->_conf->bdev_aio_reap_max;
-    aio_t *aio[max];
-    int r = aio_queue.get_next_completed(cct->_conf->bdev_aio_poll_ms,
-					 aio, max);
-    if (r < 0) {
-      derr << __func__ << " got " << cpp_strerror(r) << dendl;
-      assert(0 == "got unexpected error from io_getevents");
-    }
-    if (r > 0) {
-      dout(30) << __func__ << " got " << r << " completed aios" << dendl;
-      for (int i = 0; i < r; ++i) {
-	IOContext *ioc = static_cast<IOContext*>(aio[i]->priv);
-	bdev->_aio_log_finish(ioc, aio[i]->offset, aio[i]->length);
-	if (aio[i]->queue_item.is_linked()) {
-	  std::lock_guard<std::mutex> l(debug_queue_lock);
-	  debug_aio_unlink(*aio[i]);
-	}
-
-	// set flag indicating new ios have completed.  we do this *before*
-	// any completion or notifications so that any user flush() that
-	// follows the observed io completion will include this io.  Note
-	// that an earlier, racing flush() could observe and clear this
-	// flag, but that also ensures that the IO will be stable before the
-	// later flush() occurs.
-	bdev->io_since_flush.store(true);
-
-	int r = aio[i]->get_return_value();
-        if (r < 0) {
-          derr << __func__ << " got " << cpp_strerror(r) << dendl;
-          if (ioc->allow_eio && r == -EIO) {
-            ioc->set_return_value(r);
-          } else {
-            assert(0 == "got unexpected error from io_getevents");
-          }
-        } else if (aio[i]->length != (uint64_t)r) {
-          derr << "aio to " << aio[i]->offset << "~" << aio[i]->length
-               << " but returned: " << r << dendl;
-          assert(0 == "unexpected aio error");
-        }
-
-        dout(10) << __func__ << " finished aio " << aio[i] << " r " << r
-                 << " ioc " << ioc
-                 << " with " << (ioc->num_running.load() - 1)
-                 << " aios left" << dendl;
-
-	// NOTE: once num_running and we either call the callback or
-	// call aio_wake we cannot touch ioc or aio[] as the caller
-	// may free it.
-	if (ioc->priv) {
-	  if (--ioc->num_running == 0) {
-	    bdev->aio_callback(bdev->aio_callback_priv, ioc->priv);
-	  }
-	} else {
-          ioc->try_aio_wake();
-	}
-      }
-    }
-    if (cct->_conf->bdev_debug_aio) {
-      utime_t now = ceph_clock_now();
-      std::lock_guard<std::mutex> l(debug_queue_lock);
-      if (debug_oldest) {
-	if (debug_stall_since == utime_t()) {
-	  debug_stall_since = now;
-	} else {
-	  utime_t cutoff = now;
-	  cutoff -= cct->_conf->bdev_debug_aio_suicide_timeout;
-	  if (debug_stall_since < cutoff) {
-	    derr << __func__ << " stalled aio " << debug_oldest
-		 << " since " << debug_stall_since << ", timeout is "
-		 << cct->_conf->bdev_debug_aio_suicide_timeout
-		 << "s, suicide" << dendl;
-	    assert(0 == "stalled aio... buggy kernel or bad device?");
-	  }
-	}
-      }
-    }
-    bdev->reap_ioc();
-    if (cct->_conf->bdev_inject_crash) {
-      ++inject_crash_count;
-      if (inject_crash_count * cct->_conf->bdev_aio_poll_ms / 1000 >
-	  cct->_conf->bdev_inject_crash + cct->_conf->bdev_inject_crash_flush_delay) {
-	derr << __func__ << " bdev_inject_crash trigger from aio thread"
-	     << dendl;
-	cct->_log->flush();
-	_exit(1);
-      }
-    }
-  }
-  bdev->reap_ioc();
-  dout(10) << __func__ << " end" << dendl;
 }
 
 void KernelDevice::_aio_log_start(
@@ -471,29 +541,6 @@ void KernelDevice::_aio_log_start(
   }
 }
 
-void KernelDevice::AioService::debug_aio_link(aio_t& aio)
-{
-  if (debug_queue.empty()) {
-    debug_oldest = &aio;
-  }
-  debug_queue.push_back(aio);
-}
-
-void KernelDevice::AioService::debug_aio_unlink(aio_t& aio)
-{
-  if (aio.queue_item.is_linked()) {
-    debug_queue.erase(debug_queue.iterator_to(aio));
-    if (debug_oldest == &aio) {
-      if (debug_queue.empty()) {
-	debug_oldest = nullptr;
-      } else {
-	debug_oldest = &debug_queue.front();
-      }
-      debug_stall_since = utime_t();
-    }
-  }
-}
-
 void KernelDevice::_aio_log_finish(
   IOContext *ioc,
   uint64_t offset,
@@ -504,51 +551,6 @@ void KernelDevice::_aio_log_finish(
   if (cct->_conf->bdev_debug_inflight_ios) {
     Mutex::Locker l(debug_lock);
     debug_inflight.erase(offset, length);
-  }
-}
-
-void KernelDevice::AioService::aio_submit(IOContext *ioc)
-{
-  dout(20) << __func__ << " ioc " << ioc
-	   << " pending " << ioc->num_pending.load()
-	   << " running " << ioc->num_running.load()
-	   << dendl;
-
-  if (ioc->num_pending.load() == 0) {
-    return;
-  }
-
-  // move these aside, and get our end iterator position now, as the
-  // aios might complete as soon as they are submitted and queue more
-  // wal aio's.
-  list<aio_t>::iterator e = ioc->running_aios.begin();
-  ioc->running_aios.splice(e, ioc->pending_aios);
-
-  int pending = ioc->num_pending.load();
-  ioc->num_running += pending;
-  ioc->num_pending -= pending;
-  assert(ioc->num_pending.load() == 0);  // we should be only thread doing this
-  assert(ioc->pending_aios.size() == 0);
-  
-  if (cct->_conf->bdev_debug_aio) {
-    list<aio_t>::iterator p = ioc->running_aios.begin();
-    while (p != e) {
-      dout(30) << __func__ << " " << *p << dendl;
-      std::lock_guard<std::mutex> l(debug_queue_lock);
-      debug_aio_link(*p++);
-    }
-  }
-
-  void *priv = static_cast<void*>(ioc);
-  int r, retries = 0;
-  r = aio_queue.submit_batch(ioc->running_aios.begin(), e, 
-			     pending, priv, &retries);
-  
-  if (retries)
-    derr << __func__ << " retries " << retries << dendl;
-  if (r < 0) {
-    derr << " aio submit got " << cpp_strerror(r) << dendl;
-    assert(r == 0);
   }
 }
 
