@@ -71,7 +71,7 @@ KernelDevice::KernelDevice(CephContext* cct,
     fd_buffered(-1),
     fs(NULL), aio(false), dio(false),
     debug_lock("KernelDevice::debug_lock"),
-    aio_thread(cct, this),
+    aio_service(cct, this),
     injecting_crash(0)
 {
 }
@@ -346,7 +346,7 @@ int KernelDevice::flush()
 int KernelDevice::_aio_start()
 {
   if (aio) {
-    return aio_thread.start(cct);
+    return aio_service.start(cct);
   }
   return 0;
 }
@@ -354,7 +354,7 @@ int KernelDevice::_aio_start()
 void KernelDevice::_aio_stop()
 {
   if (aio) {
-    aio_thread.stop(cct);
+    aio_service.stop(cct);
   }
 }
 
@@ -546,8 +546,8 @@ void KernelDevice::aio_submit(IOContext *ioc)
 
   void *priv = static_cast<void*>(ioc);
   int r, retries = 0;
-  r = aio_thread.aio_queue.submit_batch(ioc->running_aios.begin(), e, 
-			     pending, priv, &retries);
+  r = aio_service.aio_queue.submit_batch(ioc->running_aios.begin(), e,
+					 pending, priv, &retries);
   
   if (retries)
     derr << __func__ << " retries " << retries << dendl;

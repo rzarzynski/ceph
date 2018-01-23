@@ -39,7 +39,7 @@ class KernelDevice : public BlockDevice {
   std::atomic<bool> io_since_flush = {false};
   std::mutex flush_mutex;
 
-  struct aio_service_t : public Thread {
+  struct aio_service_t : private Thread {
     KernelDevice* bdev;
 
     aio_queue_t aio_queue;
@@ -59,7 +59,7 @@ class KernelDevice : public BlockDevice {
       return nullptr;
     }
   };
-  aio_service_t aio_thread;
+  aio_service_t aio_service;
 
   std::atomic_int injecting_crash;
 
