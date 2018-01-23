@@ -16,6 +16,9 @@
 #ifndef CEPH_THREAD_H
 #define CEPH_THREAD_H
 
+#include <memory>
+#include <utility>
+
 #include <pthread.h>
 #include <sys/types.h>
 
@@ -55,5 +58,26 @@ class Thread {
   int set_ioprio(int cls, int prio);
   int set_affinity(int cpuid);
 };
+
+
+template <typename F>
+class LamdaThread : public Thread {
+  F f;
+
+  void* entry() override final {
+    // TODO: use SFINAE to detect f's return type and if it's void*,
+    // return it?
+    f();
+    return nullptr;
+  }
+
+public:
+  LamdaThread(F &&f) : f(std::forward<F>(f)) {}
+};
+
+template <typename F>
+std::unique_ptr<LamdaThread<F>> make_lambda_thread(F &&f) {
+  return std::make_unique<LamdaThread<F>>(std::move(f));
+}
 
 #endif
