@@ -16,10 +16,17 @@ using namespace ceph::logging;
 TEST(Log, Simple)
 {
   SubsystemMap subs;
-  subs.add(0, "none", 10, 10);
-  subs.add(1, "foosys", 20, 1);
-  subs.add(2, "bar", 20, 2);
-  subs.add(3, "baz", 10, 3);
+  subs.set_log_level(0, 10);
+  subs.set_gather_level(0, 10);
+
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 1);
+
+  subs.set_log_level(2, 20);
+  subs.set_gather_level(2, 2);
+
+  subs.set_log_level(3, 10);
+  subs.set_gather_level(3, 3);
 
   Log log(&subs);
   log.start();
@@ -51,7 +58,8 @@ int many = 10000;
 TEST(Log, ManyNoGather)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 1, 1);
+  subs.set_log_level(1, 1);
+  subs.set_gather_level(1, 1);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -69,7 +77,8 @@ TEST(Log, ManyNoGather)
 TEST(Log, ManyGatherLog)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -87,7 +96,8 @@ TEST(Log, ManyGatherLog)
 TEST(Log, ManyGatherLogStringAssign)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -108,7 +118,8 @@ TEST(Log, ManyGatherLogStringAssign)
 TEST(Log, ManyGatherLogStringAssignWithReserve)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -131,7 +142,8 @@ TEST(Log, ManyGatherLogStringAssignWithReserve)
 TEST(Log, ManyGatherLogPrebuf)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -154,7 +166,8 @@ TEST(Log, ManyGatherLogPrebuf)
 TEST(Log, ManyGatherLogPrebufOverflow)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -178,7 +191,8 @@ TEST(Log, ManyGatherLogPrebufOverflow)
 TEST(Log, ManyGather)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 1);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 1);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -195,7 +209,8 @@ TEST(Log, ManyGather)
 void do_segv()
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 1);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 1);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -220,7 +235,8 @@ TEST(Log, InternalSegv)
 TEST(Log, LargeLog)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/big");
@@ -240,7 +256,8 @@ TEST(Log, LargeLog)
 TEST(Log, TimeSwitch)
 {
   SubsystemMap subs;
-  subs.add(1, "foo", 20, 10);
+  subs.set_log_level(1, 20);
+  subs.set_gather_level(1, 10);
   Log log(&subs);
   log.start();
   log.set_log_file("/tmp/time_switch_log");
