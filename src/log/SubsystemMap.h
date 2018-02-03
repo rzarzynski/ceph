@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "common/subsys_types.h"
+
 #include "include/assert.h"
 
 namespace ceph {
@@ -17,17 +19,6 @@ struct Subsystem {
   std::string name;
   
   Subsystem() : log_level(0), gather_level(0) {}     
-};
-
-enum config_subsys_id {
-  ceph_subsys_,   // default
-#define SUBSYS(name, log, gather) \
-  ceph_subsys_##name,
-#define DEFAULT_SUBSYS(log, gather)
-#include "common/subsys.h"
-#undef SUBSYS
-#undef DEFAULT_SUBSYS
-  ceph_subsys_max
 };
 
 class SubsystemMap {
@@ -71,7 +62,7 @@ public:
 
   template <unsigned SubV>
   bool should_gather(int level) {
-    static_assert(SubV < ceph_subsys_max, "wrong subsystem ID");
+    static_assert(SubV < ceph_subsys_get_num(), "wrong subsystem ID");
     return level <= m_subsys[SubV].gather_level ||
       level <= m_subsys[SubV].log_level;
   }
