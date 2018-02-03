@@ -19,6 +19,17 @@ struct Subsystem {
   Subsystem() : log_level(0), gather_level(0) {}     
 };
 
+enum config_subsys_id {
+  ceph_subsys_,   // default
+#define SUBSYS(name, log, gather) \
+  ceph_subsys_##name,
+#define DEFAULT_SUBSYS(log, gather)
+#include "common/subsys.h"
+#undef SUBSYS
+#undef DEFAULT_SUBSYS
+  ceph_subsys_max
+};
+
 class SubsystemMap {
   std::vector<Subsystem> m_subsys;
   unsigned m_max_name_len;
@@ -58,7 +69,13 @@ public:
     return m_subsys[subsys].name;
   }
 
-  bool should_gather(unsigned sub, int level) {
+  template <unsigned SubV>
+  bool should_gather(int level) {
+    static_assert(SubV < ceph_subsys_max, "wrong subsystem ID");
+    return level <= m_subsys[SubV].gather_level ||
+      level <= m_subsys[SubV].log_level;
+  }
+  bool should_gather(const unsigned sub, int level) {
     assert(sub < m_subsys.size());
     return level <= m_subsys[sub].gather_level ||
       level <= m_subsys[sub].log_level;
