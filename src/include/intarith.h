@@ -15,6 +15,7 @@
 #ifndef CEPH_INTARITH_H
 #define CEPH_INTARITH_H
 
+#include <limits>
 #include <type_traits>
 
 #ifndef MIN
@@ -121,34 +122,34 @@ constexpr inline std::make_unsigned_t<std::common_type_t<T, U>> p2roundup(T x, U
 
 // count trailing zeros.
 // NOTE: the builtin is nondeterministic on 0 input
-template<class T>
+template<class T, bool Sanitize0V = true>
   inline typename std::enable_if<
   (std::is_integral<T>::value &&
    sizeof(T) <= sizeof(unsigned)),
   unsigned>::type ctz(T v) {
-  if (v == 0)
+  if (Sanitize0V && v == 0)
     return sizeof(v) * 8;
   return __builtin_ctz(v);
 }
 
-template<class T>
+template<class T, bool Sanitize0V = true>
   inline typename std::enable_if<
   (std::is_integral<T>::value &&
    sizeof(T) > sizeof(unsigned int) &&
    sizeof(T) <= sizeof(unsigned long)),
   unsigned>::type ctz(T v) {
-  if (v == 0)
+  if (Sanitize0V && v == 0)
     return sizeof(v) * 8;
   return __builtin_ctzl(v);
 }
 
-template<class T>
+template<class T, bool Sanitize0V = true>
   inline typename std::enable_if<
   (std::is_integral<T>::value &&
    sizeof(T) > sizeof(unsigned long) &&
    sizeof(T) <= sizeof(unsigned long long)),
   unsigned>::type ctz(T v) {
-  if (v == 0)
+  if (Sanitize0V && v == 0)
     return sizeof(v) * 8;
   return __builtin_ctzll(v);
 }
@@ -219,5 +220,75 @@ template<class T>
     return 0;
   return (sizeof(v) * 8) - __builtin_clzll(v);
 }
+
+namespace ceph {
+namespace math {
+
+template<class UnsignedValueT>
+class p2_t {
+  typedef uint8_t exponent_type;
+  typedef UnsignedValueT value_type;
+
+  static_assert(std::is_unsigned_v<value_type>);
+  static_assert(std::numeric_limits<exponent_type>::max() >
+		std::numeric_limits<value_type>::digits);
+
+  value_type value;
+
+  struct _check_skipper_t {};
+  p2_t(const value_type value, _check_skipper_t)
+    : value(value) {
+  }
+
+public:
+  explicit p2_t(const value_type value)
+    : value(value) {
+    // 0 isn't a power of two. Additional validation is necessary as
+    // the isp2 routine doesn't sanitize that case.
+    //assert(value != 0);
+    assert(isp2(value));
+  }
+
+  static p2_t<value_type> from_exponent(const exponent_type exponent) {
+    return p2_t(1 << exponent, _check_skipper_t());
+  }
+
+  exponent_type get_exponent() const {
+    return ctz(value);
+  }
+
+  value_type get_value() const {
+    return value;
+  }
+
+  p2_t<value_type>& operator=(const value_type& r) {
+    assert(isp2(r));
+    value = r;
+    return *this;
+  }
+
+  operator value_type() const {
+    return value;
+  }
+
+  bool operator<(const p2_t<value_type> r) const {
+    return value < r.value;
+  }
+
+  friend value_type operator/(const value_type& l,
+                              const p2_t<value_type>& r) {
+    // we don't actually care about the 0 case (not power of 2!),
+    // so let's avoid the unnecessary branching.
+    return l >> ctz<value_type, false>(r.value);
+  }
+
+  friend value_type operator%(const value_type& l,
+                              const p2_t<value_type>& r) {
+    return l & (r.value - 1);
+  }
+};
+
+} // math
+} // ceph
 
 #endif
