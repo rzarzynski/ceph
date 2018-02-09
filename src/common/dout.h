@@ -80,7 +80,8 @@ struct is_dynamic<dynamic_marker_t<T>> : public std::true_type {};
     }									\
   }(cct);								\
 									\
-  if (should_gather) {							\
+  if (unlikely(should_gather)) {					\
+    [&]() __attribute__((noinline,cold)) {				\
     static size_t _log_exp_length = 80; 				\
     ceph::logging::Entry *_dout_e = 					\
       cct->_log->create_entry(v, sub, &_log_exp_length);		\
@@ -110,7 +111,8 @@ struct is_dynamic<dynamic_marker_t<T>> : public std::true_type {};
 // /usr/include/assert.h clobbers our fancier version.
 #define dendl_impl std::flush;				\
   _ASSERT_H->_log->submit_entry(_dout_e);		\
-    }						\
+    }();						\
+    }							\
   } while (0)
 
 #define dendl dendl_impl
