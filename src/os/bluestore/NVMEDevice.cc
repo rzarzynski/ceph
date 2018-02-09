@@ -713,7 +713,7 @@ int NVMEDevice::open(const string& p)
   }
 
   driver->register_device(this);
-  block_size = driver->get_block_size();
+  block_size = decltype(block_size)(driver->get_block_size());
   size = driver->get_size();
   name = trid.traddr;
 

@@ -21,6 +21,7 @@
 #include "include/types.h"
 #include "include/interval_set.h"
 #include "include/utime.h"
+#include "include/intarith.h"
 #include "common/hobject.h"
 #include "compressor/Compressor.h"
 #include "common/Checksummer.h"
@@ -554,12 +555,14 @@ public:
   }
 
   /// return chunk (i.e. min readable block) size for the blob
-  uint64_t get_chunk_size(uint64_t dev_block_size) const {
+  ceph::math::p2_t<uint64_t>
+  get_chunk_size(ceph::math::p2_t<uint64_t> dev_block_size) const {
     return has_csum() ?
-      std::max<uint64_t>(dev_block_size, get_csum_chunk_size()) : dev_block_size;
+      std::max(dev_block_size, get_csum_chunk_size<uint64_t>()) : dev_block_size;
   }
-  uint32_t get_csum_chunk_size() const {
-    return 1 << csum_chunk_order;
+  template<class UnsignedT = uint32_t>
+  ceph::math::p2_t<UnsignedT> get_csum_chunk_size() const {
+    return ceph::math::p2_t<UnsignedT>::from_p2(csum_chunk_order);
   }
   uint32_t get_compressed_payload_length() const {
     return is_compressed() ? compressed_length : 0;
@@ -769,7 +772,8 @@ public:
     flags |= FLAG_CSUM;
     csum_type = type;
     csum_chunk_order = order;
-    csum_data = buffer::create(get_csum_value_size() * len / get_csum_chunk_size());
+    csum_data = buffer::create(
+     get_csum_value_size() * len / get_csum_chunk_size<size_t>());
     csum_data.zero();
     csum_data.reassign_to_mempool(mempool::mempool_bluestore_cache_other);
   }
@@ -814,7 +818,7 @@ public:
       bufferptr t;
       t.swap(csum_data);
       csum_data = buffer::create(
-	get_csum_value_size() * logical_length / get_csum_chunk_size());
+	get_csum_value_size() * logical_length / get_csum_chunk_size<size_t>());
       csum_data.copy_in(0, t.length(), t.c_str());
       csum_data.zero(t.length(), csum_data.length() - t.length());
     }

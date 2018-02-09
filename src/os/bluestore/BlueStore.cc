@@ -4547,7 +4547,7 @@ int BlueStore::_open_bdev(bool create)
 
   // initialize global block parameters
   block_size = bdev->get_block_size();
-  block_size_order = ctz(block_size);
+  block_size_order = block_size.get_exponent();
   ceph_assert(block_size == 1u << block_size_order);
   // and set cache_size based on device type
   r = _set_cache_sizes();
@@ -7955,7 +7955,7 @@ int BlueStore::_do_read(
 	     << std::dec << dendl;
 
     auto pc = cache_res.begin();
-    uint64_t chunk_size = bptr->get_blob().get_chunk_size(block_size);
+    const auto chunk_size = bptr->get_blob().get_chunk_size(block_size);
     while (b_len > 0) {
       unsigned l;
       if (pc != cache_res.end() &&
@@ -8237,8 +8237,8 @@ int BlueStore::_verify_csum(OnodeRef& o,
 	   << "/0x" << std::hex << blob->get_csum_chunk_size()
 	   << " checksum at blob offset 0x" << bad
 	   << ", got 0x" << bad_csum << ", expected 0x"
-	   << blob->get_csum_item(bad / blob->get_csum_chunk_size()) << std::dec
-	   << ", device location " << pex
+	   << blob->get_csum_item(bad / blob->get_csum_chunk_size().get_value())
+	   << std::dec << ", device location " << pex
 	   << ", logical extent 0x" << std::hex
 	   << (logical_offset + bad - blob_xoffset) << "~"
 	   << blob->get_csum_chunk_size() << std::dec
@@ -10960,11 +10960,11 @@ void BlueStore::_do_write_small(
 		  ep->blob_offset % min_alloc_size) {
 	dout(20) << __func__ << " ignoring offset-skewed " << *b << dendl;
       } else {
-	uint64_t chunk_size = b->get_blob().get_chunk_size(block_size);
+	const auto chunk_size = b->get_blob().get_chunk_size(block_size);
 	// can we pad our head/tail out with zeros?
 	uint64_t head_pad, tail_pad;
-	head_pad = p2phase(offset, chunk_size);
-	tail_pad = p2nphase(end_offs, chunk_size);
+	head_pad = p2phase(offset, chunk_size.get_value());
+	tail_pad = p2nphase(end_offs, chunk_size.get_value());
 	if (head_pad || tail_pad) {
 	  o->extent_map.fault_range(db, offset - head_pad,
 				    end_offs - offset + head_pad + tail_pad);
@@ -11028,8 +11028,8 @@ void BlueStore::_do_write_small(
 	  return;
 	}
 	// read some data to fill out the chunk?
-	uint64_t head_read = p2phase(b_off, chunk_size);
-	uint64_t tail_read = p2nphase(b_off + b_len, chunk_size);
+	uint64_t head_read = p2phase(b_off, chunk_size.get_value());
+	uint64_t tail_read = p2nphase(b_off + b_len, chunk_size.get_value());
 	if ((head_read || tail_read) &&
 	    (b->get_blob().get_ondisk_length() >= b_off + b_len + tail_read) &&
 	    head_read + tail_read < min_alloc_size) {
@@ -11174,7 +11174,7 @@ void BlueStore::_do_write_small(
 				offset0 + alloc_len, 
 				min_alloc_size)) {
 
-	  uint64_t chunk_size = b->get_blob().get_chunk_size(block_size);
+	  const auto chunk_size = b->get_blob().get_chunk_size(block_size);
 	  uint64_t b_off = offset - bstart;
 	  uint64_t b_off0 = b_off;
 	  _pad_zeros(&bl, &b_off0, chunk_size);

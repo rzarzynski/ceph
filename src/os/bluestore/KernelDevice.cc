@@ -137,7 +137,7 @@ int KernelDevice::open(const string& p)
   // blksize doesn't strictly matter except that some file systems may
   // require a read/modify/write if we write something smaller than
   // it.
-  block_size = cct->_conf->bdev_block_size;
+  block_size = ceph::math::p2_t((size_t)cct->_conf->bdev_block_size);
   if (block_size != (unsigned)st.st_blksize) {
     dout(1) << __func__ << " backing device/file reports st_blksize "
 	    << st.st_blksize << ", using bdev_block_size "
