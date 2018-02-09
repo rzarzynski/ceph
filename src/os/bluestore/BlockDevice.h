@@ -33,6 +33,8 @@
 #include "include/assert.h"
 #include "include/buffer.h"
 #include "include/interval_set.h"
+#include "include/intarith.h"
+
 #define SPDK_PREFIX "spdk:"
 
 class CephContext;
@@ -113,7 +115,7 @@ private:
 
 protected:
   uint64_t size;
-  uint64_t block_size;
+  ceph::math::p2_t<uint64_t> block_size;
   bool rotational = true;
 
 public:
@@ -135,8 +137,12 @@ public:
 
   virtual void aio_submit(IOContext *ioc) = 0;
 
-  uint64_t get_size() const { return size; }
-  uint64_t get_block_size() const { return block_size; }
+  uint64_t get_size() const {
+    return size;
+  }
+  ceph::math::p2_t<uint64_t> get_block_size() const {
+    return block_size;
+  }
 
   /// hook to provide utilization of thinly-provisioned device
   virtual bool get_thin_utilization(uint64_t *total, uint64_t *avail) const {
