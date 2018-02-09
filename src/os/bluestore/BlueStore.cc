@@ -4547,7 +4547,6 @@ int BlueStore::_open_bdev(bool create)
 
   // initialize global block parameters
   block_size = bdev->get_block_size();
-  block_mask = ~(block_size - 1);
   block_size_order = ctz(block_size);
   ceph_assert(block_size == 1u << block_size_order);
   // and set cache_size based on device type
