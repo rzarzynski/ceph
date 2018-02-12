@@ -16,7 +16,7 @@ namespace io {
 void BasicClient::init(CephContext *cct) {
   init_env(cct);
 
-  if (cct->_conf->subsys.should_gather(ceph_subsys_rgw, 20)) {
+  if (cct->_conf->subsys.should_gather<ceph_subsys_rgw, 20>()) {
     const auto& env_map = get_env().get_map();
 
     for (const auto& iter: env_map) {
