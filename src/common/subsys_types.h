@@ -29,7 +29,7 @@ enum ceph_subsys_id_t {
   ceph_subsys_max
 };
 
-constexpr std::size_t ceph_subsys_get_num() {
+constexpr static std::size_t ceph_subsys_get_num() {
   return static_cast<std::size_t>(ceph_subsys_max);
 }
 
@@ -39,7 +39,7 @@ struct ceph_subsys_item_t {
   uint8_t gather_level;
 };
 
-constexpr std::array<ceph_subsys_item_t, ceph_subsys_get_num()>
+constexpr static std::array<ceph_subsys_item_t, ceph_subsys_get_num()>
 ceph_subsys_get_as_array() {
 #define SUBSYS(name, log, gather) \
   ceph_subsys_item_t{ #name, log, gather },
