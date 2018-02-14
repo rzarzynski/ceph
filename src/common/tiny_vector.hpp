@@ -18,7 +18,8 @@
 
 namespace ceph {
 
-// tiny_vector - a CPU-friendly container for non-movable objects.
+// tiny_vector - a CPU-friendly container like small_vector but for
+// mutexes, atomics and other non-movable things.
 //
 // The purpose of the container is store arbitrary number of objects
 // with absolutely minimal requirements regarding constructibility
@@ -36,7 +37,7 @@ namespace ceph {
 //
 // Alternatives:
 //  1. std::vector<boost::optional<ValueT>> initialized with the known
-//     known size and emplace_backed(). boost::optional inside provides
+//     size and emplace_backed(). boost::optional inside provides
 //     the DefaultConstructibility. Imposes extra memory indirection.
 //  2. boost::container::small_vector + boost::optional always
 //     requires MoveConstructibility.
@@ -95,7 +96,7 @@ public:
 
   ~tiny_vector() {
     for (auto& elem : *this) {
-      reinterpret_cast<Value&>(elem).~Value();
+      elem.~Value();
     }
 
     const auto data_addr = reinterpret_cast<uintptr_t>(data);
