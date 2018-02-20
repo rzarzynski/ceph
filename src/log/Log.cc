@@ -15,6 +15,7 @@
 #include "include/assert.h"
 #include "include/compat.h"
 #include "include/on_exit.h"
+#include <lttng/lttng.h>
 
 #include "Entry.h"
 #include "LogClock.h"
@@ -25,6 +26,16 @@
 
 #define PREALLOC 1000000
 #define MAX_LOG_BUF 65536
+
+#ifdef WITH_LTTNG
+#define TRACEPOINT_DEFINE
+#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+#include "tracing/ceph_logging.h"
+#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+#undef TRACEPOINT_DEFINE
+#else
+#define tracepoint(...)
+#endif
 
 namespace ceph {
 namespace logging {
@@ -222,6 +233,11 @@ void Log::stop_graylog()
 void Log::submit_entry(Entry *e)
 {
   e->finish();
+
+  if (true) {
+    tracepoint(ceph_logging, log_message, (char*)e->get_str().c_str());
+    return;
+  }
 
   pthread_mutex_lock(&m_queue_mutex);
   m_queue_mutex_holder = pthread_self();

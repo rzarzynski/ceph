@@ -45,8 +45,10 @@ add_library(osd STATIC ${osd_srcs}
   $<TARGET_OBJECTS:global_common_objs>
   $<TARGET_OBJECTS:heap_profiler_objs>)
 target_link_libraries(osd ${LEVELDB_LIBRARIES} dmclock ${CMAKE_DL_LIBS} ${ALLOC_LIBS})
+target_link_libraries(osd lttng-ctl)
 if(WITH_LTTNG)
   add_dependencies(osd osd-tp pg-tp)
+  add_dependencies(osd ceph_logging_tp)
 endif()
 if(WITH_LTTNG AND WITH_EVENTTRACE)
   add_dependencies(osd eventtrace_tp)

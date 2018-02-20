@@ -1,0 +1,6 @@
+#include "include/int_types.h"
+
+TRACEPOINT_EVENT(ceph_logging, log_message,
+  TP_ARGS(char *, text),
+  TP_FIELDS(ctf_string(message, text))
+)
