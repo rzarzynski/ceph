@@ -35,6 +35,16 @@
 #include "auth/Crypto.h"
 #include "common/EventTrace.h"
 
+#ifdef WITH_LTTNG
+#define TRACEPOINT_DEFINE
+#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+#include "tracing/ceph_logging.h"
+#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+#undef TRACEPOINT_DEFINE
+#else
+#define tracepoint(...)
+#endif
+
 #define dout_context cct
 #define dout_subsys ceph_subsys_bluestore
 
@@ -8951,7 +8961,9 @@ void BlueStore::_kv_sync_thread()
       utime_t start = ceph_clock_now();
       l.unlock();
 
-      dout(30) << __func__ << " committing " << kv_committing << dendl;
+      tracepoint(ceph_logging, before, 0);
+      dout(10) << __func__ << " committing " << kv_committing << dendl;
+      tracepoint(ceph_logging, after, 0);
       dout(30) << __func__ << " submitting " << kv_submitting << dendl;
       dout(30) << __func__ << " deferred_done " << deferred_done << dendl;
       dout(30) << __func__ << " deferred_stable " << deferred_stable << dendl;

@@ -4,3 +4,13 @@ TRACEPOINT_EVENT(ceph_logging, log_message,
   TP_ARGS(char *, text),
   TP_FIELDS(ctf_string(message, text))
 )
+
+TRACEPOINT_EVENT(ceph_logging, before,
+  TP_ARGS(int, payload),
+  TP_FIELDS(ctf_integer(int, payload, payload))
+)
+
+TRACEPOINT_EVENT(ceph_logging, after,
+  TP_ARGS(int, payload),
+  TP_FIELDS(ctf_integer(int, payload, payload))
+)

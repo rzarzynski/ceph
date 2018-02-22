@@ -19,6 +19,7 @@
 
 #include <iostream>
 #include <string>
+#include <lttng/lttng.h>
 
 #include "osd/OSD.h"
 #include "os/ObjectStore.h"
