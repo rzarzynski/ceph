@@ -230,11 +230,11 @@ void Log::stop_graylog()
   pthread_mutex_unlock(&m_flush_mutex);
 }
 
-void Log::submit_entry(Entry *e)
+void Log::submit_entry(Entry *e, bool logging_legacy)
 {
   e->finish();
 
-  if (true) {
+  if (!logging_legacy) {
     tracepoint(ceph_logging, log_message, (char*)e->get_str().c_str());
     return;
   }

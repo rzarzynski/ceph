@@ -90,7 +90,8 @@ struct is_dynamic<dynamic_marker_t<T>> : public std::true_type {};
 				      CephContext* >::value,		\
 		  "provided cct must be compatible with CephContext*"); \
     auto _dout_cct = cct;						\
-    std::ostream* _dout = &_dout_e->get_ostream();
+    std::ostream* _dout = &_dout_e->get_ostream();                      \
+    bool __logging_legacy = cct->_conf->logging_legacy;
 
 #define lsubdout(cct, sub, v)  dout_impl(cct, ceph_subsys_##sub, v) dout_prefix
 #define ldout(cct, v)  dout_impl(cct, dout_subsys, v) dout_prefix
@@ -111,7 +112,7 @@ struct is_dynamic<dynamic_marker_t<T>> : public std::true_type {};
 // NOTE: depend on magic value in _ASSERT_H so that we detect when
 // /usr/include/assert.h clobbers our fancier version.
 #define dendl_impl std::flush;				\
-  _ASSERT_H->_log->submit_entry(_dout_e);		\
+  _ASSERT_H->_log->submit_entry(_dout_e, __logging_legacy);		\
     }						\
   } while (0)
 

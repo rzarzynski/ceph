@@ -620,79 +620,81 @@ flushjournal_out:
   TracepointProvider::initialize<os_tracepoint_traits>(g_ceph_context);
   TracepointProvider::initialize<ceph_logging_tracepoint_traits>(g_ceph_context);
 
-  string tracing_session = string("osd_") + string(id);
-  struct lttng_handle *handle;
-  struct lttng_event ev;
-  struct lttng_channel chan;
-  struct lttng_domain dom;
-  struct lttng_event_context ctx;
-  int ret;
+  if (!cct->_conf->get_val<bool>("logging_legacy")) {
+    string tracing_session = string("osd_") + string(id);
+    struct lttng_handle *handle;
+    struct lttng_event ev;
+    struct lttng_channel chan;
+    struct lttng_domain dom;
+    struct lttng_event_context ctx;
+    int ret;
 
-  memset(&dom, 0, sizeof(dom));
-  dom.type = LTTNG_DOMAIN_UST;
+    memset(&dom, 0, sizeof(dom));
+    dom.type = LTTNG_DOMAIN_UST;
 
-  memset(&chan, 0, sizeof(chan));
-  string channame = (string("u_") + string(id));
-  strcpy(chan.name, channame.c_str());
-  chan.attr.overwrite = 0;
-  chan.attr.subbuf_size = 32768;
-  chan.attr.num_subbuf = 512;
-  chan.attr.switch_timer_interval = 0;
-  chan.attr.read_timer_interval = 200;
-  chan.attr.output = LTTNG_EVENT_MMAP;
+    memset(&chan, 0, sizeof(chan));
+    string channame = (string("u_") + string(id));
+    strcpy(chan.name, channame.c_str());
+    chan.attr.overwrite = 0;
+    chan.attr.subbuf_size = 32768;
+    chan.attr.num_subbuf = 512;
+    chan.attr.switch_timer_interval = 0;
+    chan.attr.read_timer_interval = 200;
+    chan.attr.output = LTTNG_EVENT_MMAP;
 
-  dout(1) << "mogeb creating session " << tracing_session << " in " << (string("/var/data/ceph/build/out/") + tracing_session) << dendl;
-  ret = lttng_create_session(tracing_session.c_str(), (string("/var/data/ceph/build/out/") + tracing_session).c_str());
-  if (ret) {
-    dout(1) << "mogeb lttng_create_session fail" << dendl;
-  } else {
-    dout(1) << "mogeb lttng_create_session worked" << dendl;
-  }
+    dout(1) << "mogeb creating session " << tracing_session << " in " << (string("/var/data/ceph/build/out/") + tracing_session) << dendl;
+    ret = lttng_create_session(tracing_session.c_str(), (string("/var/data/ceph/build/out/") + tracing_session).c_str());
+    if (ret) {
+      dout(1) << "mogeb lttng_create_session fail" << dendl;
+    } else {
+      dout(1) << "mogeb lttng_create_session worked" << dendl;
+    }
 
-  handle = lttng_create_handle(tracing_session.c_str(), &dom);
-  ret = lttng_enable_channel(handle, &chan);
-  if (ret) {
-    dout(1) << "mogeb lttng_enable_channel fail" << dendl;
-  } else {
-    dout(1) << "mogeb lttng_enable_channel worked" << dendl;
-  }
+    handle = lttng_create_handle(tracing_session.c_str(), &dom);
+    ret = lttng_enable_channel(handle, &chan);
+    if (ret) {
+      dout(1) << "mogeb lttng_enable_channel fail" << dendl;
+    } else {
+      dout(1) << "mogeb lttng_enable_channel worked" << dendl;
+    }
 
-  memset(&ev, 0, sizeof(ev));
-  strcpy(ev.name, "*");
-  ev.type = LTTNG_EVENT_TRACEPOINT;
-  ev.loglevel_type = LTTNG_EVENT_LOGLEVEL_ALL;
-  ret = lttng_enable_event(handle, &ev, channame.c_str());
-  if (ret) {
-    dout(1) << "mogeb lttng_enable_event fail" << dendl;
-  } else {
-    dout(1) << "mogeb lttng_enable_event worked" << dendl;
-  }
+    memset(&ev, 0, sizeof(ev));
+    strcpy(ev.name, "*");
+    ev.type = LTTNG_EVENT_TRACEPOINT;
+    ev.loglevel_type = LTTNG_EVENT_LOGLEVEL_ALL;
+    ret = lttng_enable_event(handle, &ev, channame.c_str());
+    if (ret) {
+      dout(1) << "mogeb lttng_enable_event fail" << dendl;
+    } else {
+      dout(1) << "mogeb lttng_enable_event worked" << dendl;
+    }
 
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.ctx = LTTNG_EVENT_CONTEXT_VTID;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx = LTTNG_EVENT_CONTEXT_VTID;
 
-  ret = lttng_add_context(handle, &ctx, "*", channame.c_str());
-  if (ret) {
-    dout(1) << "mogeb lttng_add_context fail" << dendl;
-  } else {
-    dout(1) << "mogeb lttng_add_context worked" << dendl;
-  }
+    ret = lttng_add_context(handle, &ctx, "*", channame.c_str());
+    if (ret) {
+      dout(1) << "mogeb lttng_add_context fail" << dendl;
+    } else {
+      dout(1) << "mogeb lttng_add_context worked" << dendl;
+    }
 
-  memset(&ctx, 0, sizeof(ctx));
-  ctx.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.ctx = LTTNG_EVENT_CONTEXT_PROCNAME;
 
-  ret = lttng_add_context(handle, &ctx, "*", channame.c_str());
-  if (ret) {
-    dout(1) << "mogeb lttng_add_context fail" << dendl;
-  } else {
-    dout(1) << "mogeb lttng_add_context worked" << dendl;
-  }
+    ret = lttng_add_context(handle, &ctx, "*", channame.c_str());
+    if (ret) {
+      dout(1) << "mogeb lttng_add_context fail" << dendl;
+    } else {
+      dout(1) << "mogeb lttng_add_context worked" << dendl;
+    }
 
-  ret = lttng_start_tracing(tracing_session.c_str());
-  if (ret) {
-    dout(1) << "mogeb lttng_start_tracing fail" << dendl;
-  } else {
-    dout(1) << "mogeb lttng_start_tracing worked" << dendl;
+    ret = lttng_start_tracing(tracing_session.c_str());
+    if (ret) {
+      dout(1) << "mogeb lttng_start_tracing fail" << dendl;
+    } else {
+      dout(1) << "mogeb lttng_start_tracing worked" << dendl;
+    }
   }
 
 #ifdef WITH_OSD_INSTRUMENT_FUNCTIONS

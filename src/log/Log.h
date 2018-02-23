@@ -97,7 +97,7 @@ public:
 
   Entry *create_entry(int level, int subsys, const char* msg = nullptr);
   Entry *create_entry(int level, int subsys, size_t* expected_size);
-  void submit_entry(Entry *e);
+  void submit_entry(Entry *e, bool logging_legacy);
 
   void start();
   void stop();
