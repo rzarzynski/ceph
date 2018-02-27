@@ -458,7 +458,7 @@ void BitmapFreelistManager::_verify_range(uint64_t offset, uint64_t length,
 
 void BitmapFreelistManager::allocate(
   uint64_t offset, uint64_t length,
-  KeyValueDB::Transaction txn)
+  KeyValueDB::Transaction& txn)
 {
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
 	   << std::dec << dendl;
@@ -467,7 +467,7 @@ void BitmapFreelistManager::allocate(
 
 void BitmapFreelistManager::release(
   uint64_t offset, uint64_t length,
-  KeyValueDB::Transaction txn)
+  KeyValueDB::Transaction& txn)
 {
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
 	   << std::dec << dendl;
@@ -476,7 +476,7 @@ void BitmapFreelistManager::release(
 
 void BitmapFreelistManager::_xor(
   uint64_t offset, uint64_t length,
-  KeyValueDB::Transaction txn)
+  KeyValueDB::Transaction& txn)
 {
   // must be block aligned
   assert((offset & block_mask) == offset);

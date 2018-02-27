@@ -2089,7 +2089,7 @@ void BlueStore::ExtentMap::dup(BlueStore* b, TransContext* txc,
   }
   newo->extent_map.dirty_range(dstoff, length);
 }
-void BlueStore::ExtentMap::update(KeyValueDB::Transaction t,
+void BlueStore::ExtentMap::update(KeyValueDB::Transaction& t,
                                   bool force)
 {
   auto cct = onode->c->store->cct; //used by dout
@@ -2223,7 +2223,7 @@ bid_t BlueStore::ExtentMap::allocate_spanning_blob_id()
 
 void BlueStore::ExtentMap::reshard(
   KeyValueDB *db,
-  KeyValueDB::Transaction t)
+  KeyValueDB::Transaction& t)
 {
   auto cct = onode->c->store->cct; // used by dout
 
@@ -8183,7 +8183,7 @@ void BlueStore::_txc_finish_io(TransContext *txc)
   }
 }
 
-void BlueStore::_txc_write_nodes(TransContext *txc, KeyValueDB::Transaction t)
+void BlueStore::_txc_write_nodes(TransContext *txc, KeyValueDB::Transaction& t)
 {
   dout(20) << __func__ << " txc " << txc
 	   << " onodes " << txc->onodes
@@ -8191,7 +8191,7 @@ void BlueStore::_txc_write_nodes(TransContext *txc, KeyValueDB::Transaction t)
 	   << dendl;
 
   // finalize onodes
-  for (auto o : txc->onodes) {
+  for (auto& o : txc->onodes) {
     // finalize extent_map shards
     o->extent_map.update(t, false);
     if (o->extent_map.needs_reshard()) {
@@ -8250,7 +8250,7 @@ void BlueStore::_txc_write_nodes(TransContext *txc, KeyValueDB::Transaction t)
   }
 
   // finalize shared_blobs
-  for (auto sb : txc->shared_blobs) {
+  for (auto& sb : txc->shared_blobs) {
     string key;
     auto sbid = sb->get_sbid();
     get_shared_blob_key(sbid, &key);
@@ -8281,7 +8281,7 @@ void BlueStore::BSPerfTracker::update_from_perfcounters(
       l_bluestore_commit_lat));
 }
 
-void BlueStore::_txc_finalize_kv(TransContext *txc, KeyValueDB::Transaction t)
+void BlueStore::_txc_finalize_kv(TransContext *txc, KeyValueDB::Transaction& t)
 {
   dout(20) << __func__ << " txc " << txc << std::hex
 	   << " allocated 0x" << txc->allocated

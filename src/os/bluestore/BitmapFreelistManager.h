@@ -43,7 +43,7 @@ class BitmapFreelistManager : public FreelistManager {
   void _verify_range(uint64_t offset, uint64_t length, int val);
   void _xor(
     uint64_t offset, uint64_t length,
-    KeyValueDB::Transaction txn);
+    KeyValueDB::Transaction& txn);
 
 public:
   BitmapFreelistManager(CephContext* cct, KeyValueDB *db, string meta_prefix,
@@ -64,10 +64,10 @@ public:
 
   void allocate(
     uint64_t offset, uint64_t length,
-    KeyValueDB::Transaction txn) override;
+    KeyValueDB::Transaction& txn) override;
   void release(
     uint64_t offset, uint64_t length,
-    KeyValueDB::Transaction txn) override;
+    KeyValueDB::Transaction& txn) override;
 
   inline uint64_t get_alloc_units() const override {
     return size / bytes_per_block;

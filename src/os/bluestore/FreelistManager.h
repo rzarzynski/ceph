@@ -37,10 +37,10 @@ public:
 
   virtual void allocate(
     uint64_t offset, uint64_t length,
-    KeyValueDB::Transaction txn) = 0;
+    KeyValueDB::Transaction& txn) = 0;
   virtual void release(
     uint64_t offset, uint64_t length,
-    KeyValueDB::Transaction txn) = 0;
+    KeyValueDB::Transaction& txn) = 0;
 
   virtual uint64_t get_alloc_units() const = 0;
   virtual uint64_t get_alloc_size() const = 0;

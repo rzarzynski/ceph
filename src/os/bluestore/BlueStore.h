@@ -801,11 +801,11 @@ public:
       return p->second;
     }
 
-    void update(KeyValueDB::Transaction t, bool force);
+    void update(KeyValueDB::Transaction& t, bool force);
     decltype(BlueStore::Blob::id) allocate_spanning_blob_id();
     void reshard(
       KeyValueDB *db,
-      KeyValueDB::Transaction t);
+      KeyValueDB::Transaction& t);
 
     /// initialize Shards from the onode
     void init_shards(bool loaded, bool dirty);
@@ -2032,7 +2032,7 @@ private:
   void _txc_update_store_statfs(TransContext *txc);
   void _txc_add_transaction(TransContext *txc, Transaction *t);
   void _txc_calc_cost(TransContext *txc);
-  void _txc_write_nodes(TransContext *txc, KeyValueDB::Transaction t);
+  void _txc_write_nodes(TransContext *txc, KeyValueDB::Transaction& t);
   void _txc_state_proc(TransContext *txc);
   void _txc_aio_submit(TransContext *txc);
 public:
@@ -2041,7 +2041,7 @@ public:
   }
 private:
   void _txc_finish_io(TransContext *txc);
-  void _txc_finalize_kv(TransContext *txc, KeyValueDB::Transaction t);
+  void _txc_finalize_kv(TransContext *txc, KeyValueDB::Transaction& t);
   void _txc_applied_kv(TransContext *txc);
   void _txc_committed_kv(TransContext *txc);
   void _txc_finish(TransContext *txc);
