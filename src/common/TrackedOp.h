@@ -384,13 +384,13 @@ public:
 inline void TrackedOp::tracking_start() {
   if (tracker->register_inflight_op(this)) {
     events.emplace_back(initiated_at, "initiated");
-    state = STATE_LIVE;
+    state.store(STATE_LIVE, std::memory_order_release);
   }
 }
 
 inline void TrackedOp::put() {
   if (--nref == 0) {
-    switch (state.load()) {
+    switch (state.load(std::memory_order_acquire)) {
     case STATE_UNTRACKED:
       _unregistered();
       delete this;
