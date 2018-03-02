@@ -286,7 +286,7 @@ bool OpTracker::register_inflight_op(TrackedOp *i)
 void OpTracker::unregister_inflight_op(TrackedOp *i)
 {
   // caller checks;
-  assert(i->state);
+  assert(i->state.load(std::memory_order_acquire));
 
   uint32_t shard_index = i->seq % sharded_in_flight_list.size();
   ShardedTrackingData& sdata = sharded_in_flight_list[shard_index];
@@ -300,9 +300,10 @@ void OpTracker::unregister_inflight_op(TrackedOp *i)
   if (!tracking_enabled)
     delete i;
   else {
-    i->state = TrackedOp::STATE_HISTORY;
     const utime_t now = ceph_clock_now();
     history.insert(now, TrackedOpRef(i));
+    i->state.store(TrackedOp::STATE_HISTORY,
+		   std::memory_order_release);
   }
 }
 
@@ -445,8 +446,9 @@ void OpTracker::get_age_ms_histogram(pow2_hist_t *h)
 
 void TrackedOp::mark_event_string(const string &event, utime_t stamp)
 {
-  if (!state)
+  if (!state.load(std::memory_order_acquire)) {
     return;
+  }
 
   {
     Mutex::Locker l(lock);
@@ -463,8 +465,9 @@ void TrackedOp::mark_event_string(const string &event, utime_t stamp)
 
 void TrackedOp::mark_event(const char *event, utime_t stamp)
 {
-  if (!state)
+  if (!state.load(std::memory_order_acquire)) {
     return;
+  }
 
   {
     Mutex::Locker l(lock);
@@ -482,8 +485,9 @@ void TrackedOp::mark_event(const char *event, utime_t stamp)
 void TrackedOp::dump(utime_t now, Formatter *f) const
 {
   // Ignore if still in the constructor
-  if (!state)
+  if (!state.load(std::memory_order_acquire)) {
     return;
+  }
   f->dump_string("description", get_desc());
   f->dump_stream("initiated_at") << get_initiated();
   f->dump_float("age", now - get_initiated());
