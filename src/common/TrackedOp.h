@@ -34,9 +34,9 @@ class OpHistoryServiceThread : public Thread
     utime_t time;
     TrackedOpRef op;
 
-    queue_item_t(utime_t time, TrackedOpRef op)
+    queue_item_t(utime_t time, TrackedOp* op)
       : time(std::move(time)),
-        op(std::move(op)) {
+        op(TrackedOpRef(op)) {
     }
   };
   typedef boost::intrusive::list<queue_item_t> queue_t;
@@ -52,8 +52,8 @@ public:
       _break_thread(false) { }
 
   void break_thread();
-  void insert_op(const utime_t& now, TrackedOpRef op) {
-    auto item = new queue_item_t(now, std::move(op));
+  void insert_op(const utime_t& now, TrackedOp* op) {
+    auto item = new queue_item_t(now, op);
     queue_spinlock.lock();
     _external_queue.push_back(*item);
     queue_spinlock.unlock();
@@ -89,7 +89,7 @@ public:
     assert(duration.empty());
     assert(slow_op.empty());
   }
-  void insert(const utime_t& now, TrackedOpRef op)
+  void insert(const utime_t& now, TrackedOp* op)
   {
     if (shutdown)
       return;
