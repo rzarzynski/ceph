@@ -53,8 +53,8 @@ public:
 
   void break_thread();
   void insert_op(const utime_t& now, TrackedOpRef op) {
-    queue_spinlock.lock();
     auto item = new queue_item_t(now, std::move(op));
+    queue_spinlock.lock();
     _external_queue.push_back(*item);
     queue_spinlock.unlock();
   }
