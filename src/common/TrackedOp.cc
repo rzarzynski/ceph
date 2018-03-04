@@ -180,6 +180,7 @@ OpTracker::OpTracker(CephContext *cct_, bool tracking, uint32_t num_shards):
   log_threshold(0),
   tracking_enabled(tracking),
   cct(cct_) {
+  assert(ISP2(num_shards));
 }
 
 OpTracker::~OpTracker() {
