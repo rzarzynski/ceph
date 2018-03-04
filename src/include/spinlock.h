@@ -34,6 +34,43 @@ inline void spin_unlock(std::atomic_bool& locked);
 inline void spin_lock(ceph::spinlock& locked);
 inline void spin_unlock(ceph::spinlock& locked);
 
+namespace spin {
+
+template <class MutexT, std::size_t MaxTriesV = 64>
+struct adapt_guard final
+{
+  typedef MutexT mutex_type;
+
+  adapt_guard(mutex_type& m)
+    : m(m)
+  {
+    if (likely(m.try_lock())) {
+      return;
+    }
+
+    std::size_t tries = MaxTriesV;
+    do {
+      _mm_pause();
+    } while (!m.try_lock() && --tries > 0);
+
+    if (!tries) {
+      m.lock();
+    }
+  }
+
+  adapt_guard(const adapt_guard&) = delete;
+
+  ~adapt_guard()
+  {
+    m.unlock();
+  }
+
+private:
+  mutex_type& m;
+};
+
+} // namespace spin
+
 /* A pre-packaged spinlock type modelling BasicLockable: */
 class spinlock final
 {
