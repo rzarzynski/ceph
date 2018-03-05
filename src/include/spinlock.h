@@ -24,17 +24,9 @@
 
 #include "common/likely.h"
 
-namespace ceph {
+namespace ceph::spin {
 inline namespace version_1_0 {
 
-class spinlock;
-
-inline void spin_lock(std::atomic_bool& locked);
-inline void spin_unlock(std::atomic_bool& locked);
-inline void spin_lock(ceph::spinlock& locked);
-inline void spin_unlock(ceph::spinlock& locked);
-
-namespace spin {
 
 template <class MutexT, std::size_t MaxTriesV = 64>
 struct adapt_guard final
@@ -69,7 +61,6 @@ private:
   mutex_type& m;
 };
 
-} // namespace spin
 
 /* A pre-packaged spinlock type modelling BasicLockable: */
 class spinlock final
@@ -84,17 +75,12 @@ class spinlock final
   static_assert(std::atomic_bool::is_always_lock_free);
 
 public:
-  void lock() {
-    ceph::spin_lock(locked);
-  }
- 
-  void unlock() noexcept {
-    ceph::spin_unlock(locked);
-  }
+  void lock();
+  void unlock() noexcept;
 };
 
 // Free functions:
-inline void spin_lock(std::atomic_bool& locked)
+inline void spinlock::lock()
 {
   bool expected = false;
   if (likely(locked.compare_exchange_weak(expected, true,
@@ -118,42 +104,16 @@ inline void spin_lock(std::atomic_bool& locked)
                                          std::memory_order_relaxed));
 }
 
-inline void spin_unlock(std::atomic_bool& locked)
+inline void spinlock::unlock() noexcept
 {
   locked.store(false, std::memory_order_release);
 }
 
-inline void spin_lock(std::atomic_bool *locked)
-{
- spin_lock(*locked);
-}
-
-inline void spin_unlock(std::atomic_bool *locked)
-{
- spin_unlock(*locked);
-}
-
-inline void spin_lock(ceph::spinlock& lock)
-{
- lock.lock();
-}
-
-inline void spin_unlock(ceph::spinlock& lock)
-{
- lock.unlock();
-}
-
-inline void spin_lock(ceph::spinlock *lock)
-{
- spin_lock(*lock);
-}
-
-inline void spin_unlock(ceph::spinlock *lock)
-{
- spin_unlock(*lock);
-}
-
 } // inline namespace (version)
-} // namespace ceph
+} // namespace ceph::lock
 
+
+namespace ceph {
+  using ceph::spin::spinlock;
+} // namespace ceph
 #endif
