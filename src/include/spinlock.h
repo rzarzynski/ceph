@@ -62,7 +62,7 @@ struct adapt_guard final
 
     std::size_t tries = MaxTriesV;
     do {
-      _mm_pause();
+      emit_pause();
     } while (!m.try_lock() && --tries > 0);
 
     if (!tries) {
