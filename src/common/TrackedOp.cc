@@ -24,7 +24,6 @@ static ostream& _prefix(std::ostream* _dout)
 
 void OpHistoryServiceThread::break_thread() {
   ceph::spin::adapt_guard<std::mutex> sl(queue_lock);
-  // TODO: delete objs
   _external_queue.clear();
   _break_thread = true;
 }
