@@ -24,7 +24,6 @@ static ostream& _prefix(std::ostream* _dout)
 
 void OpHistoryServiceThread::break_thread() {
   ceph::spin::adapt_guard<std::mutex> sl(queue_lock);
-  _external_queue.clear();
   _break_thread = true;
 }
 
@@ -56,6 +55,17 @@ void* OpHistoryServiceThread::entry() {
     }
   }
   return nullptr;
+}
+
+OpHistoryServiceThread::~OpHistoryServiceThread() {
+  if (!_external_queue.empty()) {
+    assert(_break_thread);
+  }
+
+  while (!_external_queue.empty()) {
+    delete &_external_queue.back();
+    _external_queue.pop_back();
+  }
 }
 
 

@@ -50,6 +50,7 @@ public:
   explicit OpHistoryServiceThread(OpHistory* parent)
     : _ophistory(parent),
       _break_thread(false) { }
+  ~OpHistoryServiceThread();
 
   void break_thread();
   void insert_op(const utime_t& now, TrackedOpRef&& op) {
