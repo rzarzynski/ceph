@@ -98,7 +98,10 @@ struct AioCompletion {
     return comp;
   }
 
-  AioCompletion() : lock("AioCompletion::lock", true, false),
+  AioCompletion() : lock("AioCompletion::lock",
+      		    // TODO: move to RecursiveMutex
+	   	    Mutex::recursive_finder_t(),
+		    true, false),
                     state(AIO_STATE_PENDING), rval(0), complete_cb(NULL),
                     complete_arg(NULL), rbd_comp(NULL),
                     pending_count(0), blockers(1),

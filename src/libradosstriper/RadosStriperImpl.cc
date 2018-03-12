@@ -438,7 +438,9 @@ struct RadosRemoveCompletionData : RefCountedObject {
 ///////////////////////// constructor /////////////////////////////
 
 libradosstriper::RadosStriperImpl::RadosStriperImpl(librados::IoCtx& ioctx, librados::IoCtxImpl *ioctx_impl) :
-  m_refCnt(0),lock("RadosStriper Refcont", false, false), m_radosCluster(ioctx), m_ioCtx(ioctx), m_ioCtxImpl(ioctx_impl),
+  m_refCnt(0),
+  lock("RadosStriper Refcont", Mutex::recursive_finder_t(), false, false),
+  m_radosCluster(ioctx), m_ioCtx(ioctx), m_ioCtxImpl(ioctx_impl),
   m_layout(default_file_layout) {}
 
 ///////////////////////// layout /////////////////////////////

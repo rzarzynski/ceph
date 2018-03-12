@@ -10,7 +10,9 @@ FutureImpl::FutureImpl(uint64_t tag_tid, uint64_t entry_tid,
                        uint64_t commit_tid)
   : RefCountedObject(NULL, 0), m_tag_tid(tag_tid), m_entry_tid(entry_tid),
     m_commit_tid(commit_tid),
-    m_lock("FutureImpl::m_lock", false, false), m_safe(false),
+    m_lock("FutureImpl::m_lock",
+	   Mutex::recursive_finder_t(),
+	   false, false), m_safe(false),
     m_consistent(false), m_return_value(0), m_flush_state(FLUSH_STATE_NONE),
     m_consistent_ack(this) {
 }

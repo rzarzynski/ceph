@@ -11,7 +11,8 @@ WBThrottle::WBThrottle(CephContext *cct) :
   cct(cct),
   logger(NULL),
   stopping(true),
-  lock("WBThrottle::lock", false, true, false, cct),
+  lock("WBThrottle::lock", Mutex::recursive_finder_t(),
+       false, true, false, cct),
   fs(XFS)
 {
   {

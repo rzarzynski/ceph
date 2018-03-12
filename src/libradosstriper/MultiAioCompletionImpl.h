@@ -32,7 +32,9 @@ struct libradosstriper::MultiAioCompletionImpl {
   bufferlist bl;       /// only used for read case in C api of rados striper
   std::list<bufferlist*> bllist; /// keep temporary buffer lists used for destriping
 
-  MultiAioCompletionImpl() : lock("MultiAioCompletionImpl lock", false, false),
+  MultiAioCompletionImpl() :
+    lock("MultiAioCompletionImpl lock",
+	 Mutex::recursive_finder_t(), false, false),
     ref(1), rval(0),
     pending_complete(0), pending_safe(0),
     callback_complete(0), callback_safe(0),

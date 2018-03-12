@@ -87,7 +87,8 @@ CopyupRequest<I>::CopyupRequest(I *ictx, const std::string &oid,
   : m_ictx(util::get_image_ctx(ictx)), m_oid(oid), m_object_no(objectno),
     m_image_extents(image_extents),
     m_trace(util::create_trace(*m_ictx, "copy-up", parent_trace)),
-    m_state(STATE_READ_FROM_PARENT), m_lock("CopyupRequest", false, false)
+    m_state(STATE_READ_FROM_PARENT),
+    m_lock("CopyupRequest", Mutex::recursive_finder_t(), false, false)
 {
   m_async_op.start_op(*m_ictx);
 }

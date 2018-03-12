@@ -62,7 +62,8 @@ private:
   }
 
 public:
-  Mutex(const std::string &n, bool r = false, bool ld=true, bool bt=false,
+  struct recursive_finder_t {};
+  Mutex(const std::string &n, recursive_finder_t = recursive_finder_t(), bool r = false, bool ld=true, bool bt=false,
 	CephContext *cct = 0);
   ~Mutex();
   bool is_locked() const {

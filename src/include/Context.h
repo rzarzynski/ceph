@@ -361,7 +361,10 @@ public:
   C_GatherBase(CephContext *cct_, ContextType *onfinish_)
     : cct(cct_), result(0), onfinish(onfinish_),
       sub_created_count(0), sub_existing_count(0),
-      lock("C_GatherBase::lock", true, false), //disable lockdep
+      // TODO: move to RecursiveMutex
+      lock("C_GatherBase::lock",
+	   Mutex::recursive_finder_t(),
+	   true, false), //disable lockdep
       activated(false)
   {
     mydout(cct,10) << "C_GatherBase " << this << ".new" << dendl;

@@ -1604,9 +1604,12 @@ private:
 	string lock_name, string ordering_lock,
 	uint64_t max_tok_per_prio, uint64_t min_cost, CephContext *cct,
 	io_queue opqueue)
-	: sdata_lock(lock_name.c_str(), false, true, false, cct),
-	  sdata_op_ordering_lock(ordering_lock.c_str(), false, true,
-				 false, cct) {
+	: sdata_lock(lock_name.c_str(),
+		     Mutex::recursive_finder_t(),
+		     false, true, false, cct),
+	  sdata_op_ordering_lock(ordering_lock.c_str(),
+		     Mutex::recursive_finder_t(),
+		     false, true, false, cct) {
 	if (opqueue == io_queue::weightedpriority) {
 	  pqueue = std::make_unique<
 	    WeightedPriorityQueue<OpQueueItem,uint64_t>>(

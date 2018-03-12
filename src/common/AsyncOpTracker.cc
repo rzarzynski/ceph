@@ -5,7 +5,9 @@
 #include "include/Context.h"
 
 AsyncOpTracker::AsyncOpTracker()
-  : m_lock("AsyncOpTracker::m_lock", false, false) {
+  : m_lock("AsyncOpTracker::m_lock",
+	   Mutex::recursive_finder_t(),
+	   false, false) {
 }
 
 AsyncOpTracker::~AsyncOpTracker() {

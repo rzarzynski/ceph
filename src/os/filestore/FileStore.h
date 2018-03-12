@@ -354,9 +354,13 @@ private:
     OpSequencer(CephContext* cct, int i, coll_t cid)
       : CollectionImpl(cid),
 	cct(cct),
-	qlock("FileStore::OpSequencer::qlock", false, false),
+	qlock("FileStore::OpSequencer::qlock",
+	      Mutex::recursive_finder_t(),
+	      false, false),
 	osr_name_str(stringify(cid)),
-	apply_lock("FileStore::OpSequencer::apply_lock", false, false),
+	apply_lock("FileStore::OpSequencer::apply_lock",
+		   Mutex::recursive_finder_t(),
+		   false, false),
         id(i),
 	osr_name(osr_name_str.c_str()) {}
     ~OpSequencer() override {

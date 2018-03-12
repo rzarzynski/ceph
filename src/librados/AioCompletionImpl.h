@@ -48,7 +48,9 @@ struct librados::AioCompletionImpl {
   ceph_tid_t aio_write_seq;
   xlist<AioCompletionImpl*>::item aio_write_list_item;
 
-  AioCompletionImpl() : lock("AioCompletionImpl lock", false, false),
+  AioCompletionImpl() : lock("AioCompletionImpl lock",
+			     Mutex::recursive_finder_t(),
+			     false, false),
 			ref(1), rval(0), released(false),
 			complete(false),
 			objver(0),
