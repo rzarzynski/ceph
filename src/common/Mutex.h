@@ -39,8 +39,7 @@ private:
   bool lockdep;
   bool backtrace;  // gather backtrace on lock acquisition
 
-  pthread_mutex_t _m;
-  int nlock;
+  mutable pthread_mutex_t _m;
   pthread_t locked_by;
   CephContext *cct;
   PerfCounters *logger;
@@ -67,10 +66,21 @@ public:
 	CephContext *cct = 0);
   ~Mutex();
   bool is_locked() const {
-    return (nlock > 0);
+    if (recursive) {
+      // ugly hack for testing the whole concept. The recursive
+      // Mutex will be dissected into separate class if succeeded.
+      return true;
+    }
+
+    if (pthread_mutex_trylock(&_m) != 0) {
+      return true;
+    } else {
+      pthread_mutex_unlock(&_m);
+      return false;
+    }
   }
   bool is_locked_by_me() const {
-    return nlock > 0 && locked_by == pthread_self();
+    return is_locked() && locked_by == pthread_self();
   }
 
   bool TryLock() {
@@ -86,19 +96,14 @@ public:
 
   void _post_lock() {
     if (!recursive) {
-      assert(nlock == 0);
       locked_by = pthread_self();
     };
-    nlock++;
   }
 
   void _pre_unlock() {
-    assert(nlock > 0);
-    --nlock;
     if (!recursive) {
       assert(locked_by == pthread_self());
       locked_by = 0;
-      assert(nlock == 0);
     }
   }
   void Unlock();

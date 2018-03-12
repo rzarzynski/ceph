@@ -21,11 +21,10 @@
 Mutex::Mutex(const std::string &n, bool r, bool ld,
 	     bool bt,
 	     CephContext *cct) :
-  name(n), id(-1), recursive(r), lockdep(ld), backtrace(bt), nlock(0),
+  name(n), id(-1), recursive(r), lockdep(ld), backtrace(bt),
   locked_by(0), cct(cct), logger(0)
 {
   ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "Mutex lockdep id");
-  ANNOTATE_BENIGN_RACE_SIZED(&nlock, sizeof(nlock), "Mutex nlock");
   ANNOTATE_BENIGN_RACE_SIZED(&locked_by, sizeof(locked_by), "Mutex locked_by");
   if (cct) {
     PerfCountersBuilder b(cct, string("mutex-") + name,
@@ -71,8 +70,6 @@ Mutex::Mutex(const std::string &n, bool r, bool ld,
 }
 
 Mutex::~Mutex() {
-  assert(nlock == 0);
-
   // helgrind gets confused by condition wakeups leading to mutex destruction
   ANNOTATE_BENIGN_RACE_SIZED(&_m, sizeof(_m), "Mutex primitive");
   pthread_mutex_destroy(&_m);
