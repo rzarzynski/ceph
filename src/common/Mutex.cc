@@ -18,105 +18,37 @@
 #include "common/Clock.h"
 #include "common/valgrind.h"
 
-Mutex::Mutex(const std::string &n,
-             Mutex::recursive_finder_t,
-             bool r, bool ld,
-	     bool bt,
-	     CephContext *cct) :
-  name(n), id(-1), recursive(r), lockdep(ld), backtrace(bt),
-  locked_by(0), cct(cct), logger(0)
+namespace ceph::mutex_helpers {
+
+enum {
+  l_mutex_first = 999082,
+  l_mutex_wait,
+  l_mutex_last
+};
+
+
+PerfCounters* build_perf_counters(CephContext* const cct,
+                                  const std::string& name)
 {
-  ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "Mutex lockdep id");
-  ANNOTATE_BENIGN_RACE_SIZED(&locked_by, sizeof(locked_by), "Mutex locked_by");
-  if (cct) {
-    PerfCountersBuilder b(cct, string("mutex-") + name,
-			  l_mutex_first, l_mutex_last);
-    b.add_time_avg(l_mutex_wait, "wait", "Average time of mutex in locked state");
-    logger = b.create_perf_counters();
-    cct->get_perfcounters_collection()->add(logger);
-    logger->set(l_mutex_wait, 0);
-  }
-  if (recursive) {
-    // Mutexes of type PTHREAD_MUTEX_RECURSIVE do all the same checks as
-    // mutexes of type PTHREAD_MUTEX_ERRORCHECK.
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&_m,&attr);
-    pthread_mutexattr_destroy(&attr);
-    if (lockdep && g_lockdep)
-      _register();
-  }
-  else if (lockdep) {
-    // If the mutex type is PTHREAD_MUTEX_ERRORCHECK, then error checking
-    // shall be provided. If a thread attempts to relock a mutex that it
-    // has already locked, an error shall be returned. If a thread
-    // attempts to unlock a mutex that it has not locked or a mutex which
-    // is unlocked, an error shall be returned.
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
-    pthread_mutex_init(&_m, &attr);
-    pthread_mutexattr_destroy(&attr);
-    if (g_lockdep)
-      _register();
-  }
-  else {
-    // If the mutex type is PTHREAD_MUTEX_DEFAULT, attempting to recursively
-    // lock the mutex results in undefined behavior. Attempting to unlock the
-    // mutex if it was not locked by the calling thread results in undefined
-    // behavior. Attempting to unlock the mutex if it is not locked results in
-    // undefined behavior.
-    pthread_mutex_init(&_m, NULL);
+  PerfCountersBuilder b(cct, string("mutex-") + name,
+                        l_mutex_first, l_mutex_last);
+  b.add_time_avg(l_mutex_wait, "wait",
+                 "Average time of mutex in locked state");
+  PerfCounters* const logger = b.create_perf_counters();
+  cct->get_perfcounters_collection()->add(logger);
+  logger->set(l_mutex_wait, 0);
+  return logger;
+}
+
+void dispose_perf_counters(CephContext* const cct,
+                           PerfCounters** logger)
+{
+  if (cct && *logger) {
+    cct->get_perfcounters_collection()->remove(*logger);
+    delete *logger;
+    *logger = nullptr;
   }
 }
 
-Mutex::~Mutex() {
-  // helgrind gets confused by condition wakeups leading to mutex destruction
-  ANNOTATE_BENIGN_RACE_SIZED(&_m, sizeof(_m), "Mutex primitive");
-  pthread_mutex_destroy(&_m);
+} // namespace ceph::mutex_helpers
 
-  if (cct && logger) {
-    cct->get_perfcounters_collection()->remove(logger);
-    delete logger;
-  }
-  if (lockdep && g_lockdep) {
-    lockdep_unregister(id);
-  }
-}
-
-void Mutex::Lock(bool no_lockdep) {
-  int r;
-
-  if (lockdep && g_lockdep && !no_lockdep && !recursive) _will_lock();
-
-  if (logger && cct && cct->_conf->mutex_perf_counter) {
-    utime_t start;
-    // instrumented mutex enabled
-    start = ceph_clock_now();
-    if (TryLock()) {
-      goto out;
-    }
-
-    r = pthread_mutex_lock(&_m);
-
-    logger->tinc(l_mutex_wait,
-		 ceph_clock_now() - start);
-  } else {
-    r = pthread_mutex_lock(&_m);
-  }
-
-  assert(r == 0);
-  if (lockdep && g_lockdep) _locked();
-  _post_lock();
-
-out:
-  ;
-}
-
-void Mutex::Unlock() {
-  _pre_unlock();
-  if (lockdep && g_lockdep) _will_unlock();
-  int r = pthread_mutex_unlock(&_m);
-  assert(r == 0);
-}
