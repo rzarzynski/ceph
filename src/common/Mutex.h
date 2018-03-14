@@ -15,6 +15,8 @@
 #ifndef CEPH_MUTEX_H
 #define CEPH_MUTEX_H
 
+#include <cstdint>
+
 #include <pthread.h>
 
 #include "include/assert.h"
@@ -43,6 +45,52 @@ extern void dispose_perf_counters(
   CephContext* const cct,
   PerfCounters** logger);
 }
+
+namespace mutex_detail {
+
+template <std::uint32_t FlagsV = 0>
+class mutex_params {
+  enum {
+    RECURSIVE		= 1 << 0,
+    LOCKDEP		= 1 << 1,
+    LOCKDEP_BACKTRACE	= 1 << 2,
+    PERF_COUNTED	= 1 << 3
+  };
+
+public:
+  struct Default          : public mutex_params<FlagsV | LOCKDEP> {};
+
+  // The idea to use nested-CRTP instead of static methods and decltype()
+  // for compile-time builder pattern came after discussion with Adam Kupczyk.
+  struct Recursive        : public mutex_params<FlagsV | RECURSIVE> {};
+  struct Lockdep          : public mutex_params<FlagsV | LOCKDEP> {};
+  struct LockdepBacktrace : public mutex_params<FlagsV | LOCKDEP_BACKTRACE> {};
+  struct PerfCounted      : public mutex_params<FlagsV | PERF_COUNTED> {};
+
+  constexpr static bool IsRecursive() {
+    return FlagsV & RECURSIVE;
+  }
+
+  constexpr static bool IsLockdep() {
+    return FlagsV & LOCKDEP;
+  }
+
+  constexpr static bool isLockdepBacktrace() {
+    return FlagsV & LOCKDEP_BACKTRACE;
+  }
+
+  constexpr static bool isPerfCounted() {
+    return FlagsV & PERF_COUNTED;
+  }
+
+  constexpr static std::uint32_t get_flags() {
+    return FlagsV;
+  }
+};
+
+} // namespace mutex_detail
+
+using mutex_params = mutex_detail::mutex_params<0>;
 
 class mutex {
   std::string name;
