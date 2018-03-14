@@ -197,7 +197,7 @@ public:
     return is_locked() && locked_by == pthread_self();
   }
 
-  bool TryLock() {
+  bool try_lock() {
     int r = pthread_mutex_trylock(&_m);
     if (r == 0) {
       if (lockdep && g_lockdep) _locked();
@@ -206,7 +206,7 @@ public:
     return r == 0;
   }
 
-  void Lock(bool no_lockdep=false) {
+  void lock(bool no_lockdep=false) {
     int r;
 
     if (lockdep && g_lockdep && !no_lockdep && !recursive) _will_lock();
@@ -216,7 +216,7 @@ public:
       utime_t start;
       // instrumented mutex enabled
       start = ceph_clock_now();
-      if (TryLock()) {
+      if (try_lock()) {
         goto out;
       }
 
@@ -251,7 +251,7 @@ public:
       locked_by = 0;
     }
   }
-  void Unlock() {
+  void unlock() {
     _pre_unlock();
     if (lockdep && g_lockdep) _will_unlock();
     int r = pthread_mutex_unlock(&_m);
@@ -262,15 +262,27 @@ public:
 
 
 public:
+  bool TryLock() {
+    return try_lock();
+  }
+
+  void Lock(bool no_lockdep=false) {
+    lock(no_lockdep);
+  }
+
+  void Unlock() {
+    unlock();
+  }
+
   class Locker {
     mutex& m_mutex;
 
   public:
     explicit Locker(mutex& m) : m_mutex(m) {
-      m_mutex.Lock();
+      m_mutex.lock();
     }
     ~Locker() {
-      m_mutex.Unlock();
+      m_mutex.unlock();
     }
   };
 };
