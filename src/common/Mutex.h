@@ -92,6 +92,7 @@ public:
 
 using mutex_params = mutex_detail::mutex_params<0>;
 
+template <typename ParamsT = mutex_params::Default>
 class mutex {
   std::string name;
   int id;
@@ -122,17 +123,21 @@ class mutex {
   }
 
 public:
-  struct recursive_finder_t {};
-  mutex(const std::string &n, recursive_finder_t = recursive_finder_t(), bool r = false, bool ld=true, bool bt=false,
-	CephContext *cct = 0) :
-  name(n), id(-1), recursive(r), lockdep(ld), backtrace(bt),
-  locked_by(0), cct(cct), logger(0)
+  mutex(const std::string &n,
+	CephContext *cct)
+    : mutex(n)
   {
-    ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "Mutex lockdep id");
-    ANNOTATE_BENIGN_RACE_SIZED(&locked_by, sizeof(locked_by), "Mutex locked_by");
     if (cct) {
       logger = mutex_helpers::build_perf_counters(cct, name);
     }
+  }
+
+  mutex(const std::string& n)
+    : name(n), id(-1), recursive(false), lockdep(true), backtrace(false),
+  locked_by(0), cct(nullptr), logger(0)
+  {
+    ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "Mutex lockdep id");
+    ANNOTATE_BENIGN_RACE_SIZED(&locked_by, sizeof(locked_by), "Mutex locked_by");
     if (recursive) {
       // Mutexes of type PTHREAD_MUTEX_RECURSIVE do all the same checks as
       // mutexes of type PTHREAD_MUTEX_ERRORCHECK.
@@ -293,9 +298,9 @@ public:
 // is being instantiated using the ctor's default parameters.
 // We can leverage this fact and minimize the changes solely
 // to those non-typical cases.
-class Mutex : public ceph::mutex {
+class Mutex : public ceph::mutex<> {
 public:
-  using ceph::mutex::mutex;
+  using ceph::mutex<>::mutex;
 };
 
 #endif
