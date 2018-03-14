@@ -27,7 +27,7 @@
 class IoCtxImpl;
 
 struct librados::AioCompletionImpl {
-  Mutex lock;
+  ceph::mutex<ceph::mutex_params> lock;
   Cond cond;
   int ref, rval;
   bool released;
@@ -48,9 +48,7 @@ struct librados::AioCompletionImpl {
   ceph_tid_t aio_write_seq;
   xlist<AioCompletionImpl*>::item aio_write_list_item;
 
-  AioCompletionImpl() : lock("AioCompletionImpl lock",
-			     Mutex::recursive_finder_t(),
-			     false, false),
+  AioCompletionImpl() : lock("AioCompletionImpl lock"),
 			ref(1), rval(0), released(false),
 			complete(false),
 			objver(0),

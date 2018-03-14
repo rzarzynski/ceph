@@ -42,15 +42,15 @@ static void disable_lockdep() {
 }
 
 TEST(Mutex, NormalAsserts) {
-  Mutex* m = new Mutex("Normal", Mutex::recursive_finder_t(), false);
+  auto m = new ceph::mutex<ceph::mutex_patams::Default>("Normal");
   m->Lock();
   EXPECT_THROW(m->Lock(), int);
 }
 
 TEST(Mutex, RecursiveWithLockdep) {
   do_init();
-  // TODO
-  Mutex* m = new Mutex("Recursive1",Mutex::recursive_finder_t(), true);
+  auto m = \
+    new ceph::mutex<ceph::mutex_params::Recursive::Lockdep>("Recursive1");
   m->Lock();
   m->Lock();
   m->Unlock();
@@ -60,8 +60,8 @@ TEST(Mutex, RecursiveWithLockdep) {
 
 TEST(Mutex, RecursiveWithoutLockdep) {
   disable_lockdep();
-  // TODO
-  Mutex* m = new Mutex("Recursive2", Mutex::recursive_finder_t(), true);
+  auto m = \
+    new ceph::mutex<ceph::mutex_params::Recursive::Lockdep>("Recursive2");
   m->Lock();
   m->Lock();
   m->Unlock();
@@ -70,7 +70,7 @@ TEST(Mutex, RecursiveWithoutLockdep) {
 }
 
 TEST(Mutex, DeleteLocked) {
-  Mutex* m = new Mutex("Recursive3", Mutex::recursive_finder_t(), false);
+  auto m = new ceph::mutex<ceph::mutex_params::Lockdep>("Recursive3");
   m->Lock();
   PrCtl unset_dumpable;
   EXPECT_DEATH(delete m,".*");

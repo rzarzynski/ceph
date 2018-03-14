@@ -10,9 +10,7 @@ FutureImpl::FutureImpl(uint64_t tag_tid, uint64_t entry_tid,
                        uint64_t commit_tid)
   : RefCountedObject(NULL, 0), m_tag_tid(tag_tid), m_entry_tid(entry_tid),
     m_commit_tid(commit_tid),
-    m_lock("FutureImpl::m_lock",
-	   Mutex::recursive_finder_t(),
-	   false, false), m_safe(false),
+    m_lock("FutureImpl::m_lock"), m_safe(false),
     m_consistent(false), m_return_value(0), m_flush_state(FLUSH_STATE_NONE),
     m_consistent_ack(this) {
 }
@@ -34,7 +32,7 @@ void FutureImpl::flush(Context *on_safe) {
   FlushHandlers flush_handlers;
   FutureImplPtr prev_future;
   {
-    Mutex::Locker locker(m_lock);
+    std::lock_guard<lock_t> locker(m_lock);
     complete = (m_safe && m_consistent);
     if (!complete) {
       if (on_safe != nullptr) {
@@ -63,12 +61,12 @@ void FutureImpl::flush(Context *on_safe) {
 }
 
 FutureImplPtr FutureImpl::prepare_flush(FlushHandlers *flush_handlers) {
-  Mutex::Locker locker(m_lock);
+  std::lock_guard<lock_t> locker(m_lock);
   return prepare_flush(flush_handlers, m_lock);
 }
 
 FutureImplPtr FutureImpl::prepare_flush(FlushHandlers *flush_handlers,
-                                        Mutex &lock) {
+                                        FutureImpl::lock_t &lock) {
   assert(m_lock.is_locked());
 
   if (m_flush_state == FLUSH_STATE_NONE) {
@@ -84,7 +82,7 @@ FutureImplPtr FutureImpl::prepare_flush(FlushHandlers *flush_handlers,
 void FutureImpl::wait(Context *on_safe) {
   assert(on_safe != NULL);
   {
-    Mutex::Locker locker(m_lock);
+    std::lock_guard<lock_t> locker(m_lock);
     if (!m_safe || !m_consistent) {
       m_contexts.push_back(on_safe);
       return;
@@ -95,18 +93,18 @@ void FutureImpl::wait(Context *on_safe) {
 }
 
 bool FutureImpl::is_complete() const {
-  Mutex::Locker locker(m_lock);
+  std::lock_guard<lock_t> locker(m_lock);
   return m_safe && m_consistent;
 }
 
 int FutureImpl::get_return_value() const {
-  Mutex::Locker locker(m_lock);
+  std::lock_guard<lock_t> locker(m_lock);
   assert(m_safe && m_consistent);
   return m_return_value;
 }
 
 bool FutureImpl::attach(const FlushHandlerPtr &flush_handler) {
-  Mutex::Locker locker(m_lock);
+  std::lock_guard<lock_t> locker(m_lock);
   assert(!m_flush_handler);
   m_flush_handler = flush_handler;
   return m_flush_state != FLUSH_STATE_NONE;

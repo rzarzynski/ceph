@@ -42,7 +42,7 @@ struct AioCompletion {
     AIO_STATE_COMPLETE,
   } aio_state_t;
 
-  mutable Mutex lock;
+  mutable ceph::mutex<ceph::mutex_params::Recursive> lock;
   Cond cond;
   aio_state_t state;
   ssize_t rval;
@@ -98,10 +98,7 @@ struct AioCompletion {
     return comp;
   }
 
-  AioCompletion() : lock("AioCompletion::lock",
-      		    // TODO: move to RecursiveMutex
-	   	    Mutex::recursive_finder_t(),
-		    true, false),
+  AioCompletion() : lock("AioCompletion::lock"),
                     state(AIO_STATE_PENDING), rval(0), complete_cb(NULL),
                     complete_arg(NULL), rbd_comp(NULL),
                     pending_count(0), blockers(1),
@@ -118,11 +115,11 @@ struct AioCompletion {
   void finalize(ssize_t rval);
 
   inline bool is_initialized(aio_type_t type) const {
-    Mutex::Locker locker(lock);
+    std::lock_guard<decltype(lock)> locker(lock);
     return ((ictx != nullptr) && (aio_type == type));
   }
   inline bool is_started() const {
-    Mutex::Locker locker(lock);
+    std::lock_guard<decltype(lock)> locker(lock);
     return async_op.started();
   }
 
@@ -189,11 +186,11 @@ struct AioCompletion {
   }
 
   void block() {
-    Mutex::Locker l(lock);
+    std::lock_guard<decltype(lock)> l(lock);
     ++blockers;
   }
   void unblock() {
-    Mutex::Locker l(lock);
+    std::lock_guard<decltype(lock)> l(lock);
     assert(blockers > 0);
     --blockers;
     if (pending_count == 0 && blockers == 0) {
@@ -203,7 +200,7 @@ struct AioCompletion {
   }
 
   void set_event_notify(bool s) {
-    Mutex::Locker l(lock);
+    std::lock_guard<decltype(lock)> l(lock);
     event_notify = s;
   }
 
