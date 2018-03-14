@@ -259,7 +259,7 @@ struct RadosStriperImpl {
   // reference counting
   Cond  cond;
   int m_refCnt;
-  Mutex lock;
+  ceph::mutex<ceph::mutex_params> lock;
 
 
   // Context

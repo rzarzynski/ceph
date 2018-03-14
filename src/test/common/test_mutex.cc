@@ -42,7 +42,7 @@ static void disable_lockdep() {
 }
 
 TEST(Mutex, NormalAsserts) {
-  auto m = new ceph::mutex<ceph::mutex_patams::Default>("Normal");
+  auto m = new ceph::mutex<ceph::mutex_params::Default>("Normal");
   m->Lock();
   EXPECT_THROW(m->Lock(), int);
 }

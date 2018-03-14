@@ -33,7 +33,7 @@ public:
   {}
 
   void test_expand_meta() {
-    Mutex::Locker l(lock);
+    std::lock_guard<decltype(lock)> l(lock);
     // successfull meta expansion $run_dir and ${run_dir}
     {
       ostringstream oss;
@@ -116,7 +116,7 @@ public:
   }
 
   void test_expand_all_meta() {
-    Mutex::Locker l(lock);
+    std::lock_guard<decltype(lock)> l(lock);
     int before_count = 0, data_dir = 0;
     for (const auto &i : schema) {
       const Option &opt = i.second;

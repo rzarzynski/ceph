@@ -33,8 +33,7 @@ struct libradosstriper::MultiAioCompletionImpl {
   std::list<bufferlist*> bllist; /// keep temporary buffer lists used for destriping
 
   MultiAioCompletionImpl() :
-    lock("MultiAioCompletionImpl lock",
-	 Mutex::recursive_finder_t(), false, false),
+    lock("MultiAioCompletionImpl lock"),
     ref(1), rval(0),
     pending_complete(0), pending_safe(0),
     callback_complete(0), callback_safe(0),

@@ -88,7 +88,7 @@ CopyupRequest<I>::CopyupRequest(I *ictx, const std::string &oid,
     m_image_extents(image_extents),
     m_trace(util::create_trace(*m_ictx, "copy-up", parent_trace)),
     m_state(STATE_READ_FROM_PARENT),
-    m_lock("CopyupRequest", Mutex::recursive_finder_t(), false, false)
+    m_lock("CopyupRequest")
 {
   m_async_op.start_op(*m_ictx);
 }
@@ -133,7 +133,7 @@ bool CopyupRequest<I>::send_copyup() {
 
   std::vector<librados::snap_t> snaps;
 
-  Mutex::Locker locker(m_lock);
+  std::lock_guard<decltype(m_lock)> locker(m_lock);
   int r;
   if (copy_on_read || (!snapc.snaps.empty() && add_copyup_op)) {
 
@@ -265,7 +265,7 @@ bool CopyupRequest<I>::should_complete(int r)
 
   case STATE_COPYUP:
     {
-      Mutex::Locker locker(m_lock);
+      std::lock_guard<decltype(m_lock)> locker(m_lock);
       assert(m_pending_copyups > 0);
       pending_copyups = --m_pending_copyups;
     }
