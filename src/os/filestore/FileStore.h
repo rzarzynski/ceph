@@ -218,8 +218,10 @@ private:
     bool registered_apply = false;
   };
   class OpSequencer : public CollectionImpl {
+    using lock_t = ceph::mutex<ceph::mutex_params>;
+
     CephContext *cct;
-    Mutex qlock; // to protect q, for benefit of flush (peek/dequeue also protected by lock)
+    lock_t qlock; // to protect q, for benefit of flush (peek/dequeue also protected by lock)
     list<Op*> q;
     list<uint64_t> jq;
     list<pair<uint64_t, Context*> > flush_commit_waiters;
@@ -228,7 +230,7 @@ private:
     /// hash of pointers to ghobject_t's for in-flight writes
     unordered_multimap<uint32_t,const ghobject_t*> applying;
   public:
-    Mutex apply_lock;  // for apply mutual exclusion
+    lock_t apply_lock;  // for apply mutual exclusion
     int id;
     const char *osr_name;
 
@@ -282,18 +284,18 @@ private:
     }
 
     void queue_journal(Op *o) {
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
       jq.push_back(o->op);
       _register_apply(o);
     }
     void dequeue_journal(list<Context*> *to_queue) {
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
       jq.pop_front();
       cond.Signal();
       _wake_flush_waiters(to_queue);
     }
     void queue(Op *o) {
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
       q.push_back(o);
       _register_apply(o);
       o->trace.keyval("queue depth", q.size());
@@ -302,7 +304,7 @@ private:
     void _unregister_apply(Op *o);
     void wait_for_apply(const ghobject_t& oid);
     Op *peek_queue() {
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
       assert(apply_lock.is_locked());
       return q.front();
     }
@@ -310,7 +312,7 @@ private:
     Op *dequeue(list<Context*> *to_queue) {
       assert(to_queue);
       assert(apply_lock.is_locked());
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
       Op *o = q.front();
       q.pop_front();
       cond.Signal();
@@ -320,7 +322,7 @@ private:
     }
 
     void flush() override {
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
 
       while (cct->_conf->filestore_blackhole)
 	cond.Wait(qlock);  // wait forever
@@ -341,7 +343,7 @@ private:
       }
     }
     bool flush_commit(Context *c) override {
-      Mutex::Locker l(qlock);
+      std::lock_guard<lock_t> l(qlock);
       uint64_t seq = 0;
       if (_get_max_uncompleted(&seq)) {
 	return true;
@@ -354,13 +356,9 @@ private:
     OpSequencer(CephContext* cct, int i, coll_t cid)
       : CollectionImpl(cid),
 	cct(cct),
-	qlock("FileStore::OpSequencer::qlock",
-	      Mutex::recursive_finder_t(),
-	      false, false),
+	qlock("FileStore::OpSequencer::qlock"),
 	osr_name_str(stringify(cid)),
-	apply_lock("FileStore::OpSequencer::apply_lock",
-		   Mutex::recursive_finder_t(),
-		   false, false),
+	apply_lock("FileStore::OpSequencer::apply_lock"),
         id(i),
 	osr_name(osr_name_str.c_str()) {}
     ~OpSequencer() override {

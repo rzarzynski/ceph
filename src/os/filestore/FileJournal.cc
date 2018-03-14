@@ -646,8 +646,8 @@ void FileJournal::stop_writer()
   if (!write_stop)
   {
     {
-      Mutex::Locker l(write_lock);
-      Mutex::Locker p(writeq_lock);
+      std::lock_guard<lock_t> l(write_lock);
+      std::lock_guard<lock_t> p(writeq_lock);
       write_stop = true;
       writeq_cond.Signal();
       // Doesn't hurt to signal commit_cond in case thread is waiting there
@@ -742,7 +742,7 @@ bufferptr FileJournal::prepare_header()
 {
   bufferlist bl;
   {
-    Mutex::Locker l(finisher_lock);
+    std::lock_guard<lock_t> l(finisher_lock);
     header.committed_up_to = journaled_seq;
   }
   encode(header, bl);
@@ -758,7 +758,7 @@ bufferptr FileJournal::prepare_header()
 
 void FileJournal::write_header_sync()
 {
-  Mutex::Locker locker(write_lock);
+  std::lock_guard<lock_t> locker(write_lock);
   must_write_header = true;
   bufferlist bl;
   do_write(bl);
@@ -1163,7 +1163,7 @@ void FileJournal::do_write(bufferlist& bl)
   assert(write_pos % header.alignment == 0);
 
   {
-    Mutex::Locker locker(finisher_lock);
+    std::lock_guard<lock_t> locker(finisher_lock);
     journaled_seq = writing_seq;
 
     // kick finisher?
@@ -1187,7 +1187,7 @@ void FileJournal::flush()
 {
   dout(10) << "waiting for completions to empty" << dendl;
   {
-    Mutex::Locker l(finisher_lock);
+    std::lock_guard<lock_t> l(finisher_lock);
     while (!completions_empty())
       finisher_cond.Wait(finisher_lock);
   }
@@ -1202,7 +1202,7 @@ void FileJournal::write_thread_entry()
   dout(10) << "write_thread_entry start" << dendl;
   while (1) {
     {
-      Mutex::Locker locker(writeq_lock);
+      std::lock_guard<lock_t> locker(writeq_lock);
       if (writeq.empty() && !must_write_header) {
 	if (write_stop)
 	  break;
@@ -1245,7 +1245,7 @@ void FileJournal::write_thread_entry()
     }
 #endif
 
-    Mutex::Locker locker(write_lock);
+    std::lock_guard<lock_t> locker(write_lock);
     uint64_t orig_ops = 0;
     uint64_t orig_bytes = 0;
 
@@ -1525,7 +1525,7 @@ void FileJournal::check_aio_completion()
   if (completed_something) {
     // kick finisher?
     //  only if we haven't filled up recently!
-    Mutex::Locker locker(finisher_lock);
+    std::lock_guard<lock_t> locker(finisher_lock);
     journaled_seq = new_journaled_seq;
     if (full_state != FULL_NOTFULL) {
       dout(10) << "check_aio_completion NOT queueing finisher seq " << journaled_seq
@@ -1631,11 +1631,11 @@ void FileJournal::submit_entry(uint64_t seq, bufferlist& e, uint32_t orig_len,
     }
   }
   {
-    Mutex::Locker l1(writeq_lock);
+    std::lock_guard<lock_t> l1(writeq_lock);
 #ifdef HAVE_LIBAIO
     Mutex::Locker l2(aio_lock);
 #endif
-    Mutex::Locker l3(completions_lock);
+    std::lock_guard<lock_t> l3(completions_lock);
 
 #ifdef HAVE_LIBAIO
     aio_write_queue_ops++;
@@ -1656,21 +1656,21 @@ void FileJournal::submit_entry(uint64_t seq, bufferlist& e, uint32_t orig_len,
 
 bool FileJournal::writeq_empty()
 {
-  Mutex::Locker locker(writeq_lock);
+  std::lock_guard<lock_t> locker(writeq_lock);
   return writeq.empty();
 }
 
 FileJournal::write_item &FileJournal::peek_write()
 {
   assert(write_lock.is_locked());
-  Mutex::Locker locker(writeq_lock);
+  std::lock_guard<lock_t> locker(writeq_lock);
   return writeq.front();
 }
 
 void FileJournal::pop_write()
 {
   assert(write_lock.is_locked());
-  Mutex::Locker locker(writeq_lock);
+  std::lock_guard<lock_t> locker(writeq_lock);
   if (logger) {
     logger->dec(l_filestore_journal_queue_bytes, writeq.front().orig_len);
     logger->dec(l_filestore_journal_queue_ops, 1);
@@ -1682,7 +1682,7 @@ void FileJournal::batch_pop_write(list<write_item> &items)
 {
   assert(write_lock.is_locked());
   {
-    Mutex::Locker locker(writeq_lock);
+    std::lock_guard<lock_t> locker(writeq_lock);
     writeq.swap(items);
   }
   for (auto &&i : items) {
@@ -1702,7 +1702,7 @@ void FileJournal::batch_unpop_write(list<write_item> &items)
       logger->inc(l_filestore_journal_queue_ops, 1);
     }
   }
-  Mutex::Locker locker(writeq_lock);
+  std::lock_guard<lock_t> locker(writeq_lock);
   writeq.splice(writeq.begin(), items);
 }
 
@@ -1757,7 +1757,7 @@ void FileJournal::do_discard(int64_t offset, int64_t end)
 
 void FileJournal::committed_thru(uint64_t seq)
 {
-  Mutex::Locker locker(write_lock);
+  std::lock_guard<lock_t> locker(write_lock);
 
   auto released = throttle.flush(seq);
   if (logger) {
@@ -1780,7 +1780,7 @@ void FileJournal::committed_thru(uint64_t seq)
 
   // completions!
   {
-    Mutex::Locker locker(finisher_lock);
+    std::lock_guard<lock_t> locker(finisher_lock);
     queue_completions_thru(seq);
     if (plug_journal_completions && seq >= header.start_seq) {
       dout(10) << " removing completion plug, queuing completions thru journaled_seq " << journaled_seq << dendl;

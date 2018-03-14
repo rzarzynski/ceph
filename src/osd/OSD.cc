@@ -9556,7 +9556,7 @@ void OSD::ShardedOpWQ::wake_pg_waiters(spg_t pgid)
   bool queued = false;
   unsigned pushes_to_free = 0;
   {
-    Mutex::Locker l(sdata->sdata_op_ordering_lock);
+    std::lock_guard<ShardData::lock_t> l(sdata->sdata_op_ordering_lock);
     auto p = sdata->pg_slots.find(pgid);
     if (p != sdata->pg_slots.end()) {
       dout(20) << __func__ << " " << pgid
@@ -9590,7 +9590,7 @@ void OSD::ShardedOpWQ::prune_pg_waiters(OSDMapRef osdmap, int whoami)
 {
   unsigned pushes_to_free = 0;
   for (auto sdata : shard_list) {
-    Mutex::Locker l(sdata->sdata_op_ordering_lock);
+    std::lock_guard<ShardData::lock_t> l(sdata->sdata_op_ordering_lock);
     sdata->waiting_for_pg_osdmap = osdmap;
     auto p = sdata->pg_slots.begin();
     while (p != sdata->pg_slots.end()) {
@@ -9634,7 +9634,7 @@ void OSD::ShardedOpWQ::clear_pg_pointer(PG *pg)
   spg_t pgid = pg->get_pgid();
   uint32_t shard_index = pgid.hash_to_shard(shard_list.size());
   auto sdata = shard_list[shard_index];
-  Mutex::Locker l(sdata->sdata_op_ordering_lock);
+  std::lock_guard<ShardData::lock_t> l(sdata->sdata_op_ordering_lock);
   auto p = sdata->pg_slots.find(pgid);
   if (p != sdata->pg_slots.end()) {
     auto& slot = p->second;
@@ -9647,7 +9647,7 @@ void OSD::ShardedOpWQ::clear_pg_pointer(PG *pg)
 void OSD::ShardedOpWQ::clear_pg_slots()
 {
   for (auto sdata : shard_list) {
-    Mutex::Locker l(sdata->sdata_op_ordering_lock);
+    std::lock_guard<ShardData::lock_t> l(sdata->sdata_op_ordering_lock);
     sdata->pg_slots.clear();
     sdata->waiting_for_pg_osdmap.reset();
     // don't bother with reserved pushes; we are shutting down

@@ -122,7 +122,7 @@ int JournalingObjectStore::journal_replay(uint64_t fs_op_seq)
 
 uint64_t JournalingObjectStore::ApplyManager::op_apply_start(uint64_t op)
 {
-  Mutex::Locker l(apply_lock);
+  std::unique_lock<decltype(apply_lock)> l(apply_lock);
   while (blocked) {
     dout(10) << "op_apply_start blocked, waiting" << dendl;
     blocked_cond.Wait(apply_lock);
@@ -137,7 +137,7 @@ uint64_t JournalingObjectStore::ApplyManager::op_apply_start(uint64_t op)
 
 void JournalingObjectStore::ApplyManager::op_apply_finish(uint64_t op)
 {
-  Mutex::Locker l(apply_lock);
+  std::unique_lock<decltype(apply_lock)> l(apply_lock);
   dout(10) << "op_apply_finish " << op << " open_ops " << open_ops << " -> "
 	   << (open_ops-1) << ", max_applied_seq " << max_applied_seq << " -> "
 	   << std::max(op, max_applied_seq) << dendl;
@@ -181,7 +181,7 @@ void JournalingObjectStore::SubmitManager::op_submit_finish(uint64_t op)
 
 void JournalingObjectStore::ApplyManager::add_waiter(uint64_t op, Context *c)
 {
-  Mutex::Locker l(com_lock);
+  std::unique_lock<decltype(com_lock)> l(com_lock);
   assert(c);
   commit_waiters[op].push_back(c);
 }
@@ -191,7 +191,7 @@ bool JournalingObjectStore::ApplyManager::commit_start()
   bool ret = false;
 
   {
-    Mutex::Locker l(apply_lock);
+    std::unique_lock<decltype(apply_lock)> l(apply_lock);
     dout(10) << "commit_start max_applied_seq " << max_applied_seq
 	     << ", open_ops " << open_ops << dendl;
     blocked = true;
@@ -203,7 +203,7 @@ bool JournalingObjectStore::ApplyManager::commit_start()
     assert(open_ops == 0);
     dout(10) << "commit_start blocked, all open_ops have completed" << dendl;
     {
-      Mutex::Locker l(com_lock);
+      std::unique_lock<decltype(com_lock)> l(com_lock);
       if (max_applied_seq == committed_seq) {
 	dout(10) << "commit_start nothing to do" << dendl;
 	blocked = false;
@@ -227,7 +227,7 @@ bool JournalingObjectStore::ApplyManager::commit_start()
 
 void JournalingObjectStore::ApplyManager::commit_started()
 {
-  Mutex::Locker l(apply_lock);
+  std::unique_lock<decltype(apply_lock)> l(apply_lock);
   // allow new ops. (underlying fs should now be committing all prior ops)
   dout(10) << "commit_started committing " << committing_seq << ", unblocking"
 	   << dendl;
@@ -237,7 +237,7 @@ void JournalingObjectStore::ApplyManager::commit_started()
 
 void JournalingObjectStore::ApplyManager::commit_finish()
 {
-  Mutex::Locker l(com_lock);
+  std::unique_lock<decltype(com_lock)> l(com_lock);
   dout(10) << "commit_finish thru " << committing_seq << dendl;
 
   if (journal)

@@ -80,7 +80,7 @@ class WBThrottle : Thread, public md_config_obs_t {
   CephContext *cct;
   PerfCounters *logger;
   bool stopping;
-  Mutex lock;
+  ceph::mutex<ceph::mutex_params::Recursive::PerfCounted> lock;
   Cond cond;
 
 
@@ -153,7 +153,7 @@ public:
   void stop();
   /// Set fs as XFS or BTRFS
   void set_fs(FS new_fs) {
-    Mutex::Locker l(lock);
+    std::lock_guard<decltype(lock)> l(lock);
     fs = new_fs;
     set_from_conf();
   }

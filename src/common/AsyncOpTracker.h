@@ -21,7 +21,8 @@ public:
   bool empty();
 
 private:
-  Mutex m_lock;
+  using lock_t = ceph::mutex<ceph::mutex_params>;
+  lock_t m_lock;
   uint32_t m_pending_ops = 0;
   Context *m_on_finish = nullptr;
 

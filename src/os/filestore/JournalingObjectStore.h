@@ -28,21 +28,22 @@ protected:
 
 
   class SubmitManager {
+    using lock_t = \
+      ceph::mutex<ceph::mutex_params::Lockdep::PerfCounted>;
+
     CephContext* cct;
-    Mutex lock;
+    lock_t lock;
     uint64_t op_seq;
     uint64_t op_submitted;
   public:
     SubmitManager(CephContext* cct) :
-      cct(cct), lock("JOS::SubmitManager::lock",
-		     Mutex::recursive_finder_t(),
-		     false, true, false, cct),
+      cct(cct), lock("JOS::SubmitManager::lock", cct),
       op_seq(0), op_submitted(0)
     {}
     uint64_t op_submit_start();
     void op_submit_finish(uint64_t op);
     void set_op_seq(uint64_t seq) {
-      Mutex::Locker l(lock);
+      std::lock_guard<lock_t> l(lock);
       op_submitted = op_seq = seq;
     }
     uint64_t get_op_seq() {
@@ -51,32 +52,31 @@ protected:
   } submit_manager;
 
   class ApplyManager {
+    using lock_t = \
+      ceph::mutex<ceph::mutex_params::Lockdep::PerfCounted>;
+
     CephContext* cct;
     Journal *&journal;
     Finisher &finisher;
 
-    Mutex apply_lock;
+    lock_t apply_lock;
     bool blocked;
     Cond blocked_cond;
     int open_ops;
     uint64_t max_applied_seq;
 
-    Mutex com_lock;
+    lock_t com_lock;
     map<version_t, vector<Context*> > commit_waiters;
     uint64_t committing_seq, committed_seq;
 
   public:
     ApplyManager(CephContext* cct, Journal *&j, Finisher &f) :
       cct(cct), journal(j), finisher(f),
-      apply_lock("JOS::ApplyManager::apply_lock",
-		 Mutex::recursive_finder_t(),
-		 false, true, false, cct),
+      apply_lock("JOS::ApplyManager::apply_lock", cct),
       blocked(false),
       open_ops(0),
       max_applied_seq(0),
-      com_lock("JOS::ApplyManager::com_lock",
-	       Mutex::recursive_finder_t(),
-	       false, true, false, cct),
+      com_lock("JOS::ApplyManager::com_lock", cct),
       committing_seq(0), committed_seq(0) {}
     void reset() {
       assert(open_ops == 0);
@@ -92,25 +92,25 @@ protected:
     void commit_started();
     void commit_finish();
     bool is_committing() {
-      Mutex::Locker l(com_lock);
+      std::lock_guard<lock_t> l(com_lock);
       return committing_seq != committed_seq;
     }
     uint64_t get_committed_seq() {
-      Mutex::Locker l(com_lock);
+      std::lock_guard<lock_t> l(com_lock);
       return committed_seq;
     }
     uint64_t get_committing_seq() {
-      Mutex::Locker l(com_lock);
+      std::lock_guard<lock_t> l(com_lock);
       return committing_seq;
     }
     void init_seq(uint64_t fs_op_seq) {
       {
-	Mutex::Locker l(com_lock);
+	std::lock_guard<lock_t> l(com_lock);
 	committed_seq = fs_op_seq;
 	committing_seq = fs_op_seq;
       }
       {
-	Mutex::Locker l(apply_lock);
+	std::lock_guard<lock_t> l(apply_lock);
 	max_applied_seq = fs_op_seq;
       }
     }

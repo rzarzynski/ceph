@@ -240,7 +240,7 @@ private:
 public:  // for global_init
   bool early_expand_meta(std::string &val,
 			 std::ostream *oss) const {
-    Mutex::Locker l(lock);
+    decltype(lock)::Locker l(lock);
     return expand_meta(val, oss);
   }
 private:
@@ -320,7 +320,7 @@ public:
    * recursive, for simplicity.
    * It is best if this lock comes first in the lock hierarchy. We will
    * hold this lock when calling configuration observers.  */
-  mutable Mutex lock;
+  mutable ceph::mutex<ceph::mutex_params::Recursive> lock;
 
   friend class test_md_config_t;
 };

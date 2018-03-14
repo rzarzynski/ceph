@@ -1557,10 +1557,13 @@ private:
     : public ShardedThreadPool::ShardedWQ<OpQueueItem>
   {
     struct ShardData {
-      Mutex sdata_lock;
+      using lock_t = \
+	ceph::mutex<ceph::mutex_params::Lockdep::PerfCounted>;
+
+      lock_t sdata_lock;
       Cond sdata_cond;
 
-      Mutex sdata_op_ordering_lock;   ///< protects all members below
+      lock_t sdata_op_ordering_lock;   ///< protects all members below
 
       OSDMapRef waiting_for_pg_osdmap;
       struct pg_slot {
@@ -1604,12 +1607,9 @@ private:
 	string lock_name, string ordering_lock,
 	uint64_t max_tok_per_prio, uint64_t min_cost, CephContext *cct,
 	io_queue opqueue)
-	: sdata_lock(lock_name.c_str(),
-		     Mutex::recursive_finder_t(),
-		     false, true, false, cct),
-	  sdata_op_ordering_lock(ordering_lock.c_str(),
-		     Mutex::recursive_finder_t(),
-		     false, true, false, cct) {
+	: sdata_lock(lock_name.c_str(),  cct),
+          // TODO(rzarzynski): consider droping the mtx perf ctr
+	  sdata_op_ordering_lock(ordering_lock.c_str(), cct) {
 	if (opqueue == io_queue::weightedpriority) {
 	  pqueue = std::make_unique<
 	    WeightedPriorityQueue<OpQueueItem,uint64_t>>(
@@ -1749,7 +1749,7 @@ private:
       uint32_t shard_index = thread_index % num_shards; 
       auto &&sdata = shard_list[shard_index];
       assert(sdata);
-      Mutex::Locker l(sdata->sdata_op_ordering_lock);
+      std::lock_guard<ShardData::lock_t> l(sdata->sdata_op_ordering_lock);
       return sdata->pqueue->empty();
     }
   } op_shardedwq;

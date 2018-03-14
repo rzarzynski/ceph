@@ -303,7 +303,7 @@ private:
 #endif
   int sub_created_count;
   int sub_existing_count;
-  mutable Mutex lock;
+  mutable ceph::mutex<ceph::mutex_params::Recursive> lock;
   bool activated;
 
   void sub_finish(ContextType* sub, int r) {
@@ -361,11 +361,7 @@ public:
   C_GatherBase(CephContext *cct_, ContextType *onfinish_)
     : cct(cct_), result(0), onfinish(onfinish_),
       sub_created_count(0), sub_existing_count(0),
-      // TODO: move to RecursiveMutex
-      lock("C_GatherBase::lock",
-	   Mutex::recursive_finder_t(),
-	   true, false), //disable lockdep
-      activated(false)
+      lock("C_GatherBase::lock"), activated(false)
   {
     mydout(cct,10) << "C_GatherBase " << this << ".new" << dendl;
   }
@@ -373,7 +369,7 @@ public:
     mydout(cct,10) << "C_GatherBase " << this << ".delete" << dendl;
   }
   void set_finisher(ContextType *onfinish_) {
-    Mutex::Locker l(lock);
+    std::unique_lock<decltype(lock)> l(lock);
     assert(!onfinish);
     onfinish = onfinish_;
   }
@@ -389,7 +385,7 @@ public:
     delete_me();
   }
   ContextType *new_sub() {
-    Mutex::Locker l(lock);
+    std::unique_lock<decltype(lock)> l(lock);
     assert(activated == false);
     sub_created_count++;
     sub_existing_count++;
@@ -405,12 +401,12 @@ public:
   }
 
   inline int get_sub_existing_count() const {
-    Mutex::Locker l(lock);
+    std::unique_lock<decltype(lock)> l(lock);
     return sub_existing_count;
   }
 
   inline int get_sub_created_count() const {
-    Mutex::Locker l(lock);
+    std::unique_lock<decltype(lock)> l(lock);
     return sub_created_count;
   }
 };

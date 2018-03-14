@@ -6151,7 +6151,7 @@ void FileStore::OpSequencer::_unregister_apply(Op *o)
 
 void FileStore::OpSequencer::wait_for_apply(const ghobject_t& oid)
 {
-  Mutex::Locker l(qlock);
+  std::lock_guard<lock_t> l(qlock);
   uint32_t key = oid.hobj.get_hash();
 retry:
   while (true) {

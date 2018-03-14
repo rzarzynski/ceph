@@ -43,6 +43,10 @@ using std::deque;
 class FileJournal :
   public Journal,
   public md_config_obs_t {
+
+  using lock_t = \
+    ceph::mutex<ceph::mutex_params::Lockdep::PerfCounted>;
+
 public:
   /// Protected by finisher_lock
   struct completion_item {
@@ -67,12 +71,12 @@ public:
     write_item() : seq(0), orig_len(0) {}
   };
 
-  Mutex finisher_lock;
+  lock_t finisher_lock;
   Cond finisher_cond;
   uint64_t journaled_seq;
   bool plug_journal_completions;
 
-  Mutex writeq_lock;
+  lock_t writeq_lock;
   Cond writeq_cond;
   list<write_item> writeq;
   bool writeq_empty();
@@ -81,27 +85,27 @@ public:
   void batch_pop_write(list<write_item> &items);
   void batch_unpop_write(list<write_item> &items);
 
-  Mutex completions_lock;
+  lock_t completions_lock;
   list<completion_item> completions;
   bool completions_empty() {
-    Mutex::Locker l(completions_lock);
+    std::lock_guard<lock_t> l(completions_lock);
     return completions.empty();
   }
   void batch_pop_completions(list<completion_item> &items) {
-    Mutex::Locker l(completions_lock);
+    std::lock_guard<lock_t> l(completions_lock);
     completions.swap(items);
   }
   void batch_unpop_completions(list<completion_item> &items) {
-    Mutex::Locker l(completions_lock);
+    std::lock_guard<lock_t> l(completions_lock);
     completions.splice(completions.begin(), items);
   }
   completion_item completion_peek_front() {
-    Mutex::Locker l(completions_lock);
+    std::lock_guard<lock_t> l(completions_lock);
     assert(!completions.empty());
     return completions.front();
   }
   void completion_pop_front() {
-    Mutex::Locker l(completions_lock);
+    std::lock_guard<lock_t> l(completions_lock);
     assert(!completions.empty());
     completions.pop_front();
   }
@@ -323,7 +327,7 @@ private:
   JournalThrottle throttle;
 
   // write thread
-  Mutex write_lock;
+  lock_t write_lock;
   bool write_stop;
   bool aio_stop;
 
@@ -398,18 +402,11 @@ private:
   FileJournal(CephContext* cct, uuid_d fsid, Finisher *fin, Cond *sync_cond,
 	      const char *f, bool dio=false, bool ai=true, bool faio=false) :
     Journal(cct, fsid, fin, sync_cond),
-    finisher_lock("FileJournal::finisher_lock",
-	          Mutex::recursive_finder_t(),
-		  false, true, false, cct),
+    finisher_lock("FileJournal::finisher_lock", cct),
     journaled_seq(0),
     plug_journal_completions(false),
-    writeq_lock("FileJournal::writeq_lock",
-	        Mutex::recursive_finder_t(),
-		false, true, false, cct),
-    completions_lock(
-      "FileJournal::completions_lock",
-      Mutex::recursive_finder_t(),
-      false, true, false, cct),
+    writeq_lock("FileJournal::writeq_lock", cct),
+    completions_lock("FileJournal::completions_lock", cct),
     fn(f),
     zero_buf(NULL),
     max_size(0), block_size(0),
@@ -430,9 +427,7 @@ private:
     fd(-1),
     writing_seq(0),
     throttle(cct->_conf->filestore_caller_concurrency),
-    write_lock("FileJournal::write_lock",
-	       Mutex::recursive_finder_t(),
-	       false, true, false, cct),
+    write_lock("FileJournal::write_lock", cct),
     write_stop(true),
     aio_stop(true),
     write_thread(this),

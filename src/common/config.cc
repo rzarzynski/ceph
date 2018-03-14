@@ -76,10 +76,7 @@ int ceph_resolve_file_search(const std::string& filename_list,
 
 md_config_t::md_config_t(bool is_daemon)
   : cluster(""),
-  lock("md_config_t",
-       // TODO: move to RecursiveMutex
-       Mutex::recursive_finder_t(),
-       true, false)
+    lock("md_config_t")
 {
   // Load the compile-time list of Option into
   // a map so that we can resolve keys quickly.
@@ -183,7 +180,7 @@ md_config_t::~md_config_t()
 
 void md_config_t::add_observer(md_config_obs_t* observer_)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   const char **keys = observer_->get_tracked_conf_keys();
   for (const char ** k = keys; *k; ++k) {
     obs_map_t::value_type val(*k, observer_);
@@ -193,7 +190,7 @@ void md_config_t::add_observer(md_config_obs_t* observer_)
 
 void md_config_t::remove_observer(md_config_obs_t* observer_)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   bool found_obs = false;
   for (obs_map_t::iterator o = observers.begin(); o != observers.end(); ) {
     if (o->second == observer_) {
@@ -211,7 +208,7 @@ int md_config_t::parse_config_files(const char *conf_files,
 				    std::ostream *warnings,
 				    int flags)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
 
   if (safe_to_start_threads)
     return -ENOSYS;
@@ -368,7 +365,7 @@ int md_config_t::parse_config_files_impl(const std::list<std::string> &conf_file
 
 void md_config_t::parse_env()
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   if (safe_to_start_threads)
     return;
   if (getenv("CEPH_KEYRING")) {
@@ -378,19 +375,19 @@ void md_config_t::parse_env()
 
 void md_config_t::show_config(std::ostream& out)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   _show_config(&out, NULL);
 }
 
 void md_config_t::show_config(Formatter *f)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   _show_config(NULL, f);
 }
 
 void md_config_t::config_options(Formatter *f)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   f->open_array_section("options");
   for (const auto& i: schema) {
     const Option &opt = i.second;
@@ -437,7 +434,7 @@ void md_config_t::_show_config(std::ostream *out, Formatter *f)
 
 int md_config_t::parse_argv(std::vector<const char*>& args)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   if (safe_to_start_threads) {
     return -ENOSYS;
   }
@@ -662,7 +659,7 @@ int md_config_t::parse_injectargs(std::vector<const char*>& args,
 
 void md_config_t::apply_changes(std::ostream *oss)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   /*
    * apply changes until the cluster name is assigned
    */
@@ -734,7 +731,7 @@ void md_config_t::call_all_observers()
   // An alternative might be to pass a std::unique_lock to
   // handle_conf_change and have a version of get_var that can take it
   // by reference and lock as appropriate.
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   {
 
     expand_all_meta();
@@ -763,7 +760,7 @@ void md_config_t::_clear_safe_to_start_threads()
 int md_config_t::injectargs(const std::string& s, std::ostream *oss)
 {
   int ret;
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   char b[s.length()+1];
   strcpy(b, s.c_str());
   std::vector<const char*> nargs;
@@ -807,7 +804,7 @@ void md_config_t::set_val_or_die(const std::string &key,
 int md_config_t::set_val(const std::string &key, const char *val,
     bool meta, std::stringstream *err_ss)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   if (key.empty()) {
     if (err_ss) *err_ss << "No key specified";
     return -EINVAL;
@@ -877,13 +874,13 @@ int md_config_t::set_val(const std::string &key, const char *val,
 
 int md_config_t::get_val(const std::string &key, char **buf, int len) const
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   return _get_val(key, buf,len);
 }
 
 Option::value_t md_config_t::get_val_generic(const std::string &key) const
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   return _get_val_generic(key);
 }
 
@@ -990,7 +987,7 @@ void md_config_t::get_all_keys(std::vector<std::string> *keys) const {
  */
 void md_config_t::get_my_sections(std::vector <std::string> &sections) const
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   _get_my_sections(sections);
 }
 
@@ -1007,7 +1004,7 @@ void md_config_t::_get_my_sections(std::vector <std::string> &sections) const
 // Return a list of all sections
 int md_config_t::get_all_sections(std::vector <std::string> &sections) const
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   for (ConfFile::const_section_iter_t s = cf.sections_begin();
        s != cf.sections_end(); ++s) {
     sections.push_back(s->first);
@@ -1018,7 +1015,7 @@ int md_config_t::get_all_sections(std::vector <std::string> &sections) const
 int md_config_t::get_val_from_conf_file(const std::vector <std::string> &sections,
 		    const std::string &key, std::string &out, bool emeta) const
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
   return _get_val_from_conf_file(sections, key, out, emeta);
 }
 
@@ -1353,7 +1350,7 @@ void md_config_t::diff_helper(
     map<string,pair<string,string> > *diff,
     set<string> *unknown, const string& setting)
 {
-  Mutex::Locker l(lock);
+  std::lock_guard<decltype(lock)> l(lock);
 
   char local_buf[4096];
   char other_buf[4096];
