@@ -37,10 +37,12 @@ class Cond {
     pthread_cond_destroy(&_c); 
   }
 
-  int Wait(Mutex &mutex)  { 
+  template <class MutexParamsT>
+  int Wait(ceph::mutex<MutexParamsT>& mutex)  { 
     // make sure this cond is used with one mutex only
-    assert(waiter_mutex == NULL || waiter_mutex == &mutex);
-    waiter_mutex = &mutex;
+    assert(waiter_mutex == NULL || waiter_mutex == reinterpret_cast<Mutex*>(&mutex));
+    // FIXME
+    waiter_mutex = reinterpret_cast<Mutex*>(&mutex);
 
     assert(mutex.is_locked());
 
@@ -50,10 +52,12 @@ class Cond {
     return r;
   }
 
-  int WaitUntil(Mutex &mutex, utime_t when) {
+  template <class MutexParamsT>
+  int WaitUntil(ceph::mutex<MutexParamsT>& mutex, utime_t when) {
     // make sure this cond is used with one mutex only
-    assert(waiter_mutex == NULL || waiter_mutex == &mutex);
-    waiter_mutex = &mutex;
+    assert(waiter_mutex == NULL || waiter_mutex == reinterpret_cast<Mutex*>(&mutex));
+    // FIXME
+    waiter_mutex = reinterpret_cast<Mutex*>(&mutex);
 
     assert(mutex.is_locked());
 
