@@ -44,7 +44,9 @@ class Cond {
     // FIXME
     waiter_mutex = reinterpret_cast<Mutex*>(&mutex);
 
-    assert(mutex.is_locked());
+    if constexpr (!MutexParamsT::IsRecursive()) {
+      assert(mutex.is_locked());
+    }
 
     mutex._pre_unlock();
     int r = pthread_cond_wait(&_c, &mutex._m);
@@ -59,7 +61,9 @@ class Cond {
     // FIXME
     waiter_mutex = reinterpret_cast<Mutex*>(&mutex);
 
-    assert(mutex.is_locked());
+    if constexpr (!MutexParamsT::IsRecursive()) {
+      assert(mutex.is_locked());
+    }
 
     struct timespec ts;
     when.to_timespec(&ts);

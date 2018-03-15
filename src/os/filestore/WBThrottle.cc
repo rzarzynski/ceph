@@ -85,7 +85,6 @@ const char** WBThrottle::get_tracked_conf_keys() const
 
 void WBThrottle::set_from_conf()
 {
-  assert(lock.is_locked());
   if (fs == BTRFS) {
     size_limits.first =
       cct->_conf->filestore_wbthrottle_btrfs_bytes_start_flusher;
@@ -133,7 +132,6 @@ void WBThrottle::handle_conf_change(const md_config_t *conf,
 bool WBThrottle::get_next_should_flush(
   boost::tuple<ghobject_t, FDRef, PendingWB> *next)
 {
-  assert(lock.is_locked());
   assert(next);
   while (!stopping && (!beyond_limit() || pending_wbs.empty()))
          cond.Wait(lock);

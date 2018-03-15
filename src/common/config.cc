@@ -258,8 +258,6 @@ int md_config_t::parse_config_files(const char *conf_files,
 int md_config_t::parse_config_files_impl(const std::list<std::string> &conf_files,
 					 std::ostream *warnings)
 {
-  assert(lock.is_locked());
-
   // open new conf
   list<string>::const_iterator c;
   for (c = conf_files.begin(); c != conf_files.end(); ++c) {
@@ -647,7 +645,6 @@ int md_config_t::parse_option(std::vector<const char*>& args,
 int md_config_t::parse_injectargs(std::vector<const char*>& args,
 				  std::ostream *oss)
 {
-  assert(lock.is_locked());
   int ret = 0;
   for (std::vector<const char*>::iterator i = args.begin(); i != args.end(); ) {
     int r = parse_option(args, i, oss);
@@ -886,8 +883,6 @@ Option::value_t md_config_t::get_val_generic(const std::string &key) const
 
 Option::value_t md_config_t::_get_val_generic(const std::string &key) const
 {
-  assert(lock.is_locked());
-
   if (key.empty()) {
     return Option::value_t(boost::blank());
   }
@@ -906,8 +901,6 @@ Option::value_t md_config_t::_get_val_generic(const std::string &key) const
 }
 
 int md_config_t::_get_val(const std::string &key, std::string *value) const {
-  assert(lock.is_locked());
-
   auto config_value = _get_val_generic(key);
   if (!boost::get<boost::blank>(&config_value)) {
     ostringstream oss;
@@ -926,8 +919,6 @@ int md_config_t::_get_val(const std::string &key, std::string *value) const {
 
 int md_config_t::_get_val(const std::string &key, char **buf, int len) const
 {
-  assert(lock.is_locked());
-
   if (key.empty())
     return -EINVAL;
 
@@ -993,7 +984,6 @@ void md_config_t::get_my_sections(std::vector <std::string> &sections) const
 
 void md_config_t::_get_my_sections(std::vector <std::string> &sections) const
 {
-  assert(lock.is_locked());
   sections.push_back(name.to_str());
 
   sections.push_back(name.get_type_name());
@@ -1022,7 +1012,6 @@ int md_config_t::get_val_from_conf_file(const std::vector <std::string> &section
 int md_config_t::_get_val_from_conf_file(const std::vector <std::string> &sections,
 					 const std::string &key, std::string &out, bool emeta) const
 {
-  assert(lock.is_locked());
   std::vector <std::string>::const_iterator s = sections.begin();
   std::vector <std::string>::const_iterator s_end = sections.end();
   for (; s != s_end; ++s) {
@@ -1041,8 +1030,6 @@ int md_config_t::_get_val_from_conf_file(const std::vector <std::string> &sectio
 int md_config_t::set_val_impl(const std::string &raw_val, const Option &opt,
                               std::string *error_message)
 {
-  assert(lock.is_locked());
-
   std::string val = raw_val;
 
   int r = opt.pre_validate(&val, error_message);
@@ -1190,8 +1177,6 @@ bool md_config_t::expand_meta(std::string &origval,
 			      std::list<const Option *> stack,
 			      std::ostream *oss) const
 {
-  assert(lock.is_locked());
-
   // no $ means no variable expansion is necessary
   if (origval.find("$") == string::npos)
     return false;

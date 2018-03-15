@@ -16,6 +16,7 @@
 #define CEPH_MUTEX_H
 
 #include <cstdint>
+#include <type_traits>
 
 #include <pthread.h>
 
@@ -23,6 +24,7 @@
 #include "lockdep.h"
 #include "common/Clock.h"
 #include "common/ceph_context.h"
+#include "common/likely.h"
 #include "common/valgrind.h"
 
 using namespace ceph;
@@ -58,7 +60,7 @@ class mutex_params {
   };
 
 public:
-  struct Default          : public mutex_params<FlagsV | LOCKDEP> {};
+  struct Default          : public mutex_params<FlagsV | 0x0> {};
 
   // The idea to use nested-CRTP instead of static methods and decltype()
   // for compile-time builder pattern came after discussion with Adam Kupczyk.
@@ -94,32 +96,27 @@ using mutex_params = mutex_detail::mutex_params<0>;
 
 template <typename ParamsT = mutex_params::Default>
 class mutex {
-  std::string name;
-  int id;
-  bool recursive;
-  bool lockdep;
-  bool backtrace;  // gather backtrace on lock acquisition
-
+//  static_assert(std::is_base_of<
   mutable pthread_mutex_t _m;
-  pthread_t locked_by;
-  CephContext *cct;
-  PerfCounters *logger;
+  //std::string name;
+
+  //PerfCounters *logger;
 
   // don't allow copying.
   void operator=(const mutex& M);
   mutex(const mutex& M);
 
   void _register() {
-    id = lockdep_register(name.c_str());
+    //id = lockdep_register(name.c_str());
   }
   void _will_lock() { // about to lock
-    id = lockdep_will_lock(name.c_str(), id, backtrace);
+    //id = lockdep_will_lock(name.c_str(), id, ParamsT::isLockdepBacktrace());
   }
   void _locked() {    // just locked
-    id = lockdep_locked(name.c_str(), id, backtrace);
+    //id = lockdep_locked(name.c_str(), id, ParamsT::isLockdepBacktrace());
   }
   void _will_unlock() {  // about to unlock
-    id = lockdep_will_unlock(name.c_str(), id);
+    //id = lockdep_will_unlock(name.c_str(), id);
   }
 
 public:
@@ -127,18 +124,17 @@ public:
 	CephContext *cct)
     : mutex(n)
   {
+    static_assert(ParamsT::isPerfCounted());
     if (cct) {
-      logger = mutex_helpers::build_perf_counters(cct, name);
+    //  logger = mutex_helpers::build_perf_counters(cct, name);
     }
   }
 
   mutex(const std::string& n)
-    : name(n), id(-1), recursive(false), lockdep(true), backtrace(false),
-  locked_by(0), cct(nullptr), logger(0)
   {
-    ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "Mutex lockdep id");
-    ANNOTATE_BENIGN_RACE_SIZED(&locked_by, sizeof(locked_by), "Mutex locked_by");
-    if (recursive) {
+    //ANNOTATE_BENIGN_RACE_SIZED(&id, sizeof(id), "Mutex lockdep id");
+    //ANNOTATE_BENIGN_RACE_SIZED(&locked_by, sizeof(locked_by), "Mutex locked_by");
+    if constexpr (ParamsT::IsRecursive()) {
       // Mutexes of type PTHREAD_MUTEX_RECURSIVE do all the same checks as
       // mutexes of type PTHREAD_MUTEX_ERRORCHECK.
       pthread_mutexattr_t attr;
@@ -146,20 +142,25 @@ public:
       pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
       pthread_mutex_init(&_m,&attr);
       pthread_mutexattr_destroy(&attr);
-      if (lockdep && g_lockdep)
+      if constexpr (ParamsT::IsLockdep()) if (unlikely(g_lockdep)) {
         _register();
+      }
     }
-    else if (lockdep) {
+    else if constexpr (ParamsT::IsLockdep()) {
       // If the mutex type is PTHREAD_MUTEX_ERRORCHECK, then error checking
       // shall be provided. If a thread attempts to relock a mutex that it
       // has already locked, an error shall be returned. If a thread
       // attempts to unlock a mutex that it has not locked or a mutex which
       // is unlocked, an error shall be returned.
+#if 0
       pthread_mutexattr_t attr;
       pthread_mutexattr_init(&attr);
       pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_ERRORCHECK);
       pthread_mutex_init(&_m, &attr);
       pthread_mutexattr_destroy(&attr);
+#else
+      pthread_mutex_init(&_m, NULL);
+#endif
       if (g_lockdep)
         _register();
     }
@@ -177,19 +178,17 @@ public:
     ANNOTATE_BENIGN_RACE_SIZED(&_m, sizeof(_m), "Mutex primitive");
     pthread_mutex_destroy(&_m);
 
-    mutex_helpers::dispose_perf_counters(cct, &logger);
+    if constexpr (ParamsT::isPerfCounted()) {
+      //mutex_helpers::dispose_perf_counters(cct, &logger);
+    }
 
-    if (lockdep && g_lockdep) {
-      lockdep_unregister(id);
+    if constexpr (ParamsT::IsLockdep()) if (unlikely(g_lockdep)) {
+      //lockdep_unregister(id);
     }
   }
 
   bool is_locked() const {
-    if (recursive) {
-      // ugly hack for testing the whole concept. The recursive
-      // Mutex will be dissected into separate class if succeeded.
-      return true;
-    }
+    static_assert(!ParamsT::IsRecursive());
 
     if (pthread_mutex_trylock(&_m) != 0) {
       return true;
@@ -199,13 +198,17 @@ public:
     }
   }
   bool is_locked_by_me() const {
-    return is_locked() && locked_by == pthread_self();
+    static_assert(!ParamsT::IsRecursive());
+
+    return is_locked(); // && locked_by == pthread_self();
   }
 
   bool try_lock() {
     int r = pthread_mutex_trylock(&_m);
     if (r == 0) {
-      if (lockdep && g_lockdep) _locked();
+      if constexpr (ParamsT::IsLockdep()) if (unlikely(g_lockdep)) {
+        _locked();
+      }
       _post_lock();
     }
     return r == 0;
@@ -214,7 +217,11 @@ public:
   void lock(bool no_lockdep=false) {
     int r;
 
-    if (lockdep && g_lockdep && !no_lockdep && !recursive) _will_lock();
+    if constexpr (!ParamsT::IsRecursive() && ParamsT::IsLockdep()) {
+      if (unlikely(g_lockdep) && no_lockdep) {
+        _will_lock();
+      }
+    }
 
 #if 0
     if (logger && cct && cct->_conf->mutex_perf_counter) {
@@ -230,12 +237,15 @@ public:
       logger->tinc(l_mutex_wait,
 		   ceph_clock_now() - start);
     } else {
+#endif
+    {
       r = pthread_mutex_lock(&_m);
     }
-#endif
 
     assert(r == 0);
-    if (lockdep && g_lockdep) _locked();
+    if constexpr (ParamsT::IsLockdep()) if (unlikely(g_lockdep)) {
+      _locked();
+    }
     _post_lock();
 
 #if 0
@@ -245,20 +255,22 @@ public:
   }
 
   void _post_lock() {
-    if (!recursive) {
-      locked_by = pthread_self();
+    if constexpr (!ParamsT::IsRecursive()) {
+      //locked_by = pthread_self();
     };
   }
 
   void _pre_unlock() {
-    if (!recursive) {
-      assert(locked_by == pthread_self());
-      locked_by = 0;
+    if constexpr (!ParamsT::IsRecursive()) {
+      //assert(locked_by == pthread_self());
+      //locked_by = 0;
     }
   }
   void unlock() {
     _pre_unlock();
-    if (lockdep && g_lockdep) _will_unlock();
+    if constexpr (ParamsT::IsLockdep()) if (unlikely(g_lockdep)) {
+      _will_unlock();
+    }
     int r = pthread_mutex_unlock(&_m);
     assert(r == 0);
   }

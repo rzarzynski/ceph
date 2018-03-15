@@ -90,7 +90,6 @@ class WBThrottle : Thread, public md_config_obs_t {
   list<ghobject_t> lru;
   ceph::unordered_map<ghobject_t, list<ghobject_t>::iterator> rev_lru;
   void remove_object(const ghobject_t &oid) {
-    assert(lock.is_locked());
     ceph::unordered_map<ghobject_t, list<ghobject_t>::iterator>::iterator iter =
       rev_lru.find(oid);
     if (iter == rev_lru.end())

@@ -41,7 +41,6 @@ int AioCompletion::wait_for_complete() {
 
 void AioCompletion::finalize(ssize_t rval)
 {
-  assert(lock.is_locked());
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
 
@@ -52,7 +51,6 @@ void AioCompletion::finalize(ssize_t rval)
 }
 
 void AioCompletion::complete() {
-  assert(lock.is_locked());
   assert(ictx != nullptr);
   CephContext *cct = ictx->cct;
 
