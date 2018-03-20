@@ -16,7 +16,7 @@
 
 #include <type_traits>
 
-namespace ceph {
+namespace ceph::containers {
 
 // tiny_vector - a CPU-friendly container like small_vector but for
 // mutexes, atomics and other non-movable things.
@@ -140,6 +140,6 @@ public:
   }
 };
 
-} // namespace ceph
+} // namespace ceph::containers
 
 #endif // CEPH_COMMON_TINY_VECTOR_H
