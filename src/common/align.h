@@ -17,25 +17,17 @@
 #ifndef CEPH_COMMON_ALIGN_H
 #define CEPH_COMMON_ALIGN_H
 
-#include "include/intarith.h"
+#include <type_traits>
 
-template <typename T>
-inline constexpr T align_up(T v, T align) {
+template <typename T, typename U>
+inline constexpr T align_up(T v, U align) {
+  static_assert(std::is_convertible_v<U, T>);
   return (v + align - 1) & ~(align - 1);
 }
 
-template <typename T>
-inline constexpr T align_up(T v, const ceph::math::p2_t<T>& align) {
-  return (v + align - 1) & ~(align - 1);
-}
-
-template <typename T>
+template <typename T, typename U>
 inline constexpr T align_down(T v, T align) {
-  return v & ~(static_cast<T>(align) - 1);
-}
-
-template <typename T>
-inline constexpr T align_down(T v, const ceph::math::p2_t<T>& align) {
+  static_assert(std::is_convertible_v<U, T>);
   return v & ~(static_cast<T>(align) - 1);
 }
 

@@ -213,8 +213,7 @@ template<class T>
   return (sizeof(v) * 8) - __builtin_clzll(v);
 }
 
-namespace ceph {
-namespace math {
+namespace ceph::math {
 
 template<class UnsignedValueT>
 class p2_t {
@@ -268,7 +267,6 @@ public:
   }
 };
 
-} // math
-} // ceph
+} // namespace ceph::math
 
 #endif
