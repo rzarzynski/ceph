@@ -38,6 +38,7 @@
 # include <sys/mman.h>
 #endif
 
+#include <deque>
 #include <iosfwd>
 #include <iomanip>
 #include <list>
@@ -359,7 +360,7 @@ namespace buffer CEPH_BUFFER_API {
 
   class CEPH_BUFFER_API list {
   public:
-    typedef std::list<ptr> buffers_t;
+    typedef std::deque<ptr> buffers_t;
     class iterator;
 
   private:
