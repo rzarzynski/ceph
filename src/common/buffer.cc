@@ -1899,7 +1899,7 @@ using namespace ceph;
     ptr bp(len);
     bp.zero(false);
     _len += len;
-    _buffers.emplace_front(std::move(bp));
+    _buffers.insert(std::begin(_buffers), std::move(bp));
   }
   
   void buffer::list::append_zero(unsigned len)
