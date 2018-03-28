@@ -1848,7 +1848,7 @@ public:
     if (!(flags & CLAIM_ALLOW_NONSHAREABLE))
       bl.make_shareable();
     std::move(bl._buffers.begin(), bl._buffers.end(),
-      std::front_inserter(_buffers));
+      std::inserter(_buffers, std::begin(_buffers)));
     bl._buffers.clear();
     bl._len = 0;
     bl.last_p = bl.begin();
@@ -2006,7 +2006,7 @@ public:
     ptr bp(len);
     bp.zero(false);
     _len += len;
-    _buffers.emplace_front(std::move(bp));
+    _buffers.insert(std::begin(_buffers), std::move(bp));
   }
   
   void buffer::list::append_zero(unsigned len)

@@ -62,6 +62,7 @@
 
 #include "inline_memory.h"
 
+#include <boost/container/small_vector.hpp>
 #if __GNUC__ >= 4
   #define CEPH_BUFFER_API  __attribute__ ((visibility ("default")))
 #else
@@ -359,7 +360,7 @@ namespace buffer CEPH_BUFFER_API {
 
   class CEPH_BUFFER_API list {
   public:
-    typedef std::list<ptr> buffers_t;
+    typedef boost::container::small_vector<ptr, 4> buffers_t;
     class iterator;
 
   private:
@@ -755,14 +756,14 @@ namespace buffer CEPH_BUFFER_API {
     void push_front(ptr& bp) {
       if (bp.length() == 0)
 	return;
-      _buffers.push_front(bp);
+      _buffers.insert(_buffers.begin(), bp);
       _len += bp.length();
     }
     void push_front(ptr&& bp) {
       if (bp.length() == 0)
 	return;
       _len += bp.length();
-      _buffers.push_front(std::move(bp));
+      _buffers.insert(_buffers.begin(), std::move(bp));
     }
     void push_front(raw *r) {
       push_front(ptr(r));
@@ -811,7 +812,7 @@ namespace buffer CEPH_BUFFER_API {
 
     // clone non-shareable buffers (make shareable)
     void make_shareable() {
-      decltype(_buffers)::iterator pb;
+      buffers_t::iterator pb;
       for (pb = _buffers.begin(); pb != _buffers.end(); ++pb) {
         (void) pb->make_shareable();
       }
@@ -822,7 +823,7 @@ namespace buffer CEPH_BUFFER_API {
     {
       if (this != &bl) {
         clear();
-        decltype(_buffers)::const_iterator pb;
+        buffers_t::const_iterator pb;
         for (pb = bl._buffers.begin(); pb != bl._buffers.end(); ++pb) {
           push_back(*pb);
         }
