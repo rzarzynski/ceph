@@ -373,6 +373,7 @@ namespace buffer CEPH_BUFFER_API {
     template <bool is_const>
     class CEPH_BUFFER_API iterator_impl
       : public std::iterator<std::forward_iterator_tag, char> {
+      friend class list;
     protected:
       typedef typename std::conditional<is_const,
 					const list,
@@ -395,8 +396,10 @@ namespace buffer CEPH_BUFFER_API {
       iterator_impl()
 	: bl(0), ls(0), off(0), p_off(0) {}
       iterator_impl(bl_t *l, unsigned o=0);
+    protected:
       iterator_impl(bl_t *l, unsigned o, list_iter_t ip, unsigned po)
 	: bl(l), ls(&bl->_buffers), off(o), p(ip), p_off(po) {}
+    public:
       iterator_impl(const list::iterator& i);
 
       /// get current iterator offset in buffer::list
@@ -452,11 +455,14 @@ namespace buffer CEPH_BUFFER_API {
     typedef iterator_impl<true> const_iterator;
 
     class CEPH_BUFFER_API iterator : public iterator_impl<false> {
+      friend class list;
     public:
       iterator() = default;
       iterator(bl_t *l, unsigned o=0);
+    protected:
       iterator(bl_t *l, unsigned o, list_iter_t ip, unsigned po);
 
+    public:
       void advance(int o);
       void seek(unsigned o);
       using iterator_impl<false>::operator*;
