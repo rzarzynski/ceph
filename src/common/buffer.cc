@@ -1146,14 +1146,14 @@ public:
 
   template<bool is_const>
   buffer::list::iterator_impl<is_const>::iterator_impl(bl_t *l, unsigned o)
-    : bl(l), ls(&bl->_buffers), off(0), p(ls->begin()), p_off(0)
+    : bl(l), ls(&bl->_buffers), off(0), curp(ls->begin()), p_off(0)
   {
     advance(o);
   }
 
   template<bool is_const>
   buffer::list::iterator_impl<is_const>::iterator_impl(const buffer::list::iterator& i)
-    : iterator_impl<is_const>(i.bl, i.off, i.p, i.p_off) {}
+    : iterator_impl<is_const>(i.bl, i.off, i.curp, i.p_off) {}
 
   template<bool is_const>
   void buffer::list::iterator_impl<is_const>::advance(int o)
@@ -1162,12 +1162,12 @@ public:
     if (o > 0) {
       p_off += o;
       while (p_off > 0) {
-	if (p == ls->end())
+	if (curp == ls->end())
 	  throw end_of_buffer();
-	if (p_off >= p->length()) {
+	if (p_off >= curp->length()) {
 	  // skip this buffer
-	  p_off -= p->length();
-	  p++;
+	  p_off -= curp->length();
+	  curp++;
 	} else {
 	  // somewhere in this buffer!
 	  break;
@@ -1185,9 +1185,9 @@ public:
 	off -= d;
 	o += d;
       } else if (off > 0) {
-	assert(p != ls->begin());
-	p--;
-	p_off = p->length();
+	assert(curp != ls->begin());
+	curp--;
+	p_off = curp->length();
       } else {
 	throw end_of_buffer();
       }
@@ -1197,7 +1197,7 @@ public:
   template<bool is_const>
   void buffer::list::iterator_impl<is_const>::seek(unsigned o)
   {
-    p = ls->begin();
+    curp = ls->begin();
     off = p_off = 0;
     advance(o);
   }
@@ -1205,16 +1205,16 @@ public:
   template<bool is_const>
   char buffer::list::iterator_impl<is_const>::operator*() const
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       throw end_of_buffer();
-    return (*p)[p_off];
+    return (*curp)[p_off];
   }
 
   template<bool is_const>
   buffer::list::iterator_impl<is_const>&
   buffer::list::iterator_impl<is_const>::operator++()
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       throw end_of_buffer();
     advance(1);
     return *this;
@@ -1223,9 +1223,9 @@ public:
   template<bool is_const>
   buffer::ptr buffer::list::iterator_impl<is_const>::get_current_ptr() const
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       throw end_of_buffer();
-    return ptr(*p, p_off, p->length() - p_off);
+    return ptr(*curp, p_off, curp->length() - p_off);
   }
 
   // copy data out.
@@ -1233,15 +1233,15 @@ public:
   template<bool is_const>
   void buffer::list::iterator_impl<is_const>::copy(unsigned len, char *dest)
   {
-    if (p == ls->end()) seek(off);
+    if (curp == ls->end()) seek(off);
     while (len > 0) {
-      if (p == ls->end())
+      if (curp == ls->end())
 	throw end_of_buffer();
-      assert(p->length() > 0);
+      assert(curp->length() > 0);
 
-      unsigned howmuch = p->length() - p_off;
+      unsigned howmuch = curp->length() - p_off;
       if (len < howmuch) howmuch = len;
-      p->copy_out(p_off, howmuch, dest);
+      curp->copy_out(p_off, howmuch, dest);
       dest += howmuch;
 
       len -= howmuch;
@@ -1261,9 +1261,9 @@ public:
     if (!len) {
       return;
     }
-    if (p == ls->end())
+    if (curp == ls->end())
       throw end_of_buffer();
-    assert(p->length() > 0);
+    assert(curp->length() > 0);
     dest = create(len);
     copy(len, dest.c_str());
   }
@@ -1274,15 +1274,15 @@ public:
     if (!len) {
       return;
     }
-    if (p == ls->end())
+    if (curp == ls->end())
       throw end_of_buffer();
-    assert(p->length() > 0);
-    unsigned howmuch = p->length() - p_off;
+    assert(curp->length() > 0);
+    unsigned howmuch = curp->length() - p_off;
     if (howmuch < len) {
       dest = create(len);
       copy(len, dest.c_str());
     } else {
-      dest = ptr(*p, p_off, len);
+      dest = ptr(*curp, p_off, len);
       advance(len);
     }
   }
@@ -1290,16 +1290,16 @@ public:
   template<bool is_const>
   void buffer::list::iterator_impl<is_const>::copy(unsigned len, list &dest)
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       seek(off);
     while (len > 0) {
-      if (p == ls->end())
+      if (curp == ls->end())
 	throw end_of_buffer();
 
-      unsigned howmuch = p->length() - p_off;
+      unsigned howmuch = curp->length() - p_off;
       if (len < howmuch)
 	howmuch = len;
-      dest.append(*p, p_off, howmuch);
+      dest.append(*curp, p_off, howmuch);
 
       len -= howmuch;
       advance(howmuch);
@@ -1309,14 +1309,14 @@ public:
   template<bool is_const>
   void buffer::list::iterator_impl<is_const>::copy(unsigned len, std::string &dest)
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       seek(off);
     while (len > 0) {
-      if (p == ls->end())
+      if (curp == ls->end())
 	throw end_of_buffer();
 
-      unsigned howmuch = p->length() - p_off;
-      const char *c_str = p->c_str();
+      unsigned howmuch = curp->length() - p_off;
+      const char *c_str = curp->c_str();
       if (len < howmuch)
 	howmuch = len;
       dest.append(c_str + p_off, howmuch);
@@ -1329,15 +1329,15 @@ public:
   template<bool is_const>
   void buffer::list::iterator_impl<is_const>::copy_all(list &dest)
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       seek(off);
     while (1) {
-      if (p == ls->end())
+      if (curp == ls->end())
 	return;
-      assert(p->length() > 0);
+      assert(curp->length() > 0);
 
-      unsigned howmuch = p->length() - p_off;
-      const char *c_str = p->c_str();
+      unsigned howmuch = curp->length() - p_off;
+      const char *c_str = curp->c_str();
       dest.append(c_str + p_off, howmuch);
 
       advance(howmuch);
@@ -1348,17 +1348,17 @@ public:
   size_t buffer::list::iterator_impl<is_const>::get_ptr_and_advance(
     size_t want, const char **data)
   {
-    if (p == ls->end()) {
+    if (curp == ls->end()) {
       seek(off);
-      if (p == ls->end()) {
+      if (curp == ls->end()) {
 	return 0;
       }
     }
-    *data = p->c_str() + p_off;
-    size_t l = std::min<size_t>(p->length() - p_off, want);
+    *data = curp->c_str() + p_off;
+    size_t l = std::min<size_t>(curp->length() - p_off, want);
     p_off += l;
-    if (p_off == p->length()) {
-      ++p;
+    if (p_off == curp->length()) {
+      ++curp;
       p_off = 0;
     }
     off += l;
@@ -1405,10 +1405,10 @@ public:
 
   char buffer::list::iterator::operator*()
   {
-    if (p == ls->end()) {
+    if (curp == ls->end()) {
       throw end_of_buffer();
     }
-    return (*p)[p_off];
+    return (*curp)[p_off];
   }
 
   buffer::list::iterator& buffer::list::iterator::operator++()
@@ -1419,10 +1419,10 @@ public:
 
   buffer::ptr buffer::list::iterator::get_current_ptr()
   {
-    if (p == ls->end()) {
+    if (curp == ls->end()) {
       throw end_of_buffer();
     }
-    return ptr(*p, p_off, p->length() - p_off);
+    return ptr(*curp, p_off, curp->length() - p_off);
   }
 
   void buffer::list::iterator::copy(unsigned len, char *dest)
@@ -1469,16 +1469,16 @@ public:
   void buffer::list::iterator::copy_in(unsigned len, const char *src, bool crc_reset)
   {
     // copy
-    if (p == ls->end())
+    if (curp == ls->end())
       seek(off);
     while (len > 0) {
-      if (p == ls->end())
+      if (curp == ls->end())
 	throw end_of_buffer();
       
-      unsigned howmuch = p->length() - p_off;
+      unsigned howmuch = curp->length() - p_off;
       if (len < howmuch)
 	howmuch = len;
-      p->copy_in(p_off, howmuch, src, crc_reset);
+      curp->copy_in(p_off, howmuch, src, crc_reset);
 	
       src += howmuch;
       len -= howmuch;
@@ -1488,7 +1488,7 @@ public:
   
   void buffer::list::iterator::copy_in(unsigned len, const list& otherl)
   {
-    if (p == ls->end())
+    if (curp == ls->end())
       seek(off);
     unsigned left = len;
     for (buffers_t::const_iterator i = otherl._buffers.begin();

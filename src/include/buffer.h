@@ -387,7 +387,7 @@ namespace buffer CEPH_BUFFER_API {
       bl_t* bl;
       list_t* ls;  // meh.. just here to avoid an extra pointer dereference..
       unsigned off; // in bl
-      list_iter_t p;
+      list_iter_t curp; // meh.. to save bl::seeks()
       unsigned p_off;   // in *p
       friend class iterator_impl<true>;
 
@@ -398,7 +398,7 @@ namespace buffer CEPH_BUFFER_API {
       iterator_impl(bl_t *l, unsigned o=0);
     protected:
       iterator_impl(bl_t *l, unsigned o, list_iter_t ip, unsigned po)
-	: bl(l), ls(&bl->_buffers), off(o), p(ip), p_off(po) {}
+	: bl(l), ls(&bl->_buffers), off(o), curp(ip), p_off(po) {}
     public:
       iterator_impl(const list::iterator& i);
 
@@ -410,7 +410,7 @@ namespace buffer CEPH_BUFFER_API {
 
       /// true if iterator is at the end of the buffer::list
       bool end() const {
-	return p == ls->end();
+	return curp == ls->end();
 	//return off == bl->length();
       }
 
