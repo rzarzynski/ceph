@@ -783,12 +783,14 @@ namespace buffer CEPH_BUFFER_API {
 	return;
       _buffers.push_back(bp);
       _len += bp.length();
+      last_p = begin();
     }
     void push_back(ptr&& bp) {
       if (bp.length() == 0)
 	return;
       _len += bp.length();
       _buffers.push_back(std::move(bp));
+      last_p = begin();
     }
     void push_back(raw *r) {
       push_back(ptr(r));

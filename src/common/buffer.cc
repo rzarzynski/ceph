@@ -1708,7 +1708,8 @@ using namespace ceph;
         unaligned.rebuild(nb);
         _memcopy_count += unaligned._len;
       }
-      _buffers.insert(p, unaligned._buffers.front());
+      p = _buffers.insert(p, unaligned._buffers.front());
+      p++;
     }
     last_p = begin();
 
@@ -1747,6 +1748,7 @@ using namespace ceph;
     bl._buffers.clear();
     bl._len = 0;
     bl.last_p = bl.begin();
+    last_p = begin();
   }
 
   void buffer::list::claim_append_piecewise(list& bl)
@@ -1881,6 +1883,7 @@ using namespace ceph;
 	 p != bl._buffers.end();
 	 ++p) 
       _buffers.push_back(*p);
+    last_p = begin();
   }
 
   void buffer::list::append(std::istream& in)
@@ -1900,6 +1903,7 @@ using namespace ceph;
     bp.zero(false);
     _len += len;
     _buffers.insert(std::begin(_buffers), std::move(bp));
+    last_p = begin();
   }
   
   void buffer::list::append_zero(unsigned len)
@@ -2001,6 +2005,7 @@ using namespace ceph;
 
       tmp.rebuild();
       _buffers.insert(curbuf, tmp._buffers.front());
+      last_p = begin();
       return tmp.c_str() + off;
     }
 
@@ -2045,6 +2050,7 @@ using namespace ceph;
       off = 0;
       ++curbuf;
     }
+    last_p = begin();
   }
 
   // funky modifer
@@ -2079,7 +2085,8 @@ using namespace ceph;
       // add a reference to the front bit
       //  insert it before curbuf (which we'll hose)
       //cout << "keeping front " << off << " of " << *curbuf << std::endl;
-      _buffers.insert( curbuf, ptr( *curbuf, 0, off ) );
+      curbuf = _buffers.insert( curbuf, ptr( *curbuf, 0, off ) );
+      curbuf++;
       _len += off;
     }
     
@@ -2109,7 +2116,7 @@ using namespace ceph;
       
     // splice in *replace (implement me later?)
     
-    last_p = begin();  // just in case we were in the removed region.
+    last_p = begin();  // just in case we were in the removed/inserted region.
   }
 
   void buffer::list::write(int off, int len, std::ostream& out) const
