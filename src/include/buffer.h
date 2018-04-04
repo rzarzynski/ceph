@@ -380,25 +380,22 @@ namespace buffer CEPH_BUFFER_API {
 					list>::type bl_t;
       typedef typename std::conditional<is_const,
 					const buffers_t,
-					buffers_t >::type list_t;
-      typedef typename std::conditional<is_const,
-					typename buffers_t::const_iterator,
-					typename buffers_t::iterator>::type list_iter_t;
+					buffers_t >::type cont_t;
       bl_t* bl;
-      list_t* ls;  // meh.. just here to avoid an extra pointer dereference..
+      cont_t* ls;  // meh.. just here to avoid an extra pointer dereference..
+      size_t curidx; // meh.. to save bl::seeks()
       unsigned off; // in bl
-      list_iter_t curp; // meh.. to save bl::seeks()
       unsigned p_off;   // in *p
       friend class iterator_impl<true>;
 
     public:
       // constructor.  position.
       iterator_impl()
-	: bl(0), ls(0), off(0), p_off(0) {}
+	: bl(0), ls(0), curidx(0), off(0), p_off(0) {}
       iterator_impl(bl_t *l, unsigned o=0);
     protected:
-      iterator_impl(bl_t *l, unsigned o, list_iter_t ip, unsigned po)
-	: bl(l), ls(&bl->_buffers), off(o), curp(ip), p_off(po) {}
+      iterator_impl(bl_t *l, unsigned o, size_t idx, unsigned po)
+	: bl(l), ls(&bl->_buffers), curidx(idx), off(o), p_off(po) {}
     public:
       iterator_impl(const list::iterator& i);
 
@@ -410,8 +407,7 @@ namespace buffer CEPH_BUFFER_API {
 
       /// true if iterator is at the end of the buffer::list
       bool end() const {
-	return curp == ls->end();
-	//return off == bl->length();
+	return off == bl->length();
       }
 
       void advance(int o);
@@ -460,7 +456,7 @@ namespace buffer CEPH_BUFFER_API {
       iterator() = default;
       iterator(bl_t *l, unsigned o=0);
     protected:
-      iterator(bl_t *l, unsigned o, list_iter_t ip, unsigned po);
+      iterator(bl_t *l, unsigned o, size_t idx, unsigned po);
 
     public:
       void advance(int o);
@@ -844,14 +840,14 @@ namespace buffer CEPH_BUFFER_API {
       return iterator(this, 0);
     }
     iterator end() {
-      return iterator(this, _len, _buffers.end(), 0);
+      return iterator(this, _len, _buffers.size(), 0);
     }
 
     const_iterator begin() const {
       return const_iterator(this, 0);
     }
     const_iterator end() const {
-      return const_iterator(this, _len, _buffers.end(), 0);
+      return const_iterator(this, _len, _buffers.size(), 0);
     }
 
     // crope lookalikes.
