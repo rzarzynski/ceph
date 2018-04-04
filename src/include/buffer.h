@@ -62,7 +62,6 @@
 
 #include "inline_memory.h"
 
-#include <boost/container/small_vector.hpp>
 #if __GNUC__ >= 4
   #define CEPH_BUFFER_API  __attribute__ ((visibility ("default")))
 #else
@@ -360,7 +359,7 @@ namespace buffer CEPH_BUFFER_API {
 
   class CEPH_BUFFER_API list {
   public:
-    typedef boost::container::small_vector<ptr, 4> buffers_t;
+    typedef std::vector<ptr> buffers_t;
     class iterator;
 
   private:
