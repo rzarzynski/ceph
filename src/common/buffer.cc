@@ -1743,6 +1743,7 @@ using namespace ceph;
     _len += bl._len;
     if (!(flags & CLAIM_ALLOW_NONSHAREABLE))
       bl.make_shareable();
+    _buffers.reserve(_buffers.size() + bl._buffers.size());
     std::move(bl._buffers.begin(), bl._buffers.end(),
       std::back_inserter(_buffers));
     bl._buffers.clear();
