@@ -360,7 +360,7 @@ namespace buffer CEPH_BUFFER_API {
 
   class CEPH_BUFFER_API list {
   public:
-    typedef boost::container::small_vector<ptr, 4> buffers_t;
+    typedef boost::container::small_vector<ptr, 1> buffers_t;
     class iterator;
 
   private:
