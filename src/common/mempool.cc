@@ -15,6 +15,7 @@
 #include "include/mempool.h"
 #include "include/demangle.h"
 
+#include "common/Formatter.h"
 
 // default to debug_mode off
 bool mempool::debug_mode = false;
@@ -128,4 +129,11 @@ void mempool::pool_t::dump(ceph::Formatter *f, stats_t *ptotal) const
     }
     f->close_section();
   }
+}
+
+
+void mempool::stats_t::dump(ceph::Formatter *f) const
+{
+  f->dump_int("items", items);
+  f->dump_int("bytes", bytes);
 }

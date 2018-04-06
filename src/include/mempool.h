@@ -27,7 +27,6 @@
 #include <boost/container/flat_set.hpp>
 #include <boost/container/flat_map.hpp>
 
-#include <common/Formatter.h>
 #include "include/assert.h"
 #include "include/compact_map.h"
 #include "include/compact_set.h"
@@ -140,6 +139,10 @@ available.
 
 */
 
+namespace ceph {
+  class Formatter;
+}
+
 namespace mempool {
 
 // --------------------------------------------------------------
@@ -204,16 +207,13 @@ static_assert(sizeof(shard_t) == 128, "shard_t should be cacheline-sized");
 struct stats_t {
   ssize_t items = 0;
   ssize_t bytes = 0;
-  void dump(ceph::Formatter *f) const {
-    f->dump_int("items", items);
-    f->dump_int("bytes", bytes);
-  }
 
   stats_t& operator+=(const stats_t& o) {
     items += o.items;
     bytes += o.bytes;
     return *this;
   }
+  void dump(ceph::Formatter *f) const;
 };
 
 pool_t& get_pool(pool_index_t ix);

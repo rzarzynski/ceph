@@ -2,6 +2,7 @@
 // vim: ts=8 sw=2 smarttab
 
 #include "common/bloom_filter.hpp"
+#include "common/Formatter.h"
 
 MEMPOOL_DEFINE_FACTORY(unsigned char, byte, bloom_filter);
 
