@@ -14,6 +14,8 @@
 #ifndef CEPH_BUFFER_H
 #define CEPH_BUFFER_H
 
+#include <atomic>
+
 #if defined(__linux__) || defined(__FreeBSD__)
 #include <stdlib.h>
 #endif
@@ -53,6 +55,8 @@
 #include "page.h"
 #include "crc32c.h"
 #include "buffer_fwd.h"
+
+#include "include/spinlock.h"
 
 #ifdef __CEPH__
 # include "include/assert.h"
@@ -134,7 +138,51 @@ namespace buffer CEPH_BUFFER_API {
   /*
    * an abstract raw buffer.  with a reference count.
    */
-  class raw;
+  class raw {
+    // no copying.
+    // cppcheck-suppress noExplicitConstructor
+    raw(const raw &other) = delete;
+    const raw& operator=(const raw &other) = delete;
+
+    // this is defined in buffers.cc to not impose dependency on mempool.h
+    static int get_default_mempool();
+
+  public:
+    char *data;
+    unsigned len;
+    std::atomic<unsigned> nref { 0 };
+    int mempool;
+
+    // CRC-related fields
+    std::pair<size_t, size_t> last_crc_offset {
+      std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max()
+    };
+    std::pair<uint32_t, uint32_t> last_crc_val;
+    mutable ceph::spinlock crc_spinlock;
+
+    explicit raw(unsigned l, int mempool=get_default_mempool());
+    raw(char *c, unsigned l, int mempool=get_default_mempool());
+    virtual ~raw();
+
+    void reassign_to_mempool(int pool);
+    void try_assign_to_mempool(int pool);
+
+    void _set_len(unsigned l);
+    virtual char *get_data();
+    virtual raw* clone_empty() = 0;
+    raw *clone();
+    virtual bool can_zero_copy() const;
+    virtual int zero_copy_to_fd(int fd, loff_t *offset);
+    virtual bool is_page_aligned();
+    bool is_n_page_sized();
+    virtual bool is_shareable();
+
+    bool get_crc(const std::pair<size_t, size_t> &fromto,
+                 std::pair<uint32_t, uint32_t> *crc) const;
+    void set_crc(const std::pair<size_t, size_t> &fromto,
+                 const std::pair<uint32_t, uint32_t> &crc);
+    void invalidate_crc();
+  };
   class raw_malloc;
   class raw_static;
   class raw_mmap_pages;
@@ -309,13 +357,18 @@ namespace buffer CEPH_BUFFER_API {
     unsigned offset() const { return _off; }
     unsigned start() const { return _off; }
     unsigned end() const { return _off + _len; }
-    unsigned unused_tail_length() const;
+    unsigned unused_tail_length() const {
+      if (_raw)
+        return _raw->len - (_off+_len);
+      else
+        return 0;
+    }
     const char& operator[](unsigned n) const;
     char& operator[](unsigned n);
 
-    const char *raw_c_str() const;
-    unsigned raw_length() const;
-    int raw_nref() const;
+    const char *raw_c_str() const { assert(_raw); return _raw->data; }
+    unsigned raw_length() const { assert(_raw); return _raw->len; }
+    int raw_nref() const { assert(_raw); return _raw->nref; }
 
     void copy_out(unsigned o, unsigned l, char *dest) const;
 
@@ -338,7 +391,15 @@ namespace buffer CEPH_BUFFER_API {
     }
 
     unsigned append(char c);
-    unsigned append(const char *p, unsigned l);
+    unsigned append(const char *p, unsigned l) {
+      assert(_raw);
+      assert(l <= unused_tail_length());
+      char* c = _raw->data + _off + _len;
+      maybe_inline_memcpy(c, p, l, 32);
+      _len += l;
+      return _len + _off;
+    }
+
 #if __cplusplus >= 201703L
     inline unsigned append(std::string_view s) {
       return append(s.data(), s.length());
@@ -410,7 +471,42 @@ namespace buffer CEPH_BUFFER_API {
 	return off == bl->length();
       }
 
-      void advance(int o);
+      void advance(int o) {
+        //cout << this << " advance " << o << " from " << off << " (p_off " << p_off << " in " << p->length() << ")" << std::endl;
+        if (o > 0) {
+          p_off += o;
+          while (p_off > 0) {
+            if (curidx == ls->size())
+              throw end_of_buffer();
+            if (p_off >= (*ls)[curidx].length()) {
+              // skip this buffer
+              p_off -= (*ls)[curidx].length();
+              ++curidx;
+            } else {
+              // somewhere in this buffer!
+              break;
+            }
+          }
+          off += o;
+          return;
+        }
+        while (o < 0) {
+          if (p_off) {
+            unsigned d = -o;
+            if (d > p_off)
+              d = p_off;
+            p_off -= d;
+            off -= d;
+            o += d;
+          } else if (off > 0) {
+            assert(curidx > 0);
+            curidx--;
+            p_off = (*ls)[curidx].length();
+          } else {
+            throw end_of_buffer();
+          }
+        }
+      }
       void seek(unsigned o);
       char operator*() const;
       iterator_impl& operator++();
@@ -420,7 +516,24 @@ namespace buffer CEPH_BUFFER_API {
 
       // copy data out.
       // note that these all _append_ to dest!
-      void copy(unsigned len, char *dest);
+      void copy(unsigned len, char *dest) {
+        if (curidx == ls->size())
+          seek(off);
+        while (len > 0) {
+          if (curidx == ls->size())
+            throw end_of_buffer();
+          assert((*ls)[curidx].length() > 0);
+
+          unsigned howmuch = (*ls)[curidx].length() - p_off;
+          if (len < howmuch) howmuch = len;
+          (*ls)[curidx].copy_out(p_off, howmuch, dest);
+          dest += howmuch;
+
+          len -= howmuch;
+          advance(howmuch);
+        }
+      }
+
       // deprecated, use copy_deep()
       void copy(unsigned len, ptr &dest) __attribute__((deprecated));
       void copy_deep(unsigned len, ptr &dest);
@@ -459,7 +572,9 @@ namespace buffer CEPH_BUFFER_API {
       iterator(bl_t *l, unsigned o, size_t idx, unsigned po);
 
     public:
-      void advance(int o);
+      void advance(int o) {
+        buffer::list::iterator_impl<false>::advance(o);
+      }
       void seek(unsigned o);
       using iterator_impl<false>::operator*;
       char operator*();
@@ -467,7 +582,10 @@ namespace buffer CEPH_BUFFER_API {
       ptr get_current_ptr();
 
       // copy data out
-      void copy(unsigned len, char *dest);
+      void copy(unsigned len, char *dest) {
+        return iterator_impl<false>::copy(len, dest);
+      }
+
       // deprecated, use copy_deep()
       void copy(unsigned len, ptr &dest) __attribute__((deprecated));
       void copy_deep(unsigned len, ptr &dest);
@@ -859,8 +977,27 @@ namespace buffer CEPH_BUFFER_API {
     void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset);
     void copy_in(unsigned off, unsigned len, const list& src);
 
+    void make_new_append_buffer(unsigned len);
+
     void append(char c);
-    void append(const char *data, unsigned len);
+    void append(const char *data, unsigned len) {
+      while (len > 0) {
+        // put what we can into the existing append_buffer.
+        unsigned gap = append_buffer.unused_tail_length();
+        if (gap > 0) {
+          if (gap > len) gap = len;
+      //cout << "append first char is " << data[0] << ", last char is " << data[len-1] << std::endl;
+          append_buffer.append(data, gap);
+          append(append_buffer, append_buffer.length() - gap, gap);	// add segment to the list
+          len -= gap;
+          data += gap;
+        }
+        if (len == 0)
+          break;  // done!
+
+        make_new_append_buffer(len);
+      }
+    }
     void append(std::string s) {
       append(s.data(), s.length());
     }
@@ -880,7 +1017,22 @@ namespace buffer CEPH_BUFFER_API {
 #endif // __cplusplus >= 201703L
     void append(const ptr& bp);
     void append(ptr&& bp);
-    void append(const ptr& bp, unsigned off, unsigned len);
+    void append(const ptr& bp, unsigned off, unsigned len) {
+      assert(len+off <= bp.length());
+      if (!_buffers.empty()) {
+        ptr &l = _buffers.back();
+        if (l.get_raw() == bp.get_raw() &&
+            l.end() == bp.start() + off) {
+          // yay contiguous with tail bp!
+          l.set_length(l.length()+len);
+          _len += len;
+          return;
+        }
+      }
+      // add new item to list
+      push_back(ptr(bp, off, len));
+    }
+
     void append(const list& bl);
     void append(std::istream& in);
     void append_zero(unsigned len);
