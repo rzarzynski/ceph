@@ -1641,7 +1641,7 @@ using namespace ceph;
     _memcopy_count += pos;
     _buffers.clear();
     if (nb.length())
-      _buffers.push_back(nb);
+      _buffers.emplace_back(nb);
     invalidate_crc();
     last_p = begin();
   }
@@ -1855,7 +1855,7 @@ using namespace ceph;
     for (buffers_t::const_iterator p = bl._buffers.begin();
 	 p != bl._buffers.end();
 	 ++p) 
-      _buffers.push_back(*p);
+      _buffers.emplace_back(*p);
     last_p = begin();
   }
 
@@ -2001,7 +2001,7 @@ using namespace ceph;
       // partial?
       if (off + len < curbuf->length()) {
 	//cout << "copying partial of " << *curbuf << std::endl;
-	_buffers.push_back( ptr( *curbuf, off, len ) );
+	_buffers.emplace_back( ptr( *curbuf, off, len ) );
 	_len += len;
 	break;
       }
@@ -2009,7 +2009,7 @@ using namespace ceph;
       // through end
       //cout << "copying end (all?) of " << *curbuf << std::endl;
       unsigned howmuch = curbuf->length() - off;
-      _buffers.push_back( ptr( *curbuf, off, howmuch ) );
+      _buffers.emplace_back( ptr( *curbuf, off, howmuch ) );
       _len += howmuch;
       len -= howmuch;
       off = 0;
