@@ -1574,7 +1574,7 @@ using namespace ceph;
 
   bool buffer::list::is_contiguous() const
   {
-    return &(*_buffers.begin()) == &(*_buffers.rbegin());
+    return _buffers.size() <= 1;
   }
 
   bool buffer::list::is_n_page_sized() const
