@@ -878,14 +878,12 @@ namespace buffer CEPH_BUFFER_API {
 	return;
       _buffers.insert(_buffers.begin(), bp);
       _len += bp.length();
-      last_p = begin();
     }
     void push_front(ptr&& bp) {
       if (bp.length() == 0)
 	return;
       _len += bp.length();
       _buffers.insert(_buffers.begin(), std::move(bp));
-      last_p = begin();
     }
     void push_front(raw *r) {
       push_front(ptr(r));
@@ -895,14 +893,12 @@ namespace buffer CEPH_BUFFER_API {
 	return;
       _buffers.emplace_back(bp);
       _len += bp.length();
-      last_p = begin();
     }
     void push_back(ptr&& bp) {
       if (bp.length() == 0)
 	return;
       _len += bp.length();
       _buffers.emplace_back(std::move(bp));
-      last_p = begin();
     }
     void push_back(raw *r) {
       push_back(ptr(r));

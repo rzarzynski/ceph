@@ -1737,7 +1737,6 @@ using namespace ceph;
     bl._buffers.clear();
     bl._len = 0;
     bl.last_p = bl.begin();
-    last_p = begin();
   }
 
   void buffer::list::claim_prepend(list& bl, unsigned int flags)
@@ -1856,7 +1855,6 @@ using namespace ceph;
 	 p != bl._buffers.end();
 	 ++p) 
       _buffers.emplace_back(*p);
-    last_p = begin();
   }
 
   void buffer::list::append(std::istream& in)
@@ -1876,7 +1874,6 @@ using namespace ceph;
     bp.zero(false);
     _len += len;
     _buffers.insert(std::begin(_buffers), std::move(bp));
-    last_p = begin();
   }
   
   void buffer::list::append_zero(unsigned len)
@@ -1970,7 +1967,6 @@ using namespace ceph;
 
       tmp.rebuild();
       _buffers.insert(curbuf, tmp._buffers.front());
-      last_p = begin();
       return tmp.c_str() + off;
     }
 
@@ -2015,7 +2011,6 @@ using namespace ceph;
       off = 0;
       ++curbuf;
     }
-    last_p = begin();
   }
 
   // funky modifer
