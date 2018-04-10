@@ -18,6 +18,7 @@
 
 #include "global/global_init.h"
 #include "common/ceph_argparse.h"
+#include "common/Formatter.h"
 #include "global/global_context.h"
 #include "gtest/gtest.h"
 #include "include/mempool.h"
