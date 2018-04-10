@@ -1002,14 +1002,6 @@ using namespace ceph;
     return _raw->get_data()[_off + n];
   }
 
-  void buffer::ptr::copy_out(unsigned o, unsigned l, char *dest) const {
-    assert(_raw);
-    if (o+l > _len)
-        throw end_of_buffer();
-    char* src =  _raw->data + _off + o;
-    maybe_inline_memcpy(dest, src, l, 8);
-  }
-
   unsigned buffer::ptr::wasted() const
   {
     return _raw->len - _len;
@@ -1043,22 +1035,6 @@ using namespace ceph;
     *ptr = c;
     _len++;
     return _len + _off;
-  }
-
-  void buffer::ptr::copy_in(unsigned o, unsigned l, const char *src)
-  {
-    copy_in(o, l, src, true);
-  }
-
-  void buffer::ptr::copy_in(unsigned o, unsigned l, const char *src, bool crc_reset)
-  {
-    assert(_raw);
-    assert(o <= _len);
-    assert(o+l <= _len);
-    char* dest = _raw->data + _off + o;
-    if (crc_reset)
-        _raw->invalidate_crc();
-    maybe_inline_memcpy(dest, src, l, 64);
   }
 
   void buffer::ptr::zero()

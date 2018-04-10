@@ -370,7 +370,13 @@ namespace buffer CEPH_BUFFER_API {
     unsigned raw_length() const { assert(_raw); return _raw->len; }
     int raw_nref() const { assert(_raw); return _raw->nref; }
 
-    void copy_out(unsigned o, unsigned l, char *dest) const;
+    void copy_out(unsigned o, unsigned l, char *dest) const {
+      assert(_raw);
+      if (o+l > _len)
+          throw end_of_buffer();
+      char* src =  _raw->data + _off + o;
+      maybe_inline_memcpy(dest, src, l, 8);
+    }
 
     bool can_zero_copy() const;
     int zero_copy_to_fd(int fd, int64_t *offset) const;
@@ -405,8 +411,18 @@ namespace buffer CEPH_BUFFER_API {
       return append(s.data(), s.length());
     }
 #endif // __cplusplus >= 201703L
-    void copy_in(unsigned o, unsigned l, const char *src);
-    void copy_in(unsigned o, unsigned l, const char *src, bool crc_reset);
+    void copy_in(unsigned o, unsigned l, const char *src) {
+      copy_in(o, l, src, true);
+    }
+    void copy_in(unsigned o, unsigned l, const char *src, bool crc_reset) {
+      assert(_raw);
+      assert(o <= _len);
+      assert(o+l <= _len);
+      char* dest = _raw->data + _off + o;
+      if (crc_reset)
+          _raw->invalidate_crc();
+      maybe_inline_memcpy(dest, src, l, 64);
+    }
     void zero();
     void zero(bool crc_reset);
     void zero(unsigned o, unsigned l);
