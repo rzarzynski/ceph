@@ -469,12 +469,14 @@ namespace buffer CEPH_BUFFER_API {
       // constructor.  position.
       iterator_impl()
 	: bl(0), ls(0), curidx(0), off(0), p_off(0) {}
-      iterator_impl(bl_t *l, unsigned o=0);
+      iterator_impl(bl_t *l, unsigned o=0)
+        : bl(l), ls(&bl->_buffers), curidx(0), off(0), p_off(0) { advance(o); }
     protected:
       iterator_impl(bl_t *l, unsigned o, size_t idx, unsigned po)
 	: bl(l), ls(&bl->_buffers), curidx(idx), off(o), p_off(po) {}
     public:
-      iterator_impl(const list::iterator& i);
+      iterator_impl(const list::iterator& i)
+        : iterator_impl<is_const>(i.bl, i.off, i.curidx, i.p_off) {}
 
       /// get current iterator offset in buffer::list
       unsigned get_off() const { return off; }
@@ -583,9 +585,12 @@ namespace buffer CEPH_BUFFER_API {
       friend class list;
     public:
       iterator() = default;
-      iterator(bl_t *l, unsigned o=0);
+      iterator(bl_t *l, unsigned o=0)
+        : iterator_impl(l, o) {}
+
     protected:
-      iterator(bl_t *l, unsigned o, size_t idx, unsigned po);
+      iterator(bl_t *l, unsigned o, size_t idx, unsigned po)
+        : iterator_impl(l, o, idx, po) {}
 
     public:
       void advance(int o) {

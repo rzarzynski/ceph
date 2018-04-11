@@ -1086,17 +1086,6 @@ using namespace ceph;
     }*/
 
   template<bool is_const>
-  buffer::list::iterator_impl<is_const>::iterator_impl(bl_t *l, unsigned o)
-    : bl(l), ls(&bl->_buffers), curidx(0), off(0), p_off(0)
-  {
-    advance(o);
-  }
-
-  template<bool is_const>
-  buffer::list::iterator_impl<is_const>::iterator_impl(const buffer::list::iterator& i)
-    : iterator_impl<is_const>(i.bl, i.off, i.curidx, i.p_off) {}
-
-  template<bool is_const>
   void buffer::list::iterator_impl<is_const>::seek(unsigned o)
   {
     curidx = off = p_off = 0;
@@ -1266,14 +1255,6 @@ using namespace ceph;
   // dependencies.
   template class buffer::list::iterator_impl<true>;
   template class buffer::list::iterator_impl<false>;
-
-  buffer::list::iterator::iterator(bl_t *l, unsigned o)
-    : iterator_impl(l, o)
-  {}
-
-  buffer::list::iterator::iterator(bl_t *l, unsigned o, size_t idx, unsigned po)
-    : iterator_impl(l, o, idx, po)
-  {}
 
   void buffer::list::iterator::seek(unsigned o)
   {
