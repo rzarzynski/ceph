@@ -1466,6 +1466,25 @@ TEST(BufferList, BenchAlloc) {
   bench_bufferlist_alloc(4, 100000, 16);
 }
 
+TEST(BufferList, append_bench) {
+  char src[4096];
+  memset(src, 0, sizeof(src));
+  for (int s=1; s<=4096; s*=2) {
+    utime_t start = ceph_clock_now();
+    int count = 4000;
+    for (int i=0; i<count; ++i) {
+      bufferlist bl;
+      for (int64_t j=0; j<100000; j++) {
+	bl.append(src, s);
+      }
+    }
+    utime_t end = ceph_clock_now();
+    cout << count << " fills of bufferlist len "
+	 << " with " << s << " byte appends in "
+	 << (end - start) << std::endl;
+  }
+}
+
 TEST(BufferList, operator_equal) {
   //
   // list& operator= (const list& other)
