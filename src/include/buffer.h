@@ -487,11 +487,11 @@ namespace buffer CEPH_BUFFER_API {
       unsigned get_remaining() const { return bl->length() - off; }
 
       /// true if iterator is at the end of the buffer::list
-      bool end() const {
+      NO_INLINE bool end() const {
 	return off == bl->length();
       }
 
-      void advance(int o) {
+      void advance(int o) NO_INLINE {
         //cout << this << " advance " << o << " from " << off << " (p_off " << p_off << " in " << p->length() << ")" << std::endl;
         if (o > 0) {
           p_off += o;
@@ -536,7 +536,7 @@ namespace buffer CEPH_BUFFER_API {
 
       // copy data out.
       // note that these all _append_ to dest!
-      void copy(unsigned len, char *dest) {
+      void copy(unsigned len, char *dest) NO_INLINE {
         if (curidx == ls->size())
           seek(off);
         while (len > 0) {
