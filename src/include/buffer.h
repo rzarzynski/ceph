@@ -406,7 +406,7 @@ namespace buffer CEPH_BUFFER_API {
       unsigned get_remaining() const { return bl->length() - off; }
 
       /// true if iterator is at the end of the buffer::list
-      bool end() const {
+      NO_INLINE bool end() const {
 	return p == ls->end();
 	//return off == bl->length();
       }
