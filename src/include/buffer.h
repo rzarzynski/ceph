@@ -14,6 +14,8 @@
 #ifndef CEPH_BUFFER_H
 #define CEPH_BUFFER_H
 
+#define NO_INLINE __attribute__((noinline))
+
 #if defined(__linux__) || defined(__FreeBSD__)
 #include <stdlib.h>
 #endif
@@ -393,7 +395,7 @@ namespace buffer CEPH_BUFFER_API {
       iterator_impl()
 	: bl(0), ls(0), off(0), p_off(0) {}
       iterator_impl(bl_t *l, unsigned o=0);
-      iterator_impl(bl_t *l, unsigned o, list_iter_t ip, unsigned po)
+      iterator_impl(bl_t *l, unsigned o, list_iter_t ip, unsigned po) NO_INLINE
 	: bl(l), ls(&bl->_buffers), off(o), p(ip), p_off(po) {}
       iterator_impl(const list::iterator& i);
 
@@ -578,7 +580,7 @@ namespace buffer CEPH_BUFFER_API {
 	  out_of_band_offset += p.length();
 	}
       }
-      void append(const bufferlist& l) {
+      void append(const bufferlist& l) NO_INLINE {
 	if (!l.length()) {
 	  return;
 	}
@@ -676,12 +678,12 @@ namespace buffer CEPH_BUFFER_API {
       reserve(prealloc);
     }
 
-    list(const list& other) : _buffers(other._buffers), _len(other._len),
+    list(const list& other) NO_INLINE : _buffers(other._buffers), _len(other._len),
 			      _memcopy_count(other._memcopy_count), last_p(this) {
       make_shareable();
     }
     list(list&& other);
-    list& operator= (const list& other) {
+    list& operator= (const list& other) NO_INLINE {
       if (this != &other) {
         _buffers = other._buffers;
         _len = other._len;
@@ -690,7 +692,7 @@ namespace buffer CEPH_BUFFER_API {
       return *this;
     }
 
-    list& operator= (list&& other) {
+    list& operator= (list&& other) NO_INLINE {
       _buffers = std::move(other._buffers);
       _len = other._len;
       _memcopy_count = other._memcopy_count;
@@ -700,9 +702,9 @@ namespace buffer CEPH_BUFFER_API {
       return *this;
     }
 
-    unsigned get_num_buffers() const { return _buffers.size(); }
-    const ptr& front() const { return _buffers.front(); }
-    const ptr& back() const { return _buffers.back(); }
+    NO_INLINE unsigned get_num_buffers() const { return _buffers.size(); }
+    NO_INLINE const ptr& front() const { return _buffers.front(); }
+    NO_INLINE const ptr& back() const { return _buffers.back(); }
 
     int get_mempool() const;
     void reassign_to_mempool(int pool);
@@ -713,7 +715,7 @@ namespace buffer CEPH_BUFFER_API {
     }
 
     unsigned get_memcopy_count() const {return _memcopy_count; }
-    const std::list<ptr>& buffers() const { return _buffers; }
+    NO_INLINE const std::list<ptr>& buffers() const { return _buffers; }
     void swap(list& other);
     unsigned length() const {
 #if 0
@@ -744,20 +746,20 @@ namespace buffer CEPH_BUFFER_API {
     bool is_zero() const;
 
     // modifiers
-    void clear() {
+    void clear() NO_INLINE {
       _buffers.clear();
       _len = 0;
       _memcopy_count = 0;
       last_p = begin();
       append_buffer = ptr();
     }
-    void push_front(ptr& bp) {
+    void push_front(ptr& bp) NO_INLINE {
       if (bp.length() == 0)
 	return;
       _buffers.push_front(bp);
       _len += bp.length();
     }
-    void push_front(ptr&& bp) {
+    void push_front(ptr&& bp) NO_INLINE {
       if (bp.length() == 0)
 	return;
       _len += bp.length();
@@ -766,13 +768,13 @@ namespace buffer CEPH_BUFFER_API {
     void push_front(raw *r) {
       push_front(ptr(r));
     }
-    void push_back(const ptr& bp) {
+    void push_back(const ptr& bp) NO_INLINE {
       if (bp.length() == 0)
 	return;
       _buffers.push_back(bp);
       _len += bp.length();
     }
-    void push_back(ptr&& bp) {
+    void push_back(ptr&& bp) NO_INLINE {
       if (bp.length() == 0)
 	return;
       _len += bp.length();
@@ -809,7 +811,7 @@ namespace buffer CEPH_BUFFER_API {
     void claim_append_piecewise(list& bl);
 
     // clone non-shareable buffers (make shareable)
-    void make_shareable() {
+    void make_shareable() NO_INLINE {
       std::list<buffer::ptr>::iterator pb;
       for (pb = _buffers.begin(); pb != _buffers.end(); ++pb) {
         (void) pb->make_shareable();
@@ -817,7 +819,7 @@ namespace buffer CEPH_BUFFER_API {
     }
 
     // copy with explicit volatile-sharing semantics
-    void share(const list& bl)
+    void share(const list& bl) NO_INLINE
     {
       if (this != &bl) {
         clear();
@@ -909,7 +911,7 @@ namespace buffer CEPH_BUFFER_API {
     int write_fd(int fd, uint64_t offset) const;
     int write_fd_zero_copy(int fd) const;
     template<typename VectorT>
-    void prepare_iov(VectorT *piov) const {
+    NO_INLINE void prepare_iov(VectorT *piov) const {
       assert(_buffers.size() <= IOV_MAX);
       piov->resize(_buffers.size());
       unsigned n = 0;
