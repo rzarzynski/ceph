@@ -44,6 +44,16 @@ class CryptoRandom {
  */
 class CryptoKeyHandler {
 public:
+  struct in_slice_t {
+    const std::size_t length;
+    const unsigned char* const buf;
+  };
+
+  struct out_slice_t {
+    const std::size_t max_length;
+    unsigned char* const buf;
+  };
+
   bufferptr secret;
 
   virtual ~CryptoKeyHandler() {}
@@ -52,6 +62,13 @@ public:
 		       bufferlist& out, std::string *error) const = 0;
   virtual int decrypt(const bufferlist& in,
 		       bufferlist& out, std::string *error) const = 0;
+
+  // TODO: provide nullptr in the out::buf to get/estimate size requirements?
+  // Or maybe dedicated methods?
+  virtual std::size_t encrypt(const in_slice_t& in,
+			      const out_slice_t& out) const = 0;
+  virtual std::size_t decrypt(const in_slice_t& in,
+			      const out_slice_t& out) const = 0;
 };
 
 /*
@@ -125,6 +142,20 @@ public:
 	       std::string *error) const {
     assert(ckh); // Bad key?
     return ckh->decrypt(in, out, error);
+  }
+
+  using in_slice_t = CryptoKeyHandler::in_slice_t;
+  using out_slice_t = CryptoKeyHandler::out_slice_t;
+
+  std::size_t encrypt(CephContext*, const in_slice_t& in,
+		      const out_slice_t& out) {
+    assert(ckh);
+    return ckh->encrypt(in, out);
+  }
+  std::size_t decrypt(CephContext*, const in_slice_t& in,
+		      const out_slice_t& out) {
+    assert(ckh);
+    return ckh->encrypt(in, out);
   }
 
   void to_str(std::string& s) const;

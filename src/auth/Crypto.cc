@@ -87,6 +87,17 @@ public:
     out = in;
     return 0;
   }
+
+  std::size_t encrypt(const in_slice_t& in,
+		      const out_slice_t& out) const override {
+    // TODO: memcpy
+    return 0;
+  }
+  std::size_t decrypt(const in_slice_t& in,
+		      const out_slice_t& out) const override {
+    // TODO: memcpy
+    return 0;
+  }
 };
 
 class CryptoNone : public CryptoHandler {
@@ -127,7 +138,6 @@ public:
 // when we say AES, we mean AES-128
 # define AES_KEY_LEN	16
 # define AES_BLOCK_LEN   16
-
 
 class CryptoAESKeyHandler : public CryptoKeyHandler {
   AES_KEY enc_key;
@@ -218,6 +228,15 @@ public:
       out.append(std::move(out_tmp));
     }
 
+    return 0;
+  }
+
+  std::size_t encrypt(const in_slice_t& in,
+		      const out_slice_t& out) const override {
+    return 0;
+  }
+  std::size_t decrypt(const in_slice_t& in,
+		      const out_slice_t& out) const override {
     return 0;
   }
 };
