@@ -13,6 +13,8 @@
 
 #include <array>
 #include <sstream>
+#include <limits>
+
 #include "Crypto.h"
 #ifdef USE_OPENSSL
 # include <openssl/aes.h>
@@ -248,7 +250,7 @@ public:
     //   length = 32 -> tail_len = 0, pad_len = 16
     const std::uint8_t tail_len = in.length % AES_BLOCK_LEN;
     const std::uint8_t pad_len = AES_BLOCK_LEN - tail_len;
-    static_assert(std::numerlic_limit<std::uint8_t>::max() < AES_BLOCK_LEN);
+    static_assert(std::numeric_limits<std::uint8_t>::max() > AES_BLOCK_LEN);
 
     std::array<unsigned char, AES_BLOCK_LEN> last_block;
     memcpy(last_block.data(), in.buf + in.length - tail_len, tail_len);
@@ -262,22 +264,44 @@ public:
 
     const std::size_t main_encrypt_size = \
       std::min(in.length - tail_len, out.max_length);
-    AES_cbc_encrypt(in.buf, out.buf, main_encrypt_size, &enc_key, iv,
+    AES_cbc_encrypt(in.buf, out.buf, main_encrypt_size, &enc_key, iv.data(),
 		    AES_ENCRYPT);
 
     const std::size_t tail_encrypt_size = \
       std::min(AES_BLOCK_LEN, out.max_length - main_encrypt_size);
     AES_cbc_encrypt(last_block.data(), out.buf + main_encrypt_size,
-		    tail_encrypt_size, &enc_key, iv, AES_ENCRYPT);
-    return 0;
+		    tail_encrypt_size, &enc_key, iv.data(), AES_ENCRYPT);
+
+    return main_encrypt_size + tail_encrypt_size;
   }
+
   std::size_t decrypt(const in_slice_t& in,
 		      const out_slice_t& out) const override {
-    if ((in.length % AES_BLOCK_LEN) != 0) {
-      throw std::runtime_error("");
+    if (in.length % AES_BLOCK_LEN != 0) {
+      throw std::runtime_error("input not aligned to AES_BLOCK_LEN");
+    } else if (out.buf == nullptr) {
+      // essentially it would be possible to decrypt into a buffer that
+      // doesn't include space for any PKCS#7 padding. We don't do that
+      // for the sake of performance and simplicity.
+      return in.length;
     }
 
-    return 0;
+    static_assert(strlen_ct(CEPH_AES_IV) == AES_BLOCK_LEN);
+    std::array<unsigned char, sizeof(CEPH_AES_IV)> iv;
+    memcpy(iv.data(), CEPH_AES_IV, sizeof(CEPH_AES_IV));
+
+    const std::size_t todo_len = std::min(in.length, out.max_length);
+    AES_cbc_encrypt(in.buf, out.buf, todo_len, &dec_key, iv.data(),
+		    AES_DECRYPT);
+
+    // NOTE: we aren't handling partial decrypt. Padding must be
+    // at the end.
+    if (in.length > 1 && todo_len == in.length) {
+      const std::uint8_t pad_len = out.buf[in.length - 1];
+      return in.length - pad_len;
+    } else {
+      return -1;
+    }
   }
 };
 
