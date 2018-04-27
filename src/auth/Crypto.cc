@@ -168,8 +168,8 @@ public:
     ceph::bufferptr pad_buf{pad_len};
     memset(pad_buf.c_str(), pad_len, pad_len);
 
-    // form contiguous buffer for block cipher
-    ceph::bufferlist incopy(in); // it's a shallow copy!
+    // form contiguous buffer for block cipher. The ctor copies shallowly.
+    ceph::bufferlist incopy(in);
     incopy.append(std::move(pad_buf));
     const auto in_buf = reinterpret_cast<unsigned char*>(incopy.c_str());
 
@@ -197,10 +197,11 @@ public:
     ceph::bufferptr out_tmp{
       AES_BLOCK_LEN + p2align(in.length(), AES_BLOCK_LEN)};
 
-    // needed because of .c_str() and const. It's a shallow copy!
+    // needed because of .c_str() on const. It's a shallow copy.
     ceph::bufferlist incopy(in);
     const auto in_buf = reinterpret_cast<unsigned char*>(incopy.c_str());
 
+    // make a local, modifiable copy of IV.
     static_assert(strlen_ct(CEPH_AES_IV) == AES_BLOCK_LEN);
     unsigned char iv[sizeof(CEPH_AES_IV)];
     memcpy(iv, CEPH_AES_IV, sizeof(CEPH_AES_IV));
@@ -211,10 +212,11 @@ public:
     // BE CAREFUL: we cannot expose any single bit of information about
     // the cause of failure. Otherwise we'll face padding oracle attack.
     // See: https://en.wikipedia.org/wiki/Padding_oracle_attack.
-    const std::uint8_t pad_len = out_tmp[in.length() - 1];
-    // TODO, XXX: validate this
-    out_tmp.set_length(in.length() - pad_len);
-    out.append(std::move(out_tmp));
+    if (in.length() > 1) {
+      const std::uint8_t pad_len = out_tmp[in.length() - 1];
+      out_tmp.set_length(in.length() - pad_len);
+      out.append(std::move(out_tmp));
+    }
 
     return 0;
   }
