@@ -13,10 +13,13 @@
  */
 
 #include <atomic>
+#include <array>
 #include <errno.h>
 #include <limits.h>
 
 #include <sys/uio.h>
+
+#include <openssl/sha.h>
 
 #include "include/compat.h"
 #include "include/mempool.h"
@@ -2559,6 +2562,24 @@ void buffer::list::invalidate_crc()
       r->invalidate_crc();
     }
   }
+}
+
+std::array<unsigned char, 512 / CHAR_BIT> buffer::list::sha512c() const
+{
+  SHA512_CTX c;
+  SHA512_Init(&c);
+
+  for (std::list<ptr>::const_iterator it = _buffers.begin();
+       it != _buffers.end();
+       ++it) {
+    if (it->length()) {
+      SHA512_Update(&c, it->c_str(), it->length());
+    }
+  }
+
+  std::array<unsigned char, 512 / CHAR_BIT> res;
+  SHA512_Final(res.data(), &c);
+  return res;
 }
 
 /**

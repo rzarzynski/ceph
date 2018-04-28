@@ -426,7 +426,8 @@ public:
     footer.middle_crc = middle.crc32c(0);
   }
   void calc_data_crc() {
-    footer.data_crc = data.crc32c(0);
+    // just to estimate the cost of real hashing for Cephx2
+    footer.data_crc = *(__le32*)data.sha512c().data();
   }
 
   virtual int get_cost() const {
