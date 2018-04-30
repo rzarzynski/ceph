@@ -2513,8 +2513,32 @@ __u32 buffer::list::crc32c(__u32 crc) const
        it != _buffers.end();
        ++it) {
     if (it->length()) {
-      uint32_t base = crc;
-      crc = ceph_crc32c(crc, (unsigned char*)it->c_str(), it->length());
+      raw *r = it->get_raw();
+      pair<size_t, size_t> ofs(it->offset(), it->offset() + it->length());
+      pair<uint32_t, uint32_t> ccrc;
+      if (r->get_crc(ofs, &ccrc)) {
+	if (ccrc.first == crc) {
+	  // got it already
+	  crc = ccrc.second;
+	  cache_hits++;
+	} else {
+	  /* If we have cached crc32c(buf, v) for initial value v,
+	   * we can convert this to a different initial value v' by:
+	   * crc32c(buf, v') = crc32c(buf, v) ^ adjustment
+	   * where adjustment = crc32c(0*len(buf), v ^ v')
+	   *
+	   * http://crcutil.googlecode.com/files/crc-doc.1.0.pdf
+	   * note, u for our crc32c implementation is 0
+	   */
+	  crc = ccrc.second ^ ceph_crc32c(ccrc.first ^ crc, NULL, it->length());
+	  cache_adjusts++;
+	}
+      } else {
+	cache_misses++;
+	uint32_t base = crc;
+	crc = ceph_crc32c(crc, (unsigned char*)it->c_str(), it->length());
+	r->set_crc(ofs, make_pair(base, crc));
+      }
     }
   }
 
