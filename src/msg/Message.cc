@@ -307,7 +307,7 @@ Message *decode_message(CephContext *cct, int crcflags,
   }
   if (crcflags & MSG_CRC_DATA) {
     if ((footer.flags & CEPH_MSG_FOOTER_NOCRC) == 0) {
-      __u32 data_crc = *(__le32*)data.sha512c().data();
+      __u32 data_crc = data.crc32c(0);
       if (data_crc != footer.data_crc) {
 	if (cct) {
 	  ldout(cct, 0) << "bad crc in data " << data_crc << " != exp " << footer.data_crc << dendl;
