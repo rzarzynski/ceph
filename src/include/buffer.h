@@ -922,7 +922,7 @@ namespace buffer CEPH_BUFFER_API {
     uint32_t crc32c(uint32_t crc) const;
     void invalidate_crc();
 
-    std::array<unsigned char, 512 / CHAR_BIT> sha512c() const;
+    std::array<unsigned char, 160 / CHAR_BIT> sha512c() const;
 
     // These functions return a bufferlist with a pointer to a single
     // static buffer. They /must/ not outlive the memory they

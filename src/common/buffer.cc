@@ -2564,21 +2564,21 @@ void buffer::list::invalidate_crc()
   }
 }
 
-std::array<unsigned char, 512 / CHAR_BIT> buffer::list::sha512c() const
+std::array<unsigned char, 160 / CHAR_BIT> buffer::list::sha512c() const
 {
-  SHA512_CTX c;
-  SHA512_Init(&c);
+  SHA_CTX c;
+  SHA1_Init(&c);
 
   for (std::list<ptr>::const_iterator it = _buffers.begin();
        it != _buffers.end();
        ++it) {
     if (it->length()) {
-      SHA512_Update(&c, it->c_str(), it->length());
+      SHA1_Update(&c, it->c_str(), it->length());
     }
   }
 
-  std::array<unsigned char, 512 / CHAR_BIT> res;
-  SHA512_Final(res.data(), &c);
+  std::array<unsigned char, 160 / CHAR_BIT> res;
+  SHA1_Final(res.data(), &c);
   return res;
 }
 
