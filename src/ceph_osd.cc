@@ -59,7 +59,7 @@ TracepointProvider::Traits osd_tracepoint_traits("libosd_tp.so",
 TracepointProvider::Traits os_tracepoint_traits("libos_tp.so",
                                                 "osd_objectstore_tracing");
 TracepointProvider::Traits ceph_logging_tracepoint_traits("libceph_logging_tp.so",
-                                                "logging_tracing");
+                                                "osd_logging_tracing");
 #ifdef WITH_OSD_INSTRUMENT_FUNCTIONS
 TracepointProvider::Traits cyg_profile_traits("libcyg_profile_tp.so",
                                                  "osd_function_tracing");

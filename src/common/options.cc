@@ -3326,7 +3326,7 @@ std::vector<Option> get_global_options() {
     .set_default(false)
     .set_description(""),
 
-    Option("logging_tracing", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
+    Option("osd_logging_tracing", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(true)
     .set_description(""),
 

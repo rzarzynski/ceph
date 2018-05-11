@@ -504,6 +504,7 @@ $DAEMONOPTS
 $extra_conf
 [osd]
 $DAEMONOPTS
+        osd_logging_tracing = true
         osd_check_max_object_name_len_on_startup = false
         osd data = $CEPH_DEV_DIR/osd\$id
         osd journal = $CEPH_DEV_DIR/osd\$id/journal
