@@ -1,0 +1,5 @@
+first_tp(int num) "This is the number: %d"
+second_tp(int num, char *s) "This is num char: %d and this is the string: %s"
+log_message(char *text) "This is the log message string: %s"
+some_event(int payload) "payload %d"
+
