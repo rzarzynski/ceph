@@ -145,9 +145,10 @@ class Event(object):
                       "\((?P<args>[^)]*)\)"
                       "\s*"
                       "(?:(?:(?P<fmt_trans>\".+),)?\s*(?P<fmt>\".+))?"
+                      "(?P<level>\d)"
                       "\s*")
 
-    def __init__(self, name, props, fmt, args, orig=None,
+    def __init__(self, name, props, level, fmt, args, orig=None,
                  event_trans=None, event_exec=None):
         """
         Parameters
@@ -156,6 +157,8 @@ class Event(object):
             Event name.
         props : list of str
             Property names.
+        level: number
+            Log level
         fmt : str, list of str
             Event printing format string(s).
         args : Arguments
@@ -170,6 +173,7 @@ class Event(object):
         """
         self.name = name
         self.properties = props
+        self.level = level
         self.fmt = fmt
         self.args = args
         self.event_trans = event_trans
@@ -188,13 +192,14 @@ class Event(object):
 
         name = groups["name"]
         props = groups["props"].split()
+        level = groups["level"]
         fmt = groups["fmt"]
         fmt_trans = groups["fmt_trans"]
         if len(fmt_trans) > 0:
             fmt = [fmt_trans, fmt]
         args = Arguments.build(groups["args"])
 
-        event = Event(name, props, fmt, args)
+        event = Event(name, props, level, fmt, args)
 
         return event
 
@@ -239,9 +244,9 @@ class DoutWrapper(object):
     def generate_header(self, events):
         for event in events:
             _args = []
-            fmts = re.split('%s|%d', event.fmt.replace('"', ''))
+            fmts = re.split('%s|%d|%llu', event.fmt.replace('"', ''))
             i = 0
-            dout = 'dout (0) << '
+            dout = 'dout ({}) << '.format(event.level)
 
             if "disable" not in event.properties:
                 for arg in event.args:
