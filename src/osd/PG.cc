@@ -59,15 +59,7 @@
 #include "common/BackTrace.h"
 #include "common/EventTrace.h"
 
-#ifdef WITH_LTTNG
-#define TRACEPOINT_DEFINE
-#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#include "tracing/pg.h"
-#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#undef TRACEPOINT_DEFINE
-#else
-#define tracepoint(...)
-#endif
+#include "tracing/ceph_logging_impl.h"
 
 #include <sstream>
 
@@ -439,8 +431,15 @@ void PG::proc_replica_log(
   pg_missing_t& omissing,
   pg_shard_t from)
 {
-  dout(10) << "proc_replica_log for osd." << from << ": "
-	   << oinfo << " " << olog << " " << omissing << dendl;
+  std::ostringstream strfrom, stroinfo, strolog, stromissing;
+  strfrom << from;
+  stroinfo << oinfo;
+  strolog << olog;
+  stromissing << omissing;
+  trace_proc_replica_log((char*)strfrom.str().c_str(),
+                         (char*)stroinfo.str().c_str(),
+                         (char*)strolog.str().c_str(),
+                         (char*)stromissing.str().c_str());
 
   pg_log.proc_replica_log(oinfo, olog, omissing, from);
 
