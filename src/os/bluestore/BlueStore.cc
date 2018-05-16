@@ -35,15 +35,14 @@
 #include "auth/Crypto.h"
 #include "common/EventTrace.h"
 
-#ifdef WITH_LTTNG
-#define TRACEPOINT_DEFINE
-#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#include "tracing/ceph_logging.h"
-#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#undef TRACEPOINT_DEFINE
-#else
-#define tracepoint(...)
-#endif
+//#ifdef WITH_LTTNG
+//#define TRACEPOINT_DEFINE
+//#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+//#include "tracing/ceph_logging.h"
+//#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+//#undef TRACEPOINT_DEFINE
+//#endif
+#include "tracing/ceph_logging_impl.h"
 
 #define dout_context cct
 #define dout_subsys ceph_subsys_bluestore
@@ -602,10 +601,8 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
   uint64_t lookup_start_offset = p2align(start_offset, min_alloc_size);
   uint64_t lookup_end_offset = round_up_to(end_offset, min_alloc_size);
 
-  dout(30) << __func__ << " (hex): [" << std::hex
-           << lookup_start_offset << ", " << lookup_end_offset 
-           << ")" << std::dec << dendl;
-
+  trace_process_protrusive_extents_lookup_offset(lookup_start_offset,
+                                                 lookup_end_offset);
   for (auto it = extent_map.seek_lextent(lookup_start_offset);
        it != extent_map.extent_map.end() &&
          it->logical_offset < lookup_end_offset;
@@ -613,9 +610,7 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
     uint64_t alloc_unit_start = it->logical_offset / min_alloc_size;
     uint64_t alloc_unit_end = (it->logical_end() - 1) / min_alloc_size;
 
-    dout(30) << __func__ << " " << *it
-             << "alloc_units: " << alloc_unit_start << ".." << alloc_unit_end
-             << dendl;
+    trace_process_protrusive_extents_alloc(alloc_unit_start, alloc_unit_end);
 
     Blob* b = it->blob.get();
 
@@ -632,8 +627,9 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
                                                      // data since another
                                                      // collocated uncompressed
                                                      // blob already exists
-          dout(30) << __func__  << " --expected:"
-                   << alloc_unit_start << dendl;
+//          dout(30) << __func__  << " --expected:"
+//                   << alloc_unit_start << dendl;
+          trace_process_protrusive_extents_expected(alloc_unit_start);
         }
         used_alloc_unit = alloc_unit_end;
         blob_info_counted =  nullptr;
@@ -649,19 +645,25 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
       int adjust =
        (used_alloc_unit && used_alloc_unit == alloc_unit_start) ? 0 : 1;
       bi.expected_allocations += alloc_unit_end - alloc_unit_start + adjust;
-      dout(30) << __func__  << " expected_allocations=" 
-               << bi.expected_allocations << " end_au:"
-               << alloc_unit_end << dendl;
-
+//      dout(30) << __func__  << " expected_allocations="
+//               << bi.expected_allocations << " end_au:"
+//               << alloc_unit_end << dendl;
+      trace_process_protrusive_extents_expected_allocations(
+       bi.expected_allocations,
+       alloc_unit_end);
       blob_info_counted =  &bi;
       used_alloc_unit = alloc_unit_end;
 
       assert(it->length <= bi.referenced_bytes);
        bi.referenced_bytes -= it->length;
-      dout(30) << __func__ << " affected_blob:" << *b
-               << " unref 0x" << std::hex << it->length
-               << " referenced = 0x" << bi.referenced_bytes
-               << std::dec << dendl;
+//      dout(30) << __func__ << " affected_blob:" << *b
+//               << " unref 0x" << std::hex << it->length
+//               << " referenced = 0x" << bi.referenced_bytes
+//               << std::dec << dendl;
+      stringstream strstrblob;
+      strstrblob << *b;
+      trace_process_protrusive_extents_affected_blob(
+       (char*)strstrblob.str().c_str(), it->length, bi.referenced_bytes);
       // NOTE: we can't move specific blob to resulting GC list here
       // when reference counter == 0 since subsequent extents might
       // decrement its expected_allocation. 
@@ -8961,9 +8963,9 @@ void BlueStore::_kv_sync_thread()
       utime_t start = ceph_clock_now();
       l.unlock();
 
-      tracepoint(ceph_logging, before, 0);
+//      tracepoint(ceph_logging, before, 0);
       dout(10) << __func__ << " committing " << kv_committing << dendl;
-      tracepoint(ceph_logging, after, 0);
+//      tracepoint(ceph_logging, after, 0);
       dout(30) << __func__ << " submitting " << kv_submitting << dendl;
       dout(30) << __func__ << " deferred_done " << deferred_done << dendl;
       dout(30) << __func__ << " deferred_stable " << deferred_stable << dendl;

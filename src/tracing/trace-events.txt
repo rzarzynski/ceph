@@ -1,5 +1,11 @@
-first_tp(int num) "This is the number: %d"
-second_tp(int num, char *s) "This is num char: %d and this is the string: %s"
-log_message(char *text) "This is the log message string: %s"
-some_event(int payload) "payload %d"
-
+first_tp(int num) "This is the number: %d" 1
+second_tp(int num, char *s) "This is num char: %d and this is the string: %s" 0
+log_message(char *text) "This is the log message string: %s" 2
+some_event(int payload) "payload %d" 3
+process_protrusive_extents_lookup_offset(int lookup_start_offset, int lookup_end_offset) "(hex): [%x, %x]" 3
+process_protrusive_extents_alloc(long alloc_unit_start, long alloc_unit_end) "%llu alloc_units: %llu..%llu" 3
+proc_replica_log(pg_shard_t from, pg_info_t oinfo, pg_log_t olog, pg_missing_t omissing) "proc_replica_log for osd. from: %s %s %s %s" 3
+proc_replica_info_got_osd(pg_shard_t from, pg_info_t oinfo) "got osd. %s from %s" 2
+process_protrusive_extents_expected(uint64_t alloc_unit_start) "process_protrusive_extents --expected %llu" 30
+process_protrusive_extents_expected_allocations(int64_t expected_allocations, uint64_t alloc_unit_end) "expected_allocations=%llu end_au: %llu" 30
+process_protrusive_extents_affected_blob(char *blob, uint64_t length, uint64_t referenced_bytes) "affected_blob: %s unref 0x%x referenced = 0x%x" 30
