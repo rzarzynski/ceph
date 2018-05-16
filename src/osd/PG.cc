@@ -431,15 +431,7 @@ void PG::proc_replica_log(
   pg_missing_t& omissing,
   pg_shard_t from)
 {
-  std::ostringstream strfrom, stroinfo, strolog, stromissing;
-  strfrom << from;
-  stroinfo << oinfo;
-  strolog << olog;
-  stromissing << omissing;
-  trace_proc_replica_log((char*)strfrom.str().c_str(),
-                         (char*)stroinfo.str().c_str(),
-                         (char*)strolog.str().c_str(),
-                         (char*)stromissing.str().c_str());
+  trace_proc_replica_log(from, oinfo, olog, omissing);
 
   pg_log.proc_replica_log(oinfo, olog, omissing, from);
 
