@@ -25,6 +25,18 @@ ALLOWED_TYPES = [
     "ssize_t",
 ]
 
+def valid(name):
+    bits = name.split(" ")
+    for bit in bits:
+        bit = re.sub("\*", "", bit)
+        if bit == "":
+            continue
+        if bit == "const":
+            continue
+        if bit not in ALLOWED_TYPES:
+            return False
+    return True
+
 def validate_type(name):
     bits = name.split(" ")
     for bit in bits:
@@ -34,11 +46,8 @@ def validate_type(name):
         if bit == "const":
             continue
         if bit not in ALLOWED_TYPES:
-            raise ValueError("Argument type '%s' is not in whitelist. "
-                             "Only standard C types and fixed size integer "
-                             "types should be used. struct, union, and "
-                             "other complex pointer types should be "
-                             "declared as 'void *'" % name)
+            return "char *"
+    return name
 
 class Arguments:
     """Event arguments description."""
@@ -85,7 +94,8 @@ class Arguments:
             else:
                 arg_type, identifier = arg.rsplit(None, 1)
 
-            validate_type(arg_type)
+            # validate_type(arg_type)
+            # arg_type = validate_type(arg_type)
             res.append((arg_type, identifier))
         return Arguments(res)
 
@@ -244,7 +254,7 @@ class DoutWrapper(object):
     def generate_header(self, events):
         for event in events:
             _args = []
-            fmts = re.split('%s|%d|%llu', event.fmt.replace('"', ''))
+            fmts = re.split('%s|%d|%llu|%x', event.fmt.replace('"', ''))
             i = 0
             dout = 'dout ({}) << '.format(event.level)
 
@@ -272,7 +282,7 @@ class LTTngWrapper(object):
                     '   TP_ARGS(%(args)s),',
                     '   TP_FIELDS(',
                     name=e.name,
-                    args=", ".join(", ".join(i) for i in e.args))
+                    args=", ".join([', '.join(arg) if valid(arg[0]) else ', '.join(('char *', arg[1])) for arg in e.args]))
 
                 types = e.args.types()
                 names = e.args.names()
@@ -291,6 +301,8 @@ class LTTngWrapper(object):
                         out('       ctf_float(' + t + ', ' + n + ', ' + n + ')')
                     elif ('void *' in t) or ('void*' in t):
                         out('       ctf_integer_hex(unsigned long, ' + n + ', ' + n + ')')
+                    else:
+                        out('       ctf_string(' + n + ', ' + n + ')')
 
                 out('   )',
                     ')',
@@ -308,6 +320,9 @@ class LTTngWrapper(object):
 
 
     def generate_header(self, events):
+        out('#ifndef CEPH_LOGGING_IMPL',
+            '#define CEPH_LOGGING_IMPL',
+            '')
         out('#define TRACEPOINT_DEFINE',
             '#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
             '#include "tracing/ceph_logging.h"',
@@ -320,8 +335,14 @@ class LTTngWrapper(object):
                 api=event.api(event.QEMU_TRACE),
                 args=event.args)
 
+            for arg in event.args:
+                if not valid(arg[0]):
+                    out('    stringstream strstr%(name)s;', name=arg[1])
+                    out('    strstr%(name)s << %(name)s;', '', name=arg[1])
+
             if "disable" not in event.properties:
-                argnames = ", ".join(event.args.names())
+                # the c_str() is a temporary hack. we can use operator std::string()
+                argnames = ", ".join(['(char*)strstr{}.str().c_str()'.format(arg[1]) if not valid(arg[0]) else arg[1] for arg in event.args])
                 if len(event.args) > 0:
                     argnames = ", " + argnames
 
@@ -330,6 +351,7 @@ class LTTngWrapper(object):
                     tp_args=argnames)
 
             out('}')
+        out('#endif')
 
 
 def read_events(fname):
