@@ -161,6 +161,12 @@ ostream &operator<<(ostream &lhs, const pg_shard_t &rhs)
   return lhs << rhs.get_osd() << '(' << (unsigned)(rhs.shard) << ')';
 }
 
+pg_shard_t::operator std::string() {
+  stringstream out;
+  out << *this;
+  return out.str();
+}
+
 // -- osd_reqid_t --
 void osd_reqid_t::dump(Formatter *f) const
 {
@@ -2932,6 +2938,13 @@ void pg_info_t::generate_test_instances(list<pg_info_t*>& o)
   }
 }
 
+pg_info_t::operator std::string() {
+  stringstream out;
+  out << *this;
+  return out.str();
+}
+
+
 // -- pg_notify_t --
 void pg_notify_t::encode(bufferlist &bl) const
 {
@@ -4207,6 +4220,17 @@ void pg_log_t::dump(Formatter *f) const
   f->close_section();
 }
 
+pg_log_t::operator std::string() {
+  stringstream out;
+  out << *this;
+  return out.str();
+}
+pg_log_t::operator std::string() const {
+  stringstream out;
+  out << *this;
+  return out.str();
+}
+
 void pg_log_t::generate_test_instances(list<pg_log_t*>& o)
 {
   o.push_back(new pg_log_t);
@@ -4299,6 +4323,18 @@ ostream& operator<<(ostream& out, const pg_missing_item& i)
   out << " flags = " << i.flag_str();
   return out;
 }
+
+//template <bool TrackChanges>
+//pg_missing_set<TrackChanges>::operator std::string() {
+//  stringstream out;
+//  out << *this;
+//  return out.str();
+//}
+//pg_missing_t::operator std::string() {
+//  stringstream out;
+//  out << *this;
+//  return out.str();
+//}
 
 // -- object_copy_cursor_t --
 

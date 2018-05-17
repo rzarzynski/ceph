@@ -165,6 +165,7 @@ struct pg_shard_t {
       f->dump_unsigned("shard", shard);
     }
   }
+  operator std::string();
 };
 WRITE_CLASS_ENCODER(pg_shard_t)
 WRITE_EQ_OPERATORS_2(pg_shard_t, osd, shard)
@@ -2372,6 +2373,8 @@ struct pg_info_t {
       l.hit_set == r.hit_set;
   }
 
+  operator std::string();
+
   pg_info_t()
     : last_epoch_started(0),
       last_interval_started(0),
@@ -3544,6 +3547,8 @@ public:
     }
   }
 
+  operator std::string();
+  operator std::string() const;
   void clear() {
     eversion_t z;
     rollback_info_trimmed_to = can_rollback_to = head = tail = z;
@@ -3792,6 +3797,7 @@ public:
   virtual bool is_missing(const hobject_t& oid, pg_missing_item *out = nullptr) const = 0;
   virtual bool is_missing(const hobject_t& oid, eversion_t v) const = 0;
   virtual ~pg_missing_const_i() {}
+  virtual operator std::string() { return "needs implementation"; }
 };
 
 
@@ -3836,6 +3842,13 @@ class pg_missing_set : public pg_missing_const_i {
 
 public:
   pg_missing_set() = default;
+
+//  operator std::string();
+  virtual operator std::string() {
+    stringstream out;
+    out << *this;
+    return out.str();
+  }
 
   template <typename missing_type>
   pg_missing_set(const missing_type &m) {

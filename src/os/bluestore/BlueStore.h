@@ -495,6 +495,11 @@ public:
 
   public:
 
+    operator std::string() {
+      stringstream out;
+      out << *this;
+      return out.str();
+    }
     friend void intrusive_ptr_add_ref(Blob *b) { b->get(); }
     friend void intrusive_ptr_release(Blob *b) { b->put(); }
 
