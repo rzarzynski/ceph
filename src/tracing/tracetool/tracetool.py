@@ -302,6 +302,7 @@ class LTTngWrapper(object):
                     elif ('void *' in t) or ('void*' in t):
                         out('       ctf_integer_hex(unsigned long, ' + n + ', ' + n + ')')
                     else:
+                        # Make non-basic types strings and implement a method operator std::string()
                         out('       ctf_string(' + n + ', ' + n + ')')
 
                 out('   )',
@@ -329,20 +330,25 @@ class LTTngWrapper(object):
             '#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
             '#undef TRACEPOINT_DEFINE')
         for event in events:
+            # out('',
+            #     'static inline void %(api)s(%(args)s)',
+            #     '{',
+            #     api=event.api(event.QEMU_TRACE),
+            #     args=event.args)
             out('',
                 'static inline void %(api)s(%(args)s)',
                 '{',
                 api=event.api(event.QEMU_TRACE),
-                args=event.args)
+                args=", ".join([' '.join(arg) if valid(arg[0]) else ' '.join(('string', arg[1])) for arg in event.args]))
 
-            for arg in event.args:
-                if not valid(arg[0]):
-                    out('    stringstream strstr%(name)s;', name=arg[1])
-                    out('    strstr%(name)s << %(name)s;', '', name=arg[1])
+            # for arg in event.args:
+            #     if not valid(arg[0]):
+            #         out('    stringstream strstr%(name)s;', name=arg[1])
+            #         out('    strstr%(name)s << %(name)s;', '', name=arg[1])
 
             if "disable" not in event.properties:
                 # the c_str() is a temporary hack. we can use operator std::string()
-                argnames = ", ".join(['(char*)strstr{}.str().c_str()'.format(arg[1]) if not valid(arg[0]) else arg[1] for arg in event.args])
+                argnames = ", ".join(['(char*){}.c_str()'.format(arg[1]) if not valid(arg[0]) else arg[1] for arg in event.args])
                 if len(event.args) > 0:
                     argnames = ", " + argnames
 
