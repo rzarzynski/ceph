@@ -252,6 +252,9 @@ class DoutWrapper(object):
 
 
     def generate_header(self, events):
+        out('/* This file was generated automatically by the tracetool script.',
+            '   Do not edit it manually. Refer to the documentation to add logging. */',
+            '')
         for event in events:
             _args = []
             fmts = re.split('%s|%d|%llu|%x', event.fmt.replace('"', ''))
@@ -321,14 +324,19 @@ class LTTngWrapper(object):
 
 
     def generate_header(self, events):
+        out('/* This file was generated automatically by the tracetool script.',
+            '   Do not edit it manually. Refer to the documentation to add logging. */',
+            '')
         out('#ifndef CEPH_LOGGING_IMPL',
             '#define CEPH_LOGGING_IMPL',
             '')
-        out('#define TRACEPOINT_DEFINE',
-            '#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
+        out(
+            # '#define TRACEPOINT_DEFINE',
+            # '#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
             '#include "tracing/ceph_logging.h"',
-            '#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
-            '#undef TRACEPOINT_DEFINE')
+            # '#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
+            # '#undef TRACEPOINT_DEFINE'
+            )
         for event in events:
             # out('',
             #     'static inline void %(api)s(%(args)s)',
