@@ -36,11 +36,11 @@
 #include "common/EventTrace.h"
 
 #ifdef WITH_LTTNG
-#define TRACEPOINT_DEFINE
-#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#include "tracing/ceph_logging.h"
-#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#undef TRACEPOINT_DEFINE
+//#define TRACEPOINT_DEFINE
+//#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+//#include "tracing/ceph_logging.h"
+//#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
+//#undef TRACEPOINT_DEFINE
 #endif
 #include "tracing/ceph_logging_impl.h"
 
@@ -629,7 +629,7 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
                                                      // blob already exists
 //          dout(30) << __func__  << " --expected:"
 //                   << alloc_unit_start << dendl;
-          trace_process_protrusive_extents_expected(alloc_unit_start);
+          trace_gc_process_protrusive_extents_expected(alloc_unit_start);
         }
         used_alloc_unit = alloc_unit_end;
         blob_info_counted =  nullptr;
@@ -648,7 +648,7 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
 //      dout(30) << __func__  << " expected_allocations="
 //               << bi.expected_allocations << " end_au:"
 //               << alloc_unit_end << dendl;
-      trace_process_protrusive_extents_expected_allocations(
+      trace_gc_process_protrusive_extents_expected_allocations(
        bi.expected_allocations,
        alloc_unit_end);
       blob_info_counted =  &bi;
@@ -664,7 +664,7 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
 //      strstrblob << *b;
 //      trace_process_protrusive_extents_affected_blob(
 //       (char*)strstrblob.str().c_str(), it->length, bi.referenced_bytes);
-       trace_process_protrusive_extents_affected_blob(
+       trace_gc_process_protrusive_extents_affected_blob(
         *b, it->length, bi.referenced_bytes);
       // NOTE: we can't move specific blob to resulting GC list here
       // when reference counter == 0 since subsequent extents might
@@ -680,8 +680,10 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
         // don't need to allocate new AU for compressed data since another
         // collocated uncompressed blob already exists
     	--blob_info_counted->expected_allocations;
-        dout(30) << __func__  << " --expected_allocations:"
-		 << alloc_unit_start << dendl;
+//        dout(30) << __func__  << " --expected_allocations:"
+//		 << alloc_unit_start << dendl;
+        trace_gc_process_protrusive_extents_expected_allocations_start(
+         alloc_unit_start);
       }
       used_alloc_unit = alloc_unit_end;
       blob_info_counted = nullptr;
@@ -698,10 +700,12 @@ void BlueStore::GarbageCollector::process_protrusive_extents(
       int64_t blob_expected_for_release =
         round_up_to(len_on_disk, min_alloc_size) / min_alloc_size;
 
-      dout(30) << __func__ << " " << *(b_it->first)
-               << " expected4release=" << blob_expected_for_release
-               << " expected_allocations=" << bi.expected_allocations
-               << dendl;
+//      dout(30) << __func__ << " " << *(b_it->first)
+//               << " expected4release=" << blob_expected_for_release
+//               << " expected_allocations=" << bi.expected_allocations
+//               << dendl;
+      trace_gc_process_protrusive_extents_expected4release(*(b_it->first),
+       blob_expected_for_release, bi.expected_allocations);
       int64_t benefit = blob_expected_for_release - bi.expected_allocations;
       if (benefit >= g_conf->bluestore_gc_enable_blob_threshold) {
         if (bi.collect_candidate) {
@@ -754,16 +758,18 @@ int64_t BlueStore::GarbageCollector::estimate(
       uint64_t ref_bytes = b->get_referenced_bytes();
       // micro optimization to bypass blobs that have no more references
       if (ref_bytes != 0) {
-        dout(30) << __func__ << " affected_blob:" << *b
-                 << " unref 0x" << std::hex << o << "~" << l
-                 << std::dec << dendl;
+//        dout(30) << __func__ << " affected_blob:" << *b
+//                 << " unref 0x" << std::hex << o << "~" << l
+//                 << std::dec << dendl;
+        trace_gc_estimate_affected_blob(*b, o, l);
 	affected_blobs.emplace(b, BlobInfo(ref_bytes));
       }
     }
   }
-  dout(30) << __func__ << " gc range(hex): [" << std::hex
-           << gc_start_offset << ", " << gc_end_offset 
-           << ")" << std::dec << dendl;
+//  dout(30) << __func__ << " gc range(hex): [" << std::hex
+//           << gc_start_offset << ", " << gc_end_offset
+//           << ")" << std::dec << dendl;
+  trace_gc_estimate_range(gc_start_offset, gc_end_offset);
 
   // enumerate preceeding extents to check if they reference affected blobs
   if (gc_start_offset < start_offset || gc_end_offset > end_offset) {
@@ -830,6 +836,9 @@ void BlueStore::Cache::trim(
 	     << byte_u_t(current_meta) << " + "
 	     << byte_u_t(current_buffer) << ")"
 	     << dendl;
+    trace_cache_trim_target(byte_u_t(target_bytes), target_meta_ratio,
+     target_data_ratio, byte_u_t(target_meta), byte_u_t(target_buffer),
+     byte_u_t(current), byte_u_t(current_meta), byte_u_t(current_buffer));
     return;
   }
 
