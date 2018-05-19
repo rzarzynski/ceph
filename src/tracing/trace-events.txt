@@ -14,4 +14,9 @@ gc_process_protrusive_extents_expected4release(Blob blob, int64_t blob_expected_
 gc_estimate_affected_blob(Blob blob, uint64_t logical_offset, int64_t length) "affected_blob: %s unref 0x%x - %llu" 30
 gc_estimate_range(uint64_t gc_start_offset, uint64_t gc_end_offset) "gc range(hex): [%x, %x)" 30
 cache_trim_target(byte_u_t target_bytes, float target_meta_ratio, float target_data_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer) "shard target %s meta/data ratios %f + %s (%s + %s), current (%s + %s)" 30
+cache_trim_shard_target(byte_u_t target_bytes, float target_meta_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer, byte_u_t need_to_free, byte_u_t free_meta, byte_u_t free_buffer) "shard target %s ratio %s (%s + %s), current %s (%s + %s), need_to_free (%s + $s) -> MISSING INFO" 20
 tick_without_osd_lock(int i) "tick_without_osd_lock" 10
+bluestore_read_inject_random_eio(int i) ": inject random EIOD" 1
+kv_sync_releasing_old_bluefs(interval_set bluefs_extents_reclaiming) " releasing old bluefs 0x%x" 0
+bluestore_mkfs(int success) " success (%d)" 0
+bluestore_queue_transactions_blackhole(int i) "objectstore_blackhole = TRUE, dropping transaction" 0

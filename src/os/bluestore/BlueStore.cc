@@ -826,16 +826,16 @@ void BlueStore::Cache::trim(
   target_buffer = min(target_bytes - target_meta, target_buffer);
 
   if (current <= target_bytes) {
-    dout(30) << __func__
-	     << " shard target " << byte_u_t(target_bytes)
-	     << " meta/data ratios " << target_meta_ratio
-	     << " + " << target_data_ratio << " ("
-	     << byte_u_t(target_meta) << " + "
-	     << byte_u_t(target_buffer) << "), "
-	     << " current " << byte_u_t(current) << " ("
-	     << byte_u_t(current_meta) << " + "
-	     << byte_u_t(current_buffer) << ")"
-	     << dendl;
+//    dout(30) << __func__
+//	     << " shard target " << byte_u_t(target_bytes)
+//	     << " meta/data ratios " << target_meta_ratio
+//	     << " + " << target_data_ratio << " ("
+//	     << byte_u_t(target_meta) << " + "
+//	     << byte_u_t(target_buffer) << "), "
+//	     << " current " << byte_u_t(current) << " ("
+//	     << byte_u_t(current_meta) << " + "
+//	     << byte_u_t(current_buffer) << ")"
+//	     << dendl;
     trace_cache_trim_target(byte_u_t(target_bytes), target_meta_ratio,
      target_data_ratio, byte_u_t(target_meta), byte_u_t(target_buffer),
      byte_u_t(current), byte_u_t(current_meta), byte_u_t(current_buffer));
@@ -858,20 +858,25 @@ void BlueStore::Cache::trim(
   uint64_t max_meta = current_meta - free_meta;
   uint64_t max_onodes = max_meta / bytes_per_onode;
 
-  dout(20) << __func__
-	   << " shard target " << byte_u_t(target_bytes)
-	   << " ratio " << target_meta_ratio << " ("
-	   << byte_u_t(target_meta) << " + "
-	   << byte_u_t(target_buffer) << "), "
-	   << " current " << byte_u_t(current) << " ("
-	   << byte_u_t(current_meta) << " + "
-	   << byte_u_t(current_buffer) << "),"
-	   << " need_to_free " << byte_u_t(need_to_free) << " ("
-	   << byte_u_t(free_meta) << " + "
-	   << byte_u_t(free_buffer) << ")"
-	   << " -> max " << max_onodes << " onodes + "
-	   << max_buffer << " buffer"
-	   << dendl;
+//  dout(20) << __func__
+//	   << " shard target " << byte_u_t(target_bytes)
+//	   << " ratio " << target_meta_ratio << " ("
+//	   << byte_u_t(target_meta) << " + "
+//	   << byte_u_t(target_buffer) << "), "
+//	   << " current " << byte_u_t(current) << " ("
+//	   << byte_u_t(current_meta) << " + "
+//	   << byte_u_t(current_buffer) << "),"
+//	   << " need_to_free " << byte_u_t(need_to_free) << " ("
+//	   << byte_u_t(free_meta) << " + "
+//	   << byte_u_t(free_buffer) << ")"
+//	   << " -> max " << max_onodes << " onodes + "
+//	   << max_buffer << " buffer"
+//	   << dendl;
+  // LTTng doesn't allow more than 10 parameters
+  trace_cache_trim_shard_target(byte_u_t(target_bytes), target_meta_ratio,
+   byte_u_t(target_meta), byte_u_t(target_buffer), byte_u_t(current),
+   byte_u_t(current_meta), byte_u_t(current_buffer), byte_u_t(need_to_free),
+   byte_u_t(free_meta), byte_u_t(free_buffer));
   _trim(max_onodes, max_buffer);
 }
 
@@ -5561,7 +5566,8 @@ int BlueStore::mkfs()
   if (r < 0) {
     derr << __func__ << " failed, " << cpp_strerror(r) << dendl;
   } else {
-    dout(0) << __func__ << " success" << dendl;
+//    dout(0) << __func__ << " success" << dendl;
+    trace_bluestore_mkfs(1);
   }
   return r;
 }
@@ -7125,7 +7131,8 @@ int BlueStore::read(
 	     cct->_conf->bluestore_debug_random_read_err &&
 	     (rand() % (int)(cct->_conf->bluestore_debug_random_read_err *
 			     100.0)) == 0) {
-    dout(0) << __func__ << ": inject random EIO" << dendl;
+//    dout(0) << __func__ << ": inject randosm EIO" << dendl;
+    trace_bluestore_read_inject_random_eio(0);
     r = -EIO;
   }
   dout(10) << __func__ << " " << cid << " " << oid
@@ -9162,8 +9169,9 @@ void BlueStore::_kv_sync_thread()
 	  _commit_bluefs_freespace(bluefs_gift_extents);
 	}
 	if (!bluefs_extents_reclaiming.empty()) {
-	  dout(0) << __func__ << " releasing old bluefs 0x" << std::hex
-		   << bluefs_extents_reclaiming << std::dec << dendl;
+//	  dout(0) << __func__ << " releasing old bluefs 0x" << std::hex
+//		   << bluefs_extents_reclaiming << std::dec << dendl;
+          trace_kv_sync_releasing_old_bluefs(bluefs_extents_reclaiming);
 	  alloc->release(bluefs_extents_reclaiming);
 	  bluefs_extents_reclaiming.clear();
 	}
@@ -9477,8 +9485,9 @@ int BlueStore::queue_transactions(
     tls, &on_applied, &on_commit, &on_applied_sync);
 
   if (cct->_conf->objectstore_blackhole) {
-    dout(0) << __func__ << " objectstore_blackhole = TRUE, dropping transaction"
-	    << dendl;
+//    dout(0) << __func__ << " objectstore_blackhole = TRUE, dropping transaction"
+//	    << dendl;
+    trace_bluestore_queue_transaction_blackhole(0);
     for (auto& l : { on_applied, on_commit, on_applied_sync }) {
       for (auto c : l) {
 	delete c;
