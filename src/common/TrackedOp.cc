@@ -259,7 +259,7 @@ void OpTracker::register_inflight_op(TrackedOp *i,
   {
     Mutex::Locker locker(sdata->ops_in_flight_lock_sharded);
     sdata->ops_in_flight_sharded.push_back(*i);
-    i->seq = current_seq;
+    i->seq = shard_index;
     // default state is STATE_UNTRACKED. Altough TrackedOp::state
     // is std::atomic, we're setting it inside critical section.
     // This means the cost of MFENCE on x86 should be relatively

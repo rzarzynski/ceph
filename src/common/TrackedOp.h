@@ -18,6 +18,7 @@
 #include <boost/container/small_vector.hpp>
 #include "common/histogram.h"
 #include "msg/Message.h"
+#include "osd/osd_types.h"
 #include "common/RWLock.h"
 
 #define OPTRACKER_PREALLOC_EVENTS 20
