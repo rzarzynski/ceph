@@ -247,14 +247,13 @@ bool OpTracker::dump_ops_in_flight(Formatter *f, bool print_only_blocked, set<st
   return true;
 }
 
-void OpTracker::register_inflight_op(TrackedOp *i)
+void OpTracker::register_inflight_op(TrackedOp *i,
+				     const std::uint32_t shard_index)
 {
   if (!tracking_enabled)
     return;
 
   RWLock::RLocker l(lock);
-  uint64_t current_seq = ++seq;
-  uint32_t shard_index = current_seq % num_optracker_shards;
   ShardedTrackingData* sdata = sharded_in_flight_list[shard_index];
   assert(NULL != sdata);
   {

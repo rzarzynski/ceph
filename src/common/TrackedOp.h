@@ -133,7 +133,7 @@ public:
   bool dump_ops_in_flight(Formatter *f, bool print_only_blocked = false, set<string> filters = {""});
   bool dump_historic_ops(Formatter *f, bool by_duration = false, set<string> filters = {""});
   bool dump_historic_slow_ops(Formatter *f, set<string> filters = {""});
-  void register_inflight_op(TrackedOp *i);
+  void register_inflight_op(TrackedOp *i, std::uint32_t shard_id);
   void unregister_inflight_op(TrackedOp *i);
 
   void get_age_ms_histogram(pow2_hist_t *h);
@@ -184,7 +184,17 @@ public:
   template <typename T, typename U>
   typename T::Ref create_request(U params) {
     typename T::Ref retval(new T(params, this));
-    register_inflight_op(retval.get());
+    const std::uint64_t current_seq = ++seq;
+    register_inflight_op(retval.get(),
+			 current_seq % num_optracker_shards);
+    return retval;
+  }
+
+  template <typename T, typename U>
+  typename T::Ref create_request(U params, const spg_t& pgid) {
+    typename T::Ref retval(new T(params, this));
+    register_inflight_op(retval.get(),
+			 pgid.hash_to_shard(num_optracker_shards));
     return retval;
   }
 };
