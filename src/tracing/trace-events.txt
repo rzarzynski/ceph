@@ -21,3 +21,12 @@ kv_sync_releasing_old_bluefs(byte_u_t bluefs_extents_reclaiming) " releasing old
 bluestore_mkfs(int success) " success (%d)" 0
 bluestore_queue_transactions_blackhole(int i) "objectstore_blackhole = TRUE, dropping transaction" 0
 bluefs_balance_freespace_no_allocate(uint64_t gift, uint64_t min_alloc_size) ""no allocate on 0x%x min_alloc_size 0x%x" 0
+bluefs_balance_freespace_insufficient_allocate(uint64_t gift, uint64_t min_alloc_size, int64_t alloc_len) "insufficient allocate on 0x%x min_alloc_size 0x%x allocated 0x%x" 0
+bluefs_balance_freespace_gifting_to_bluefs(bluestore_pextent_t extent) "gifting %s to bluefs" 1
+bs_setup_block_symlink_created(string name, string epath) "created %s symlink to %s" 1
+bs_setup_block_symlink_resized(string name, byte_u_t size) "resized %s file to %s" 1
+bluestore_mkfs_create(string path) "path %s" 1
+bluestore_mkfs_create_already_created(string path) "already created %s" 1
+bluestore_mkfs_create_using_fsid(uuid fsid, int generated) "fsid %s, generated = %d" 1
+bluestore_mount_path(string path) "path %s" 1
+bluestore_unmount(int i) "bluestore unmount" 1

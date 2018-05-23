@@ -92,6 +92,12 @@ struct bluestore_pextent_t {
     denc_varint_lowz(v.length, p);
   }
 
+  operator std::string() {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
   void dump(Formatter *f) const;
   static void generate_test_instances(list<bluestore_pextent_t*>& ls);
 };

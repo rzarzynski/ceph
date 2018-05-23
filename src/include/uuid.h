@@ -59,6 +59,12 @@ struct uuid_d {
   void decode(bufferlist::const_iterator& p) const {
     ::decode_raw(uuid, p);
   }
+
+  operator std::string() {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
 };
 WRITE_CLASS_ENCODER(uuid_d)
 

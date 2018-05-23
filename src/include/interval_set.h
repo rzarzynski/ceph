@@ -723,6 +723,13 @@ class interval_set {
     other = std::move(m);
   }
 
+public:
+  operator std::string() const {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
 private:
   // data
   int64_t _size;
@@ -759,12 +766,6 @@ struct denc_traits<interval_set<T,Map>> {
   static void decode_nohead(size_t n, interval_set<T,Map>& v,
 			    bufferptr::const_iterator& p) {
     v.decode_nohead(n, p);
-  }
-
-  operator std::string() {
-    std::stringstream out;
-    out << this;
-    return out.str();
   }
 };
 
