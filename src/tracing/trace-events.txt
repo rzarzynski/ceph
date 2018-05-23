@@ -17,6 +17,7 @@ cache_trim_target(byte_u_t target_bytes, float target_meta_ratio, float target_d
 cache_trim_shard_target(byte_u_t target_bytes, float target_meta_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer, byte_u_t need_to_free, byte_u_t free_meta, byte_u_t free_buffer) "shard target %s ratio %s (%s + %s), current %s (%s + %s), need_to_free (%s + $s) -> MISSING INFO" 20
 tick_without_osd_lock(int i) "tick_without_osd_lock" 10
 bluestore_read_inject_random_eio(int i) ": inject random EIOD" 1
-kv_sync_releasing_old_bluefs(interval_set bluefs_extents_reclaiming) " releasing old bluefs 0x%x" 0
+kv_sync_releasing_old_bluefs(byte_u_t bluefs_extents_reclaiming) " releasing old bluefs 0x%s" 0
 bluestore_mkfs(int success) " success (%d)" 0
 bluestore_queue_transactions_blackhole(int i) "objectstore_blackhole = TRUE, dropping transaction" 0
+bluefs_balance_freespace_no_allocate(uint64_t gift, uint64_t min_alloc_size) ""no allocate on 0x%x min_alloc_size 0x%x" 0

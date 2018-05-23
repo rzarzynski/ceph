@@ -760,8 +760,13 @@ struct denc_traits<interval_set<T,Map>> {
 			    bufferptr::const_iterator& p) {
     v.decode_nohead(n, p);
   }
-};
 
+  operator std::string() {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+};
 
 template<class T, typename Map>
 inline std::ostream& operator<<(std::ostream& out, const interval_set<T,Map> &s) {
