@@ -30,3 +30,19 @@ bluestore_mkfs_create_already_created(string path) "already created %s" 1
 bluestore_mkfs_create_using_fsid(uuid fsid, int generated) "fsid %s, generated = %d" 1
 bluestore_mount_path(string path) "path %s" 1
 bluestore_unmount(int i) "bluestore unmount" 1
+bluestore_upgrade_super_start(int32_t ondisk_format, int32_t latest_ondisk_format) "from %d, latest %d" 1
+bluestore_upgrade_super_done(int i) "done" 1
+bluestore_disable_cache_kv(double cache_kv_min_ratio, float cache_kv_ratio) "kv_min_ratio %f > kv_ratio %f" 1
+bluestore_show_cache_sizes(uint64_t cache_size, float cache_meta_ratio, float cache_kv_ratio, float cache_data_ratio) "cache_size %llu meta %f kv %f data %f" 1
+bluestore_disable_bluefs_min(byte_u_t dev_size) "main device size %s is too small, disable bluestore_bluefs_min for now" 1
+bluestore_open_fm_pre_fragmenting(float debug_prefill, int prefragment_max) "pre-fragmenting freespace, using %f with max free extent %d" 1
+bluestore_opening_allocation_metadata(int i) "opening allocation metadata" 1
+bluestore_open_alloc_loaded_extents(byte_u_t bytes, uint64_t num_extents) "loaded %s in %llu extents" 1
+bluestore_open_db(string kv_backend, string fn, string options) "opened %s path %s options %s" 1
+bluestore_fsck_walking_object_keyspace(int i) "walking object keyspace" 1
+bluestore_fsck_checking_shared_blobs(int i) "checking shared_blobs" 1
+bluestore_fsck_sorting_out_misreferenced_extents(int i) "sorting out misreferenced extents" 1
+bluestore_fsck_checking_for_stray_omap_data(int i) "checking for stray omap data" 1
+bluestore_fsck_checking_deferred_events(int i) "checking deferred events" 1
+bluestore_fsck_checking_freelist_vs_allocated(int i) "checking freelist vs allocated" 1
+bluestore_fsck_finish(int errors, unsigned repaired, int remaining, utime_t seconds) "<<<FINISH>>> with %d errors, %u repared, %d remaining in %s seconds" 1
