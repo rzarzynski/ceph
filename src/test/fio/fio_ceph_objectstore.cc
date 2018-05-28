@@ -20,6 +20,10 @@
 #include "include/random.h"
 #include "common/perf_counters.h"
 
+#ifndef typeof
+#define typeof __typeof__
+#endif
+
 #include <fio.h>
 #include <optgroup.h>
 
@@ -325,6 +329,11 @@ Engine::Engine(thread_data* td)
                                g_conf->osd_objectstore,
                                g_conf->osd_data,
                                g_conf->osd_journal));
+  std::cout << std::endl;
+  std::cout << g_conf->osd_objectstore << std::endl;
+  std::cout << g_conf->osd_data << std::endl;
+  std::cout << g_conf->osd_journal<< std::endl;
+  std::cout << std::endl;
   if (!os)
     throw std::runtime_error("bad objectstore type " + g_conf->osd_objectstore);
 

@@ -5377,16 +5377,19 @@ int BlueStore::_setup_block_symlink_or_file(
 
 int BlueStore::mkfs()
 {
-//  dout(1) << __func__ << " path " << path << dendl;
+  dout(1) << __func__ << " path " << path << dendl;
   trace_bluestore_mkfs_create(path);
   int r;
   uuid_d old_fsid;
+
+
+  std::cout << "MKFS!!!" << std::endl;
 
   {
     string done;
     r = read_meta("mkfs_done", &done);
     if (r == 0) {
-//      dout(1) << __func__ << " already created" << dendl;
+      dout(1) << __func__ << " already created" << dendl;
       trace_bluestore_mkfs_create_already_created(path);
       if (cct->_conf->bluestore_fsck_on_mkfs) {
         r = fsck(cct->_conf->bluestore_fsck_on_mkfs_deep);
@@ -5437,10 +5440,10 @@ int BlueStore::mkfs()
   if (r < 0 || old_fsid.is_zero()) {
     if (fsid.is_zero()) {
       fsid.generate_random();
-//      dout(1) << __func__ << " generated fsid " << fsid << dendl;
+      dout(1) << __func__ << " generated fsid " << fsid << dendl;
       trace_bluestore_mkfs_create_using_fsid(fsid, true);
     } else {
-//      dout(1) << __func__ << " using provided fsid " << fsid << dendl;
+      dout(1) << __func__ << " using provided fsid " << fsid << dendl;
       trace_bluestore_mkfs_create_using_fsid(fsid, false);
     }
     // we'll write it later.
