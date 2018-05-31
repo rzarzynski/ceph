@@ -738,6 +738,18 @@ public:
     return 0;  // whatever.
   }
 
+  operator std::string() {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
+  operator std::string() const {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
   void dump(Formatter *f) const;
   static void generate_test_instances(list<coll_t*>& o);
 };
