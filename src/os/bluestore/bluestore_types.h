@@ -945,6 +945,12 @@ struct bluestore_onode_t {
     clear_flag(FLAG_OMAP);
   }
 
+  operator std::string() {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
   DENC(bluestore_onode_t, v, p) {
     DENC_START(1, 1, p);
     denc_varint(v.nid, p);

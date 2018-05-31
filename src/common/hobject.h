@@ -445,6 +445,18 @@ public:
     (*this) = temp;
   }
 
+  operator std::string() {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
+  operator std::string() const {
+    std::stringstream out;
+    out << this;
+    return out.str();
+  }
+
   void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& bl);
   void decode(json_spirit::Value& v);

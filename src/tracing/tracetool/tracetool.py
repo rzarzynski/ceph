@@ -154,9 +154,8 @@ class Event(object):
                       "(?P<name>\w+)"
                       "\((?P<args>[^)]*)\)"
                       "\s*"
-                      "(?:(?:(?P<fmt_trans>\".+),)?\s*(?P<fmt>\".+))?"
-                      "(?P<level>\d)"
-                      "\s*")
+                      "(?:(?:(?P<fmt_trans>\".+),)?\s*(?P<fmt>\".+)\s+)?"
+                      "(?P<level>\d+)")
 
     def __init__(self, name, props, level, fmt, args, orig=None,
                  event_trans=None, event_exec=None):
@@ -248,6 +247,7 @@ def out(*lines, **kwargs):
 
 class DoutWrapper(object):
     def generate_tp_file(self, events):
+        # Make tp file empty
         pass
 
 
@@ -257,9 +257,9 @@ class DoutWrapper(object):
             '')
         for event in events:
             _args = []
-            fmts = re.split('%s|%d|%llu|%x', event.fmt.replace('"', ''))
+            fmts = re.split('%s|%d|%llu|%x|%f|%lu|%u', event.fmt.replace('"', ''))
             i = 0
-            dout = 'dout ({}) << '.format(event.level)
+            dout = 'dout({}) << __func__ << '.format(event.level)
 
             if "disable" not in event.properties:
                 for arg in event.args:
@@ -279,6 +279,7 @@ class LTTngWrapper(object):
         out('#include "include/int_types.h"\n')
         for e in events:
             if len(e.args) > 0:
+                # known bug: if the type is a pointer to a class, it should be a void*
                 out('TRACEPOINT_EVENT(',
                     '   ceph_logging,',
                     '   %(name)s,',
