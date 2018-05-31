@@ -2260,10 +2260,10 @@ void BlueStore::ExtentMap::reshard(
 {
   auto cct = onode->c->store->cct; // used by dout
 
-  dout(10) << __func__ << " 0x[" << std::hex << needs_reshard_begin << ","
-	   << needs_reshard_end << ")" << std::dec
-	   << " of " << onode->onode.extent_map_shards.size()
-	   << " shards on " << onode->oid << dendl;
+//  dout(10) << __func__ << " 0x[" << std::hex << needs_reshard_begin << ","
+//	   << needs_reshard_end << ")" << std::dec
+//	   << " of " << onode->onode.extent_map_shards.size()
+//	   << " shards on " << onode->oid << dendl;
   trace_bluestore_extentmap_reshard(needs_reshard_begin, needs_reshard_end,
    onode->onode.extent_map_shards.size(), onode->oid);
   for (auto& p : spanning_blob_map) {
