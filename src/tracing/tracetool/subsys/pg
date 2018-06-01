@@ -19,3 +19,4 @@
 
 proc_replica_log(pg_shard_t from, pg_info_t oinfo, pg_log_t olog, pg_missing_t omissing) "proc_replica_log for osd. from: %s %s %s %s" 3
 proc_replica_info_got_osd(pg_shard_t from, pg_info_t oinfo) "got osd. %s from %s" 2
+queue_op(uint8_t type, int64_t num, uint64_t tid, int32_t inc, int rmw_flags) "%d %llu %llu %d %d" 1
