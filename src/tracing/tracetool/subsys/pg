@@ -1,0 +1,21 @@
+# To add a new tracepoint:
+# [disable] <name>(<type1> <arg1>[, <type2> <arg2>] ...) "<format-string>" <log level> <subsys>
+#
+# Example:
+# read(uint64_t offset, size_t length, int r) "Reading %llu ~ %u $d" 10 bluestore
+#
+# You can use basic types
+# Use void* for all pointers
+# If you want to use non-basic types, the class needs to implement operator string()
+#
+# Format string:
+# The format string isn't strict and doesn't need to be printf-compliant. The
+# type specifier is ignored for dout(), it is only used to format the string
+# with the right arguments at the right position.
+# For LTTng, use %x to print the argument in hexadecimal a format.
+#
+# Known issues (fixes coming shortly):
+# Not possible to print hex with dout
+
+proc_replica_log(pg_shard_t from, pg_info_t oinfo, pg_log_t olog, pg_missing_t omissing) "proc_replica_log for osd. from: %s %s %s %s" 3
+proc_replica_info_got_osd(pg_shard_t from, pg_info_t oinfo) "got osd. %s from %s" 2

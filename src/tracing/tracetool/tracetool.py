@@ -1,4 +1,5 @@
 import sys
+import os
 import argparse
 import re
 
@@ -246,8 +247,12 @@ def out(*lines, **kwargs):
 
 
 class DoutWrapper(object):
+    def __init__(self, subsys):
+        self.subsys = subsys
+
     def generate_tp_file(self, events):
-        # Make tp file empty
+        out('')
+        # TODO: Make tp file empty
         pass
 
 
@@ -273,18 +278,26 @@ class DoutWrapper(object):
                 api=event.api(event.QEMU_TRACE),
                 args=', '.join(_args))
 
+    def generate_c(self, events):
+        # TODO: Make c file empty
+        pass
+
 
 class LTTngWrapper(object):
+    def __init__(self, subsys):
+        self.subsys = subsys
+
     def generate_tp_file(self, events):
         out('#include "include/int_types.h"\n')
         for e in events:
             if len(e.args) > 0:
                 # known bug: if the type is a pointer to a class, it should be a void*
                 out('TRACEPOINT_EVENT(',
-                    '   ceph_logging,',
+                    '   %(subsys)s,',
                     '   %(name)s,',
                     '   TP_ARGS(%(args)s),',
                     '   TP_FIELDS(',
+                    subsys=self.subsys,
                     name=e.name,
                     args=", ".join([', '.join(arg) if valid(arg[0]) else ', '.join(('char *', arg[1])) for arg in e.args]))
 
@@ -315,45 +328,43 @@ class LTTngWrapper(object):
 
             else:
                 out('TRACEPOINT_EVENT(',
-                    '   ceph_logging,',
+                    '   %(subsys)s,',
                     '   %(name)s,',
                     '   TP_ARGS(void),',
                     '   TP_FIELDS()',
                     ')',
                     '',
+                    subsys=self.subsys,
                     name=e.name)
+
+    def generate_c(self, events):
+        out('',
+            '#define TRACEPOINT_CREATE_PROBES',
+            ''
+            '/*',
+            ' * The header containing our TRACEPOINT_EVENTs.',
+            ' */',
+            '#include "tracing/%(subsys)s.h"',
+            subsys=self.subsys)
 
 
     def generate_header(self, events):
         out('/* This file was generated automatically by the tracetool script.',
             '   Do not edit it manually. Refer to the documentation to add logging. */',
             '')
-        out('#ifndef CEPH_LOGGING_IMPL',
-            '#define CEPH_LOGGING_IMPL',
-            '')
-        out(
-            # '#define TRACEPOINT_DEFINE',
-            # '#define TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
-            '#include "tracing/ceph_logging.h"',
-            # '#undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE',
-            # '#undef TRACEPOINT_DEFINE'
-            )
+        out('#ifndef %(usubsys)s_IMPL',
+            '#define %(usubsys)s_IMPL',
+            '',
+            '#include "tracing/%(subsys)s.h"',
+            usubsys=self.subsys.upper(),
+            subsys=self.subsys)
+
         for event in events:
-            # out('',
-            #     'static inline void %(api)s(%(args)s)',
-            #     '{',
-            #     api=event.api(event.QEMU_TRACE),
-            #     args=event.args)
             out('',
                 'static inline void %(api)s(%(args)s)',
                 '{',
                 api=event.api(event.QEMU_TRACE),
                 args=", ".join([' '.join(arg) if valid(arg[0]) else ' '.join(('string', arg[1])) for arg in event.args]))
-
-            # for arg in event.args:
-            #     if not valid(arg[0]):
-            #         out('    stringstream strstr%(name)s;', name=arg[1])
-            #         out('    strstr%(name)s << %(name)s;', '', name=arg[1])
 
             if "disable" not in event.properties:
                 # the c_str() is a temporary hack. we can use operator std::string()
@@ -361,7 +372,8 @@ class LTTngWrapper(object):
                 if len(event.args) > 0:
                     argnames = ", " + argnames
 
-                out('    tracepoint(ceph_logging, %(name)s%(tp_args)s);',
+                out('    tracepoint(%(subsys)s, %(name)s%(tp_args)s);',
+                    subsys=self.subsys,
                     name=event.name,
                     tp_args=argnames)
 
@@ -391,21 +403,22 @@ def main(args):
     parser = argparse.ArgumentParser(description='Generate trace infrastructure.')
     parser.add_argument('-f', help='Tracepoints list file', required=True)
     parser.add_argument('-b', help='Available backends: lttng, dout', required=True)
-    parser.add_argument('-t', help='Available types: tp, c', required=True)
+    parser.add_argument('-t', help='Available types: tp, h, c', required=True)
 
     parsed_args = parser.parse_args(args[1:])
 
     events = read_events(parsed_args.f)
+    subsys = os.path.basename(os.path.splitext(parsed_args.f)[0])
     if parsed_args.b == 'lttng':
-        wrapper = LTTngWrapper()
+        wrapper = LTTngWrapper(subsys)
     if parsed_args.b == 'dout':
-        wrapper = DoutWrapper()
+        wrapper = DoutWrapper(subsys)
     if parsed_args.t == 'tp':
         wrapper.generate_tp_file(events)
     elif parsed_args.t == 'h':
         wrapper.generate_header(events)
-    # elif parsed_args.t == 'c':
-    #     lttngwrapper.generate_c(events)
+    elif parsed_args.t == 'c':
+        wrapper.generate_c(events)
     else:
         print('unknown format')
 
