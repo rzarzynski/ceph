@@ -4,12 +4,47 @@
 # ${PROJECT_BINARY_DIR}/include, where acconfig.h is also located
 set(working_dir ${CMAKE_BINARY_DIR}/include)
 set(header_dir ${working_dir}/tracing)
+set(tracing_build_dir ${CMAKE_BINARY_DIR}/tracing)
 file(MAKE_DIRECTORY ${header_dir})
+file(MAKE_DIRECTORY ${tracing_build_dir})
 
 add_custom_target(tracepoint_libraries)
 
+file(GLOB tracesources "tracetool/subsys/*")
+foreach(tracesource ${tracesources})
+  get_filename_component(name ${tracesource} NAME_WE)
+  set(tpfile ${tracesource}.tp)
+  set(logging_tps "${logging_tps} ${name}.tp")
+
+  execute_process(
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t tp
+    OUTPUT_FILE ${tracing_build_dir}/${name}.tp)
+  execute_process(
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t c
+    OUTPUT_FILE ${tracing_build_dir}/${name}.c)
+  execute_process(
+    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t h
+    OUTPUT_FILE ${header_dir}/${name}_impl.h)
+#  list(APPEND link_tracepoint_libs ${name}_tp)
+
+  # TODO this part isn't working yet
+#  add_custom_command(
+#    OUTPUT ${tracing_build_dir}/${name}.tp
+#    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t tp > ${tracing_build_dir}/${name}.tp
+#    DEPENDS ${tracesource})
+#  add_custom_command(
+#    OUTPUT ${tracing_build_dir}/${name}.c
+#    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t c > ${tracing_build_dir}/${name}.c
+#    DEPENDS ${tracesource})
+#  add_custom_command(
+#    OUTPUT ${header_dir}/${name}_impl.h
+#    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t h > ${header_dir}/${name}_impl.h
+#    DEPENDS ${tracesource})
+endforeach()
+
+file(GLOB generated_tps "${tracing_build_dir}/*.tp")
 file(GLOB tps "*.tp")
-foreach(tp ${tps})
+foreach(tp ${tps} ${generated_tps})
   get_filename_component(name ${tp} NAME_WE)
   set(header ${header_dir}/${name}.h)
   add_custom_command(
@@ -28,7 +63,12 @@ function(add_tracing_library name tracings version)
     get_filename_component(tp ${tp_file} NAME_WE)
     list(APPEND hdrs
       ${header_dir}/${tp}.h)
-    list(APPEND tpfiles ${tp}.c)
+    # TODO: remove this condition when we move to tracetool for existing tracepoints
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${tp}.c")
+      list(APPEND tpfiles ${tp}.c)
+    else()
+      list(APPEND tpfiles ${tracing_build_dir}/${tp}.c)
+    endif()
   endforeach()
   add_library(${name} SHARED ${hdrs} ${tpfiles})
   target_link_libraries(${name} ${LTTNGUST_LIBRARIES} ${CMAKE_DL_LIBS})
@@ -48,14 +88,11 @@ add_tracing_library(os_tp objectstore.tp 1.0.0)
 add_tracing_library(rgw_op_tp rgw_op.tp 1.0.0)
 add_tracing_library(rgw_rados_tp rgw_rados.tp 1.0.0)
 add_tracing_library(ceph_logging_tp ceph_logging.tp 1.0.0)
-add_tracing_library(dummy_tp dummy.tp 1.0.0)
-add_tracing_library(bluestore_gc_tp bluestore_gc.tp 1.0.0)
-add_tracing_library(bluestore_tp bluestore.tp 1.0.0)
-add_tracing_library(bluestore_cache_tp bluestore_cache.tp 1.0.0)
-add_tracing_library(pg_tp pg.tp 1.0.0)
-add_tracing_library(bluefs_tp bluefs.tp 1.0.0)
 
-install(TARGETS rados_tp osd_tp ceph_logging_tp dummy_tp bluestore_gc_tp bluestore_tp bluestore_cache_tp bluefs_tp pg_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
+set(logging_tps bluestore.tp bluestore_gc.tp dummy.tp bluestore_cache.tp bluefs.tp)
+add_tracing_library(logging_tp "${logging_tps}" 1.0.0)
+
+install(TARGETS rados_tp osd_tp ceph_logging_tp logging_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 if(WITH_RBD)
   add_tracing_library(rbd_tp librbd.tp 1.0.0)
   install(TARGETS rbd_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
