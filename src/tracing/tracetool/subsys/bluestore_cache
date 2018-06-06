@@ -17,5 +17,5 @@
 # Known issues (fixes coming shortly):
 # Not possible to print hex with dout
 
-cache_trim_target(byte_u_t target_bytes, float target_meta_ratio, float target_data_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer) "shard target %s meta/data ratios %f + %s (%s + %s), current %s (%s + %s)" 30
-cache_trim_shard_target(byte_u_t target_bytes, float target_meta_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer, byte_u_t need_to_free, byte_u_t free_meta, byte_u_t free_buffer) "shard target %s ratio %s (%s + %s), current %s (%s + %s), need_to_free (%s + %s) -> MISSING INFO" 20
+trim_target(byte_u_t target_bytes, float target_meta_ratio, float target_data_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer) "shard target %s meta/data ratios %f + %s (%s + %s), current %s (%s + %s)" 30
+trim_shard_target(byte_u_t target_bytes, float target_meta_ratio, byte_u_t target_meta, byte_u_t target_buffer, byte_u_t current, byte_u_t current_meta, byte_u_t current_buffer, byte_u_t need_to_free, byte_u_t free_meta, byte_u_t free_buffer) "shard target %s ratio %s (%s + %s), current %s (%s + %s), need_to_free (%s + %s) -> MISSING INFO" 20

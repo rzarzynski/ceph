@@ -17,6 +17,6 @@
 # Known issues (fixes coming shortly):
 # Not possible to print hex with dout
 
-bluefs_balance_freespace_no_allocate(uint64_t gift, uint64_t min_alloc_size) "no allocate on 0x%x min_alloc_size 0x%x" 0
-bluefs_balance_freespace_insufficient_allocate(uint64_t gift, uint64_t min_alloc_size, int64_t alloc_len) "insufficient allocate on 0x%x min_alloc_size 0x%x allocated 0x%x" 0
-bluefs_balance_freespace_gifting_to_bluefs(bluestore_pextent_t extent) "gifting %s to bluefs" 1
+balance_freespace_no_allocate(uint64_t gift, uint64_t min_alloc_size) "no allocate on 0x%x min_alloc_size 0x%x" 0
+balance_freespace_insufficient_allocate(uint64_t gift, uint64_t min_alloc_size, int64_t alloc_len) "insufficient allocate on 0x%x min_alloc_size 0x%x allocated 0x%x" 0
+balance_freespace_gifting_to_bluefs(bluestore_pextent_t extent) "gifting %s to bluefs" 1

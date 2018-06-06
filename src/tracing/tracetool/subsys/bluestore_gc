@@ -1,8 +1,8 @@
 # To add a new tracepoint:
-# [disable] <name>(<type1> <arg1>[, <type2> <arg2>] ...) "<format-string>" <log level> <subsys>
+# [disable] <name>(<type1> <arg1>[, <type2> <arg2>] ...) "<format-string>" <log level>
 #
 # Example:
-# read(uint64_t offset, size_t length, int r) "Reading %llu ~ %u $d" 10 bluestore
+# read(uint64_t offset, size_t length, int r) "Reading %llu ~ %u $d" 10
 #
 # You can use basic types
 # Use void* for all pointers
@@ -19,10 +19,10 @@
 
 process_protrusive_extents_lookup_offset(int lookup_start_offset, int lookup_end_offset) "(hex): [%x, %x]" 3
 process_protrusive_extents_alloc(uint64_t alloc_unit_start, long alloc_unit_end) "%llu alloc_units: %llu..%llu" 3
-gc_process_protrusive_extents_expected(uint64_t alloc_unit_start) "process_protrusive_extents --expected %llu" 30
-gc_process_protrusive_extents_expected_allocations(int64_t expected_allocations, uint64_t alloc_unit_end) "expected_allocations=%llu end_au: %llu" 30
-gc_process_protrusive_extents_affected_blob(Blob blob, uint64_t length, uint64_t referenced_bytes) "affected_blob: %s unref 0x%x referenced = 0x%x" 30
-gc_process_protrusive_extents_expected_allocations_start(uint64_t alloc_unit_start) "--expected_allocations: %llu" 30
-gc_process_protrusive_extents_expected4release(Blob blob, int64_t blob_expected_for_release, int64_t expected_allocations) "%s expected4release=%llu expected_allocations=%llu" 30
-gc_estimate_affected_blob(Blob blob, uint64_t logical_offset, int64_t length) "affected_blob: %s unref 0x%x - %llu" 30
-gc_estimate_range(uint64_t gc_start_offset, uint64_t gc_end_offset) "gc range(hex): [%x, %x)" 30
+process_protrusive_extents_expected(uint64_t alloc_unit_start) "process_protrusive_extents --expected %llu" 30
+process_protrusive_extents_expected_allocations(int64_t expected_allocations, uint64_t alloc_unit_end) "expected_allocations=%llu end_au: %llu" 30
+process_protrusive_extents_affected_blob(Blob blob, uint64_t length, uint64_t referenced_bytes) "affected_blob: %s unref 0x%x referenced = 0x%x" 30
+process_protrusive_extents_expected_allocations_start(uint64_t alloc_unit_start) "--expected_allocations: %llu" 30
+process_protrusive_extents_expected4release(Blob blob, int64_t blob_expected_for_release, int64_t expected_allocations) "%s expected4release=%llu expected_allocations=%llu" 30
+estimate_affected_blob(Blob blob, uint64_t logical_offset, int64_t length) "affected_blob: %s unref 0x%x - %llu" 30
+estimate_range(uint64_t gc_start_offset, uint64_t gc_end_offset) "gc range(hex): [%x, %x)" 30
