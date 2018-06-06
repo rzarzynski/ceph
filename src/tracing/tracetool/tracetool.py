@@ -26,6 +26,24 @@ ALLOWED_TYPES = [
     "ssize_t",
 ]
 
+LTTNG_LOGLEVEL_MAPPING = [
+    "TRACE_EMERG",
+    "TRACE_ALERT",
+    "TRACE_CRIT",
+    "TRACE_ERR",
+    "TRACE_WARNING",
+    "TRACE_NOTICE",
+    "TRACE_INFO",
+    "TRACE_DEBUG_SYSTEM",
+    "TRACE_DEBUG_PROGRAM",
+    "TRACE_DEBUG_PROCESS",
+    "TRACE_DEBUG_MODULE",
+    "TRACE_DEBUG_UNIT",
+    "TRACE_DEBUG_FUNCTION",
+    "TRACE_DEBUG_LINE",
+    "TRACE_DEBUG"
+]
+
 def valid(name):
     bits = name.split(" ")
     for bit in bits:
@@ -323,8 +341,7 @@ class LTTngWrapper(object):
                         out('       ctf_string(' + n + ', ' + n + ')')
 
                 out('   )',
-                    ')',
-                    '')
+                    ')',)
 
             else:
                 out('TRACEPOINT_EVENT(',
@@ -333,9 +350,15 @@ class LTTngWrapper(object):
                     '   TP_ARGS(void),',
                     '   TP_FIELDS()',
                     ')',
-                    '',
                     subsys=self.subsys,
                     name=e.name)
+
+            out('TRACEPOINT_LOGLEVEL(%(subsys)s, %(name)s, %(loglevel)s)',
+                '',
+                subsys=self.subsys,
+                name=e.name,
+                loglevel=LTTNG_LOGLEVEL_MAPPING[0 if e.level < 0 else min(int(e.level), len(LTTNG_LOGLEVEL_MAPPING) - 1)])
+
 
     def generate_c(self, events):
         out('',
