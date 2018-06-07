@@ -48,6 +48,6 @@ void trace_read(uint64_t offset, size_t length, int r)
 - ``<subsys>.c`` file: not used.
 - ``<subsys>_impl.h`` file: this is the file that should be included in Ceph's code in order to invoke the tracepoints. It implements all trace_<tracepoint>() functions. Following our example above, this file would have the following lines:
 ```
-#define trace_read(offset, length, r) dout(<loglevel>) << "Reading " << offset << " ~ " << length << " " << r << dendl;
+#define trace_read(offset, length, r) do { dout(<loglevel>) << "Reading " << offset << " ~ " << length << " " << r << dendl; } while(0);
 ```
 
