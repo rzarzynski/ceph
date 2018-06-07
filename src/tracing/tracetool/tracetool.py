@@ -282,7 +282,7 @@ class DoutWrapper(object):
             _args = []
             fmts = re.split('%s|%d|%llu|%x|%f|%lu|%u', event.fmt.replace('"', ''))
             i = 0
-            dout = 'do { dout({}) << __func__ << '.format(event.level)
+            dout = "do {{ dout({}) << __func__ << ".format(event.level)
 
             if "disable" not in event.properties:
                 for arg in event.args:
@@ -292,7 +292,7 @@ class DoutWrapper(object):
                 dout += 'dendl;'
 
             out('',
-                '#define  %(api)s(%(args)s) ' + dout + '; } while(0);',
+                '#define  %(api)s(%(args)s) ' + dout + ' } while(0);',
                 api=event.api(event.QEMU_TRACE),
                 args=', '.join(_args))
 
