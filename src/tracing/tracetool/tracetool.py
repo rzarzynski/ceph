@@ -240,16 +240,16 @@ class Event(object):
         assert not isinstance(self.fmt, list)
         return self._FMT.findall(self.fmt)
 
-    QEMU_TRACE               = "trace_%(name)s"
-    QEMU_TRACE_NOCHECK       = "_nocheck__" + QEMU_TRACE
-    QEMU_TRACE_TCG           = QEMU_TRACE + "_tcg"
-    QEMU_DSTATE              = "_TRACE_%(NAME)s_DSTATE"
-    QEMU_BACKEND_DSTATE      = "TRACE_%(NAME)s_BACKEND_DSTATE"
-    QEMU_EVENT               = "_TRACE_%(NAME)s_EVENT"
+    CEPH_TRACE               = "trace_%(name)s"
+    CEPH_TRACE_NOCHECK       = "_nocheck__" + CEPH_TRACE
+    CEPH_TRACE_TCG           = CEPH_TRACE + "_tcg"
+    CEPH_DSTATE              = "_TRACE_%(NAME)s_DSTATE"
+    CEPH_BACKEND_DSTATE      = "TRACE_%(NAME)s_BACKEND_DSTATE"
+    CEPH_EVENT               = "_TRACE_%(NAME)s_EVENT"
 
     def api(self, fmt=None):
         if fmt is None:
-            fmt = Event.QEMU_TRACE
+            fmt = Event.CEPH_TRACE
         return fmt % {"name": self.name, "NAME": self.name.upper()}
 
 
@@ -293,7 +293,7 @@ class DoutWrapper(object):
 
             out('',
                 '#define  %(api)s(%(args)s) ' + dout + ' } while(0);',
-                api=event.api(event.QEMU_TRACE),
+                api=event.api(event.CEPH_TRACE),
                 args=', '.join(_args))
 
     def generate_c(self, events):
@@ -386,7 +386,7 @@ class LTTngWrapper(object):
             out('',
                 'static inline void %(api)s(%(args)s)',
                 '{',
-                api=event.api(event.QEMU_TRACE),
+                api=event.api(event.CEPH_TRACE),
                 args=", ".join([' '.join(arg) if valid(arg[0]) else ' '.join(('string', arg[1])) for arg in event.args]))
 
             if "disable" not in event.properties:
