@@ -21,6 +21,13 @@ trace_read(my_offset, the_length, result);
 All tracepoints can be called using the ``trace_<tracepoint name>()`` function.
 To disable the tracepoint, simply add ``disable`` at the beginning of the line.
 
+#### Types
+You can use objects of any class in the events files on the condition that the class implements the ``operator std::string()`` method. For example, you can hav:
+```
+read(byte_u_t length) "Reading length %s" 1
+```
+As log as the ``byte_u_t`` class implements ``operator std::string()``.
+
 #### How do I add a new sybsystem?
 - Create a new file under ``src/tracing/tracetool/subsys/`` and name it ``<your subsys name>``
 - Fill it using the format explained above
