@@ -3809,7 +3809,7 @@ public:
   virtual bool is_missing(const hobject_t& oid, pg_missing_item *out = nullptr) const = 0;
   virtual bool is_missing(const hobject_t& oid, eversion_t v) const = 0;
   virtual ~pg_missing_const_i() {}
-  virtual operator std::string() { return "needs implementation"; }
+  virtual operator std::string() = 0;
 };
 
 
