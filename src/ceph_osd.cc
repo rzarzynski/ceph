@@ -58,8 +58,6 @@ TracepointProvider::Traits osd_tracepoint_traits("libosd_tp.so",
                                                  "osd_tracing");
 TracepointProvider::Traits os_tracepoint_traits("libos_tp.so",
                                                 "osd_objectstore_tracing");
-TracepointProvider::Traits ceph_logging_tracepoint_traits("libceph_logging_tp.so",
-                                                "osd_logging_tracing");
 #ifdef WITH_OSD_INSTRUMENT_FUNCTIONS
 TracepointProvider::Traits cyg_profile_traits("libcyg_profile_tp.so",
                                                  "osd_function_tracing");
@@ -618,7 +616,6 @@ flushjournal_out:
 
   TracepointProvider::initialize<osd_tracepoint_traits>(g_ceph_context);
   TracepointProvider::initialize<os_tracepoint_traits>(g_ceph_context);
-  TracepointProvider::initialize<ceph_logging_tracepoint_traits>(g_ceph_context);
 
   if (!cct->_conf->get_val<bool>("logging_legacy")) {
     string tracing_session = string("osd_") + string(id);

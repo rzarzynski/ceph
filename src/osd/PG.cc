@@ -58,8 +58,7 @@
 
 #include "common/BackTrace.h"
 #include "common/EventTrace.h"
-
-#include "tracing/ceph_logging_impl.h"
+#include "tracing/pg_impl.h"
 
 #include <sstream>
 
