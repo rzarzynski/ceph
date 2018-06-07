@@ -16,16 +16,22 @@ foreach(tracesource ${tracesources})
   set(tpfile ${tracesource}.tp)
   set(logging_tps "${logging_tps} ${name}.tp")
 
-  execute_process(
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t tp
-    OUTPUT_FILE ${tracing_build_dir}/${name}.tp)
-  execute_process(
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t c
-    OUTPUT_FILE ${tracing_build_dir}/${name}.c)
-  execute_process(
-    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t h
-    OUTPUT_FILE ${header_dir}/${name}_impl.h)
-#  list(APPEND link_tracepoint_libs ${name}_tp)
+  if(WITH_LTTNG_LOGGING)
+    execute_process(
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t tp
+      OUTPUT_FILE ${tracing_build_dir}/${name}.tp)
+    execute_process(
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t c
+      OUTPUT_FILE ${tracing_build_dir}/${name}.c)
+    execute_process(
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t h
+      OUTPUT_FILE ${header_dir}/${name}_impl.h)
+  else()
+    execute_process(
+      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b dout -t h
+      OUTPUT_FILE ${header_dir}/${name}_impl.h)
+  endif()
+  list(APPEND link_tracepoint_libs ${name}_tp)
 
   # TODO this part isn't working yet
 #  add_custom_command(
@@ -81,17 +87,22 @@ function(add_tracing_library name tracings version)
   add_dependencies(tracepoint_libraries ${name})
 endfunction()
 
-set(osd_traces oprequest.tp osd.tp pg.tp)
+set(osd_traces oprequest.tp osd.tp)
 add_tracing_library(osd_tp "${osd_traces}" 1.0.0)
 add_tracing_library(rados_tp librados.tp 2.0.0)
 add_tracing_library(os_tp objectstore.tp 1.0.0)
 add_tracing_library(rgw_op_tp rgw_op.tp 1.0.0)
 add_tracing_library(rgw_rados_tp rgw_rados.tp 1.0.0)
 
-set(logging_tps bluestore.tp bluestore_gc.tp ceph_log.tp bluestore_cache.tp bluefs.tp)
-add_tracing_library(logging_tp "${logging_tps}" 1.0.0)
+if(WITH_LTTNG_LOGGING)
+  add_tracing_library(ceph_log_tp ceph_log.tp 1.0.0)
+  set(logging_tps bluestore.tp bluestore_gc.tp bluestore_cache.tp bluefs.tp pg.tp)
+  add_tracing_library(logging_tp "${logging_tps}" 1.0.0)
+  install(TARGETS rados_tp osd_tp logging_tp ceph_log_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
+else()
+  install(TARGETS rados_tp osd_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
+endif()
 
-install(TARGETS rados_tp osd_tp logging_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 if(WITH_RBD)
   add_tracing_library(rbd_tp librbd.tp 1.0.0)
   install(TARGETS rbd_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
