@@ -4324,18 +4324,6 @@ ostream& operator<<(ostream& out, const pg_missing_item& i)
   return out;
 }
 
-//template <bool TrackChanges>
-//pg_missing_set<TrackChanges>::operator std::string() {
-//  stringstream out;
-//  out << *this;
-//  return out.str();
-//}
-//pg_missing_t::operator std::string() {
-//  stringstream out;
-//  out << *this;
-//  return out.str();
-//}
-
 // -- object_copy_cursor_t --
 
 void object_copy_cursor_t::encode(bufferlist& bl) const
