@@ -3,7 +3,7 @@
 ioengine=libfio_ceph_objectstore.so # must be found in your LD_LIBRARY_PATH
 
 conf=ceph-filestore.conf # must point to a valid ceph configuration file
-directory=/var/data/crap/out # directory for osd_data
+directory=/mnt/fio-filestore # directory for osd_data
 
 rw=randwrite
 iodepth=16
