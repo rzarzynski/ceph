@@ -235,7 +235,7 @@ void Log::submit_entry(Entry *e, bool logging_legacy)
   e->finish();
 
   if (!logging_legacy) {
-    tracepoint(ceph_logging, log_message, (char*)e->get_str().c_str());
+    tracepoint(ceph_log, log_message, (char*)e->get_str().c_str());
     return;
   }
 
