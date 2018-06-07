@@ -27,10 +27,15 @@
 #define PREALLOC 1000000
 #define MAX_LOG_BUF 65536
 
-#ifdef WITH_LTTNG
+#ifdef WITH_LTTNG_LOGGING
 #define TRACEPOINT_DEFINE
 #define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#include "tracing/ceph_logging.h"
+#include "tracing/ceph_log.h"
+#include "tracing/bluestore_gc.h"
+#include "tracing/bluestore.h"
+#include "tracing/pg.h"
+#include "tracing/bluefs.h"
+#include "tracing/bluestore_cache.h"
 #undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
 #undef TRACEPOINT_DEFINE
 #else
