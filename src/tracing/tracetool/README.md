@@ -1,7 +1,7 @@
 # Tracetool
 
 #### Disclaimer
-This approach is taken from the QEMU project.
+This approach, and some of the code, is taken from the QEMU project.
 
 ## Events file
 
