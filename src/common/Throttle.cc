@@ -223,22 +223,25 @@ int64_t Throttle::put(int64_t c)
   }
 
   assert(c >= 0);
-  ldout(cct, 10) << "put " << c << " (" << count.load() << " -> "
-		 << (count.load()-c) << ")" << dendl;
-  auto l = uniquely_lock(lock);
+  const int64_t count_snap = count.fetch_sub(c);
+  ldout(cct, 10) << "put " << c << " (" << count_snap << " -> "
+		 << (count_snap - c) << ")" << dendl;
   if (c) {
-    if (!conds.empty())
-      conds.front().notify_one();
+    if (!conds_empty) {
+      auto l = uniquely_lock(lock);
+      if (!conds.empty()) {
+	conds.front().notify_one();
+      }
+    }
     // if count goes negative, we failed somewhere!
-    assert(count >= c);
-    count -= c;
+    assert(count_snap >= c);
     if (logger) {
       logger->inc(l_throttle_put);
       logger->inc(l_throttle_put_sum, c);
-      logger->set(l_throttle_val, count);
+      logger->set(l_throttle_val, count_snap - c);
     }
   }
-  return count;
+  return count - c;
 }
 
 void Throttle::reset()
