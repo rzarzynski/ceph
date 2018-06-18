@@ -183,7 +183,7 @@ public:
   ~OpTracker();
 
   template <typename T, typename U>
-  typename T::Ref create_request(U params) {
+  typename T::Ref __attribute__ ((noinline)) create_request(U params) {
     typename T::Ref retval(new T(params, this));
     const std::uint64_t current_seq = ++seq;
     register_inflight_op(retval.get(),
@@ -192,7 +192,7 @@ public:
   }
 
   template <typename T, typename U>
-  typename T::Ref create_request(U params, const spg_t& pgid) {
+  typename T::Ref __attribute__ ((noinline)) create_request(U params, const spg_t& pgid) {
     typename T::Ref retval(new T(params, this));
     register_inflight_op(retval.get(),
 			 pgid.hash_to_shard(num_optracker_shards));
