@@ -23,6 +23,8 @@
 #include <atomic>
 #include <cstdint>
 
+#include <boost/container/flat_map.hpp>
+
 #include "common/perf_histogram.h"
 #include "include/utime.h"
 #include "common/Mutex.h"
@@ -122,6 +124,82 @@ private:
   int prio_default = 0;
 };
 
+
+/** Represents a PerfCounters data element. */
+struct perf_counter_data_any_d {
+  perf_counter_data_any_d()
+    : name(NULL),
+      description(NULL),
+      nick(NULL),
+       type(PERFCOUNTER_NONE),
+       unit(UNIT_NONE)
+  {}
+  perf_counter_data_any_d(const perf_counter_data_any_d& other)
+    : name(other.name),
+      description(other.description),
+      nick(other.nick),
+       type(other.type),
+       unit(other.unit),
+       u64(other.u64) {
+    pair<uint64_t,uint64_t> a = other.read_avg();
+    u64 = a.first;
+    avgcount = a.second;
+    avgcount2 = a.second;
+    if (other.histogram) {
+      histogram.reset(new PerfHistogram<>(*other.histogram));
+    }
+  }
+
+  const char *name;
+  const char *description;
+  const char *nick;
+  uint8_t prio = 0;
+  enum perfcounter_type_d type;
+  enum unit_t unit;
+  uint64_t u64 = { 0 };
+  uint64_t avgcount = { 0 };
+  uint64_t avgcount2 = { 0 };
+  std::unique_ptr<PerfHistogram<>> histogram;
+
+  void reset()
+  {
+    if (type != PERFCOUNTER_U64) {
+          u64 = 0;
+          avgcount = 0;
+          avgcount2 = 0;
+    }
+    if (histogram) {
+      histogram->reset();
+    }
+  }
+
+  // read <sum, count> safely by making sure the post- and pre-count
+  // are identical; in other words the whole loop needs to be run
+  // without any intervening calls to inc, set, or tinc.
+  pair<uint64_t,uint64_t> read_avg() const {
+    uint64_t sum, count;
+    do {
+      count = avgcount;
+      sum = u64;
+    } while (avgcount2 != count);
+    return make_pair(sum, count);
+  }
+};
+
+
+struct PerfCountersThreadData {
+  std::mutex m_lock;
+  std::map<class PerfCounters*,
+	   std::vector<perf_counter_data_any_d>> m_this2vec;
+
+  // both the ctor and dtor are expected to be called when a thread
+  // is spawned or cancelled respectively as the instance should be
+  // thread_local.
+  PerfCountersThreadData();
+  ~PerfCountersThreadData();
+};
+
+
 /*
  * A PerfCounters object is usually associated with a single subsystem.
  * It contains counters which we modify to track performance and throughput
@@ -150,67 +228,6 @@ private:
 class PerfCounters
 {
 public:
-  /** Represents a PerfCounters data element. */
-  struct perf_counter_data_any_d {
-    perf_counter_data_any_d()
-      : name(NULL),
-        description(NULL),
-        nick(NULL),
-	 type(PERFCOUNTER_NONE),
-	 unit(UNIT_NONE)
-    {}
-    perf_counter_data_any_d(const perf_counter_data_any_d& other)
-      : name(other.name),
-        description(other.description),
-        nick(other.nick),
-	 type(other.type),
-	 unit(other.unit),
-	 u64(other.u64.load()) {
-      pair<uint64_t,uint64_t> a = other.read_avg();
-      u64 = a.first;
-      avgcount = a.second;
-      avgcount2 = a.second;
-      if (other.histogram) {
-        histogram.reset(new PerfHistogram<>(*other.histogram));
-      }
-    }
-
-    const char *name;
-    const char *description;
-    const char *nick;
-    uint8_t prio = 0;
-    enum perfcounter_type_d type;
-    enum unit_t unit;
-    std::atomic<uint64_t> u64 = { 0 };
-    std::atomic<uint64_t> avgcount = { 0 };
-    std::atomic<uint64_t> avgcount2 = { 0 };
-    std::unique_ptr<PerfHistogram<>> histogram;
-
-    void reset()
-    {
-      if (type != PERFCOUNTER_U64) {
-	    u64 = 0;
-	    avgcount = 0;
-	    avgcount2 = 0;
-      }
-      if (histogram) {
-        histogram->reset();
-      }
-    }
-
-    // read <sum, count> safely by making sure the post- and pre-count
-    // are identical; in other words the whole loop needs to be run
-    // without any intervening calls to inc, set, or tinc.
-    pair<uint64_t,uint64_t> read_avg() const {
-      uint64_t sum, count;
-      do {
-	count = avgcount;
-	sum = u64;
-      } while (avgcount2 != count);
-      return make_pair(sum, count);
-    }
-  };
-
   template <typename T>
   struct avg_tracker {
     pair<uint64_t, T> last;
@@ -229,6 +246,7 @@ public:
 
   ~PerfCounters();
 
+  std::vector<perf_counter_data_any_d>& _get_or_create_thdvec();
   void inc(int idx, uint64_t v = 1);
   void dec(int idx, uint64_t v = 1);
   void set(int idx, uint64_t v);
@@ -335,7 +353,7 @@ public:
   class PerfCounterRef
   {
     public:
-    PerfCounters::perf_counter_data_any_d *data;
+    perf_counter_data_any_d *data;
     PerfCounters *perf_counters;
   };
   typedef std::map<std::string,
