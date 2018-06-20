@@ -19,6 +19,24 @@
 
 using std::ostringstream;
 
+static struct {
+  std::mutex m_lock;
+  std::vector<PerfCountersThreadData*> m_vec;
+} perf_counters_global_registry;
+
+PerfCountersThreadData::PerfCountersThreadData()
+{
+  std::unique_lock<std::mutex> l(perf_counters_global_registry.m_lock);
+  perf_counters_global_registry.m_vec.emplace_back(this);
+}
+
+PerfCountersThreadData::~PerfCountersThreadData()
+{
+  std::unique_lock<std::mutex> l(perf_counters_global_registry.m_lock);
+  std::remove(std::begin(perf_counters_global_registry.m_vec),
+      	std::end(perf_counters_global_registry.m_vec), this);
+}
+
 PerfCountersCollection::PerfCountersCollection(CephContext *cct)
   : m_cct(cct),
     m_lock("PerfCountersCollection")
@@ -47,7 +65,7 @@ void PerfCountersCollection::add(class PerfCounters *l)
   m_loggers.insert(l);
 
   for (unsigned int i = 0; i < l->m_data.size(); ++i) {
-    PerfCounters::perf_counter_data_any_d &data = l->m_data[i];
+    perf_counter_data_any_d &data = l->m_data[i];
 
     std::string path = l->get_name();
     path += ".";
@@ -62,7 +80,7 @@ void PerfCountersCollection::remove(class PerfCounters *l)
   Mutex::Locker lck(m_lock);
 
   for (unsigned int i = 0; i < l->m_data.size(); ++i) {
-    PerfCounters::perf_counter_data_any_d &data = l->m_data[i];
+    perf_counter_data_any_d &data = l->m_data[i];
 
     std::string path = l->get_name();
     path += ".";
@@ -158,8 +176,28 @@ void PerfCountersCollection::with_counters(std::function<void(
 
 // ---------------------------
 
+static thread_local PerfCountersThreadData m_thread_data {};
+
 PerfCounters::~PerfCounters()
 {
+  std::unique_lock<std::mutex> l(m_thread_data.m_lock);
+  m_thread_data.m_this2vec.erase(this);
+}
+
+std::vector<perf_counter_data_any_d>& PerfCounters::_get_or_create_thdvec()
+{
+  if (m_thread_data.m_this2vec.count(this) > 0) {
+    return m_thread_data.m_this2vec.at(this);
+  } else {
+    std::unique_lock<std::mutex> l(m_thread_data.m_lock);
+    // this is the lazy init of per-thread counters
+    m_thread_data.m_this2vec.emplace(this, m_data);
+    auto& vec = m_thread_data.m_this2vec.at(this);
+    for (auto& perf_counter : vec) {
+      perf_counter.reset();
+    }
+    return vec;
+  }
 }
 
 void PerfCounters::inc(int idx, uint64_t amt)
@@ -169,7 +207,8 @@ void PerfCounters::inc(int idx, uint64_t amt)
 
   assert(idx > m_lower_bound);
   assert(idx < m_upper_bound);
-  perf_counter_data_any_d& data(m_data[idx - m_lower_bound - 1]);
+  perf_counter_data_any_d& data =\
+    _get_or_create_thdvec()[idx - m_lower_bound - 1];
   if (!(data.type & PERFCOUNTER_U64))
     return;
   if (data.type & PERFCOUNTER_LONGRUNAVG) {
@@ -188,7 +227,8 @@ void PerfCounters::dec(int idx, uint64_t amt)
 
   assert(idx > m_lower_bound);
   assert(idx < m_upper_bound);
-  perf_counter_data_any_d& data(m_data[idx - m_lower_bound - 1]);
+  perf_counter_data_any_d& data = \
+    _get_or_create_thdvec()[idx - m_lower_bound - 1];
   assert(!(data.type & PERFCOUNTER_LONGRUNAVG));
   if (!(data.type & PERFCOUNTER_U64))
     return;
@@ -202,7 +242,8 @@ void PerfCounters::set(int idx, uint64_t amt)
 
   assert(idx > m_lower_bound);
   assert(idx < m_upper_bound);
-  perf_counter_data_any_d& data(m_data[idx - m_lower_bound - 1]);
+  perf_counter_data_any_d& data = \
+    _get_or_create_thdvec()[idx - m_lower_bound - 1];
   if (!(data.type & PERFCOUNTER_U64))
     return;
 
@@ -237,7 +278,8 @@ void PerfCounters::tinc(int idx, utime_t amt)
 
   assert(idx > m_lower_bound);
   assert(idx < m_upper_bound);
-  perf_counter_data_any_d& data(m_data[idx - m_lower_bound - 1]);
+  perf_counter_data_any_d& data = \
+    _get_or_create_thdvec()[idx - m_lower_bound - 1];
   if (!(data.type & PERFCOUNTER_TIME))
     return;
   if (data.type & PERFCOUNTER_LONGRUNAVG) {
@@ -540,7 +582,7 @@ void PerfCountersBuilder::add_impl(
   assert(idx > m_perf_counters->m_lower_bound);
   assert(idx < m_perf_counters->m_upper_bound);
   PerfCounters::perf_counter_data_vec_t &vec(m_perf_counters->m_data);
-  PerfCounters::perf_counter_data_any_d
+  perf_counter_data_any_d
     &data(vec[idx - m_perf_counters->m_lower_bound - 1]);
   assert(data.type == PERFCOUNTER_NONE);
   data.name = name;
