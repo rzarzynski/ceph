@@ -146,7 +146,7 @@ public:
    * @return True if there are any Ops to warn on, false otherwise
    */
   bool visit_ops_in_flight(utime_t* oldest_secs,
-			   std::function<bool(TrackedOp&)>&& visit);
+			   std::function<bool(TrackedOpRef)>&& visit);
   /**
    * walk through slow ops in flight
    *
@@ -160,7 +160,7 @@ public:
   bool with_slow_ops_in_flight(utime_t* oldest_secs,
 			       int* num_slow_ops,
 			       int* num_warned_ops,
-			       std::function<void(TrackedOp&)>&& on_warn);
+			       std::function<void(TrackedOpRef)>&& on_warn);
   /**
    * Look for Ops which are too old, and insert warning
    * strings for each Op that is too old.

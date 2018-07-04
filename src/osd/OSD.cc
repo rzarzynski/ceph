@@ -6969,14 +6969,14 @@ vector<DaemonHealthMetric> OSD::get_health_metrics()
     too_old -= cct->_conf->get_val<double>("osd_op_complaint_time");
     int slow = 0;
     TrackedOpRef oldest_op;
-    auto count_slow_ops = [&](TrackedOp& op) {
-      if (op.get_initiated() < too_old) {
-	lgeneric_subdout(cct,osd,20) << "slow op " << op.get_desc()
+    auto count_slow_ops = [&](TrackedOpRef op) {
+      if (op->get_initiated() < too_old) {
+	lgeneric_subdout(cct,osd,20) << "slow op " << op->get_desc()
 	                             << " initiated "
-	                             << op.get_initiated() << dendl;
+	                             << op->get_initiated() << dendl;
 	slow++;
-	if (!oldest_op || op.get_initiated() < oldest_op->get_initiated()) {
-	  oldest_op = &op;
+	if (!oldest_op || op->get_initiated() < oldest_op->get_initiated()) {
+	  oldest_op = std::move(op);
 	}
 	return true;
       } else {

@@ -291,7 +291,7 @@ void OpTracker::unregister_inflight_op(TrackedOp *i)
 }
 
 bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
-				    std::function<bool(TrackedOp&)>&& visit)
+				    std::function<bool(TrackedOpRef)>&& visit)
 {
   if (!tracking_enabled)
     return false;
@@ -328,8 +328,20 @@ bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
     assert(NULL != sdata);
     Mutex::Locker locker(sdata->ops_in_flight_lock_sharded);
     for (auto& op : sdata->ops_in_flight_sharded) {
-      if (op.nref > 0 && !visit(op))
-	break;
+      const auto nref_snap = op.nref.fetch_add(1);
+      if (nref_snap > 0) {
+	if (!visit(TrackedOpRef(&op, /* add_ref = */ false))) {
+	  break;
+	}
+      } else {
+	// Huh, we have interrupted a funeral of this op. Fortunately,
+	// the burying thread hasn't reached the critical section for
+	// ops_in_flight_sharded::erase() yet, so we can just fix ctr.
+	// See:
+	//   * https://tracker.ceph.com/issues/24664
+	//   * https://tracker.ceph.com/issues/24037
+        op.nref--;
+      }
     }
   }
   return true;
@@ -338,34 +350,34 @@ bool OpTracker::visit_ops_in_flight(utime_t* oldest_secs,
 bool OpTracker::with_slow_ops_in_flight(utime_t* oldest_secs,
 					int* num_slow_ops,
 					int* num_warned_ops,
-					std::function<void(TrackedOp&)>&& on_warn)
+					std::function<void(TrackedOpRef)>&& on_warn)
 {
   const utime_t now = ceph_clock_now();
   auto too_old = now;
   too_old -= complaint_time;
   int slow = 0;
   int warned = 0;
-  auto check = [&](TrackedOp& op) {
-    if (op.get_initiated() >= too_old) {
+  auto check = [&](TrackedOpRef op) {
+    if (op->get_initiated() >= too_old) {
       // no more slow ops in flight
       return false;
     }
-    if (!op.warn_interval_multiplier)
+    if (!op->warn_interval_multiplier)
       return true;
     slow++;
     if (warned >= log_threshold) {
       // enough samples of slow ops
       return true;
     }
-    auto time_to_complain = (op.get_initiated() +
-			     complaint_time * op.warn_interval_multiplier);
+    auto time_to_complain = (op->get_initiated() +
+			     complaint_time * op->warn_interval_multiplier);
     if (time_to_complain >= now) {
       // complain later if the op is still in flight
       return true;
     }
     // will warn, increase counter
     warned++;
-    on_warn(op);
+    on_warn(std::move(op));
     return true;
   };
   if (visit_ops_in_flight(oldest_secs, check)) {
@@ -388,16 +400,16 @@ bool OpTracker::check_ops_in_flight(std::string* summary,
   too_old -= complaint_time;
   int warned = 0;
   utime_t oldest_secs;
-  auto warn_on_slow_op = [&](TrackedOp& op) {
+  auto warn_on_slow_op = [&](TrackedOpRef op) {
     stringstream ss;
-    utime_t age = now - op.get_initiated();
+    utime_t age = now - op->get_initiated();
     ss << "slow request " << age << " seconds old, received at "
-       << op.get_initiated() << ": " << op.get_desc()
+       << op->get_initiated() << ": " << op->get_desc()
        << " currently "
-        << (op.current ? op.current : op.state_string());
+        << (op->current ? op->current : op->state_string());
     warnings.push_back(ss.str());
     // only those that have been shown will backoff
-    op.warn_interval_multiplier *= 2;
+    op->warn_interval_multiplier *= 2;
   };
   int slow = 0;
   if (with_slow_ops_in_flight(&oldest_secs, &slow, &warned, warn_on_slow_op) &&
