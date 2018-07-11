@@ -10,43 +10,12 @@ file(MAKE_DIRECTORY ${tracing_build_dir})
 
 add_custom_target(tracepoint_libraries)
 
-file(GLOB tracesources "tracetool/subsys/*")
-foreach(tracesource ${tracesources})
-  get_filename_component(name ${tracesource} NAME_WE)
-  set(tpfile ${tracesource}.tp)
-  set(logging_tps "${logging_tps} ${name}.tp")
-
-  if(WITH_LTTNG_LOGGING)
-    execute_process(
-      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t tp
-      OUTPUT_FILE ${tracing_build_dir}/${name}.tp)
-    execute_process(
-      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t c
-      OUTPUT_FILE ${tracing_build_dir}/${name}.c)
-    execute_process(
-      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t h
-      OUTPUT_FILE ${header_dir}/${name}_impl.h)
-  else()
-    execute_process(
-      COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b dout -t h
-      OUTPUT_FILE ${header_dir}/${name}_impl.h)
-  endif()
-  list(APPEND link_tracepoint_libs ${name}_tp)
-
-  # TODO this part isn't working yet
-#  add_custom_command(
-#    OUTPUT ${tracing_build_dir}/${name}.tp
-#    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t tp > ${tracing_build_dir}/${name}.tp
-#    DEPENDS ${tracesource})
-#  add_custom_command(
-#    OUTPUT ${tracing_build_dir}/${name}.c
-#    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t c > ${tracing_build_dir}/${name}.c
-#    DEPENDS ${tracesource})
-#  add_custom_command(
-#    OUTPUT ${header_dir}/${name}_impl.h
-#    COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/tracetool.py -f ${tracesource} -b lttng -t h > ${header_dir}/${name}_impl.h
-#    DEPENDS ${tracesource})
-endforeach()
+execute_process(
+  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/parsetool.py -f ${CMAKE_SOURCE_DIR}/src/os/bluestore/BlueStore.cc -t tp --outdir ${CMAKE_BINARY_DIR})
+execute_process(
+  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/parsetool.py -f ${CMAKE_SOURCE_DIR}/src/os/bluestore/BlueStore.cc -t h --outdir ${CMAKE_BINARY_DIR})
+execute_process(
+  COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/tracetool/parsetool.py -f ${CMAKE_SOURCE_DIR}/src/os/bluestore/BlueStore.cc -t c --outdir ${CMAKE_BINARY_DIR})
 
 file(GLOB generated_tps "${tracing_build_dir}/*.tp")
 file(GLOB tps "*.tp")
@@ -95,10 +64,13 @@ add_tracing_library(rgw_op_tp rgw_op.tp 1.0.0)
 add_tracing_library(rgw_rados_tp rgw_rados.tp 1.0.0)
 
 if(WITH_LTTNG_LOGGING)
-  add_tracing_library(ceph_log_tp ceph_log.tp 1.0.0)
-  set(logging_tps bluestore.tp bluestore_gc.tp bluestore_cache.tp bluefs.tp pg.tp)
+  foreach(tp ${generated_tps})
+    get_filename_component(name ${tp} NAME)
+    set(logging_tps "${name};${logging_tps}")
+  endforeach()
+
   add_tracing_library(logging_tp "${logging_tps}" 1.0.0)
-  install(TARGETS rados_tp osd_tp logging_tp ceph_log_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  install(TARGETS rados_tp osd_tp logging_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 else()
   install(TARGETS rados_tp osd_tp os_tp rgw_rados_tp rgw_op_tp DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()

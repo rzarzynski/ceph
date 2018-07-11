@@ -30,12 +30,12 @@
 #ifdef WITH_LTTNG_LOGGING
 #define TRACEPOINT_DEFINE
 #define TRACEPOINT_PROBE_DYNAMIC_LINKAGE
-#include "tracing/ceph_log.h"
 #include "tracing/bluestore_gc.h"
 #include "tracing/bluestore.h"
-#include "tracing/pg.h"
 #include "tracing/bluefs.h"
+#include "tracing/bluestore_blob.h"
 #include "tracing/bluestore_cache.h"
+#include "tracing/bluestore_lru_cache.h"
 #undef TRACEPOINT_PROBE_DYNAMIC_LINKAGE
 #undef TRACEPOINT_DEFINE
 #else
@@ -240,7 +240,7 @@ void Log::submit_entry(Entry *e, bool logging_legacy)
   e->finish();
 
   if (!logging_legacy) {
-    tracepoint(ceph_log, log_message, (char*)e->get_str().c_str());
+//    tracepoint(ceph_log, log_message, (char*)e->get_str().c_str());
     return;
   }
 

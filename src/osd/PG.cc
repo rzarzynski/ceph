@@ -58,7 +58,6 @@
 
 #include "common/BackTrace.h"
 #include "common/EventTrace.h"
-#include "tracing/pg_impl.h"
 
 #include <sstream>
 
@@ -430,8 +429,6 @@ void PG::proc_replica_log(
   pg_missing_t& omissing,
   pg_shard_t from)
 {
-  trace_proc_replica_log(from, oinfo, olog, omissing);
-
   pg_log.proc_replica_log(oinfo, olog, omissing, from);
 
   peer_info[from] = oinfo;

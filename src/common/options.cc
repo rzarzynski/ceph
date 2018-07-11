@@ -3331,8 +3331,8 @@ std::vector<Option> get_global_options() {
     .set_description(""),
 
     Option("logging_legacy", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
-    .set_default(false)
-    .set_description(""),
+    .set_default(true)
+    .set_description("Set to false to make dout not log anything"),
 
     Option("osd_function_tracing", Option::TYPE_BOOL, Option::LEVEL_ADVANCED)
     .set_default(false)
