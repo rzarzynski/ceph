@@ -70,6 +70,12 @@ void bluestore_bdev_label_t::generate_test_instances(
   o.back()->meta["foo"] = "bar";
 }
 
+bluestore_bdev_label_t::operator std::string() {
+  std::stringstream out;
+  out << *this;
+  return out.str();
+}
+
 ostream& operator<<(ostream& out, const bluestore_bdev_label_t& l)
 {
   return out << "bdev(osd_uuid " << l.osd_uuid
@@ -576,6 +582,12 @@ void bluestore_pextent_t::generate_test_instances(list<bluestore_pextent_t*>& ls
 {
   ls.push_back(new bluestore_pextent_t);
   ls.push_back(new bluestore_pextent_t(1, 2));
+}
+
+bluestore_pextent_t::operator std::string() {
+  std::stringstream out;
+  out << *this;
+  return out.str();
 }
 
 // bluestore_blob_t

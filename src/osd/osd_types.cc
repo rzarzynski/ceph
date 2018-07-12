@@ -779,6 +779,12 @@ void coll_t::generate_test_instances(list<coll_t*>& o)
   o.push_back(new coll_t());
 }
 
+coll_t::operator std::string() const {
+  std::stringstream out;
+  out << *this;
+  return out.str();
+}
+
 // ---
 
 std::string pg_vector_string(const vector<int32_t> &a)

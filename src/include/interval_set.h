@@ -726,7 +726,7 @@ class interval_set {
 public:
   operator std::string() const {
     std::stringstream out;
-    out << this;
+    out << *this;
     return out.str();
   }
 

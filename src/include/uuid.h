@@ -61,9 +61,7 @@ struct uuid_d {
   }
 
   operator std::string() {
-    std::stringstream out;
-    out << this;
-    return out.str();
+    return to_string();
   }
 };
 WRITE_CLASS_ENCODER(uuid_d)
