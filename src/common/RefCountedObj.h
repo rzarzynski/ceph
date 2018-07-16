@@ -41,7 +41,7 @@ public:
 #endif
   {}
   virtual __attribute__((noinline)) ~RefCountedObject() {
-    assert(nref == 0);
+    assert(nref == 1);
   }
   
   const RefCountedObject* __attribute__((noinline)) get() const {
@@ -69,9 +69,13 @@ public:
     return this;
   }
   void __attribute__((noinline)) put() const {
-    int v = --nref;
-    if (v == 0) {
+    uint64_t v;
+  again:
+    v = nref.load();
+    if (v == 1) {
       delete this;
+    } else if (!nref.compare_exchange_weak(v, v - 1)) {
+      goto again;
     }
 #ifdef REFCOUNTEDOBJECT_DEBUG
     CephContext *local_cct = cct;
