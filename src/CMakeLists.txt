@@ -474,7 +474,6 @@ set(libcommon_files
   mgr/ServiceMap.cc
   osd/ECMsgTypes.cc
   osd/HitSet.cc
-  common/RefCountedObj.cc
   msg/Messenger.cc
   msg/simple/Pipe.cc
   msg/simple/PipeConnection.cc

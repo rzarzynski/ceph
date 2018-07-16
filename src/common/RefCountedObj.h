@@ -184,8 +184,12 @@ struct RefCountedWaitObject {
   }
 };
 
-void intrusive_ptr_add_ref(const RefCountedObject *p);
-void intrusive_ptr_release(const RefCountedObject *p);
+static inline void intrusive_ptr_add_ref(const RefCountedObject *p) {
+  p->get();
+}
+static inline void intrusive_ptr_release(const RefCountedObject *p) {
+  p->put();
+}
 
 using RefCountedPtr = boost::intrusive_ptr<RefCountedObject>;
 
