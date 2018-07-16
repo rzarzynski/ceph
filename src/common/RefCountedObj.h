@@ -25,34 +25,50 @@
 // re-include our assert to clobber the system one; fix dout:
 #include "include/assert.h"
 
+#undef REFCOUNTEDOBJECT_DEBUG
+
 struct RefCountedObject {
 private:
   mutable std::atomic<uint64_t> nref;
+#ifdef REFCOUNTEDOBJECT_DEBUG
   CephContext *cct;
+#endif
 public:
-  __attribute__((noinline)) RefCountedObject(CephContext *c = NULL, int n=1) : nref(n), cct(c) {}
+  __attribute__((noinline)) RefCountedObject(CephContext *c = NULL, int n=1)
+    : nref(n)
+#ifdef REFCOUNTEDOBJECT_DEBUG
+    , cct(c)
+#endif
+  {}
   virtual __attribute__((noinline)) ~RefCountedObject() {
     assert(nref == 0);
   }
   
   const RefCountedObject* __attribute__((noinline)) get() const {
+#ifdef REFCOUNTEDOBJECT_DEBUG
     int v = ++nref;
     if (cct)
       lsubdout(cct, refs, 1) << "RefCountedObject::get " << this << " "
 			     << (v - 1) << " -> " << v
 			     << dendl;
+#else
+    ++nref;
+#endif
     return this;
   }
   RefCountedObject* __attribute__((noinline)) get() {
+#ifdef REFCOUNTEDOBJECT_DEBUG
     int v = ++nref;
     if (cct)
       lsubdout(cct, refs, 1) << "RefCountedObject::get " << this << " "
 			     << (v - 1) << " -> " << v
 			     << dendl;
+#else
+    ++nref;
+#endif
     return this;
   }
   void __attribute__((noinline)) put() const {
-    CephContext *local_cct = cct;
     int v = --nref;
     if (v == 0) {
       ANNOTATE_HAPPENS_AFTER(&nref);
@@ -61,13 +77,18 @@ public:
     } else {
       ANNOTATE_HAPPENS_BEFORE(&nref);
     }
+#ifdef REFCOUNTEDOBJECT_DEBUG
+    CephContext *local_cct = cct;
     if (local_cct)
       lsubdout(local_cct, refs, 1) << "RefCountedObject::put " << this << " "
 				   << (v + 1) << " -> " << v
 				   << dendl;
+#endif
   }
   void __attribute__((noinline)) set_cct(CephContext *c) {
+#ifdef REFCOUNTEDOBJECT_DEBUG
     cct = c;
+#endif
   }
 
   uint64_t __attribute__((noinline)) get_nref() const {
