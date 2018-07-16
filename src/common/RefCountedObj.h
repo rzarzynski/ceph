@@ -34,17 +34,17 @@ private:
   CephContext *cct;
 #endif
 public:
-  __attribute__((noinline)) RefCountedObject(CephContext *c = NULL, int n=1)
+  RefCountedObject(CephContext *c = NULL, int n=1)
     : nref(n)
 #ifdef REFCOUNTEDOBJECT_DEBUG
     , cct(c)
 #endif
   {}
-  virtual __attribute__((noinline)) ~RefCountedObject() {
+  virtual ~RefCountedObject() {
     assert(nref == 1);
   }
   
-  const RefCountedObject* __attribute__((noinline)) get() const {
+  const RefCountedObject* get() const {
 #ifdef REFCOUNTEDOBJECT_DEBUG
     int v = ++nref;
     if (cct)
@@ -56,7 +56,7 @@ public:
 #endif
     return this;
   }
-  RefCountedObject* __attribute__((noinline)) get() {
+  RefCountedObject* get() {
 #ifdef REFCOUNTEDOBJECT_DEBUG
     int v = ++nref;
     if (cct)
@@ -68,7 +68,7 @@ public:
 #endif
     return this;
   }
-  void __attribute__((noinline)) put() const {
+  void put() const {
     uint64_t v;
   again:
     v = nref.load();
@@ -85,13 +85,13 @@ public:
 				   << dendl;
 #endif
   }
-  void __attribute__((noinline)) set_cct(CephContext *c) {
+  void set_cct(CephContext *c) {
 #ifdef REFCOUNTEDOBJECT_DEBUG
     cct = c;
 #endif
   }
 
-  uint64_t __attribute__((noinline)) get_nref() const {
+  uint64_t get_nref() const {
     return nref;
   }
 };
