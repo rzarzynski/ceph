@@ -30,12 +30,12 @@ private:
   mutable std::atomic<uint64_t> nref;
   CephContext *cct;
 public:
-  RefCountedObject(CephContext *c = NULL, int n=1) : nref(n), cct(c) {}
-  virtual ~RefCountedObject() {
+  __attribute__((noinline)) RefCountedObject(CephContext *c = NULL, int n=1) : nref(n), cct(c) {}
+  virtual __attribute__((noinline)) ~RefCountedObject() {
     assert(nref == 0);
   }
   
-  const RefCountedObject *get() const {
+  const RefCountedObject* __attribute__((noinline)) get() const {
     int v = ++nref;
     if (cct)
       lsubdout(cct, refs, 1) << "RefCountedObject::get " << this << " "
@@ -43,7 +43,7 @@ public:
 			     << dendl;
     return this;
   }
-  RefCountedObject *get() {
+  RefCountedObject* __attribute__((noinline)) get() {
     int v = ++nref;
     if (cct)
       lsubdout(cct, refs, 1) << "RefCountedObject::get " << this << " "
@@ -51,7 +51,7 @@ public:
 			     << dendl;
     return this;
   }
-  void put() const {
+  void __attribute__((noinline)) put() const {
     CephContext *local_cct = cct;
     int v = --nref;
     if (v == 0) {
@@ -66,11 +66,11 @@ public:
 				   << (v + 1) << " -> " << v
 				   << dendl;
   }
-  void set_cct(CephContext *c) {
+  void __attribute__((noinline)) set_cct(CephContext *c) {
     cct = c;
   }
 
-  uint64_t get_nref() const {
+  uint64_t __attribute__((noinline)) get_nref() const {
     return nref;
   }
 };
