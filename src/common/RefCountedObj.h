@@ -71,11 +71,7 @@ public:
   void __attribute__((noinline)) put() const {
     int v = --nref;
     if (v == 0) {
-      ANNOTATE_HAPPENS_AFTER(&nref);
-      ANNOTATE_HAPPENS_BEFORE_FORGET_ALL(&nref);
       delete this;
-    } else {
-      ANNOTATE_HAPPENS_BEFORE(&nref);
     }
 #ifdef REFCOUNTEDOBJECT_DEBUG
     CephContext *local_cct = cct;
