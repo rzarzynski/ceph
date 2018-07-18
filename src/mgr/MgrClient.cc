@@ -261,7 +261,7 @@ void MgrClient::_send_report()
   {
     // Helper for checking whether a counter should be included
     auto include_counter = [this](
-        const perf_counter_data_any_d &ctr,
+        const PerfCounters::perf_counter_data_any_d &ctr,
         const PerfCounters &perf_counters)
     {
       return perf_counters.get_adjusted_priority(ctr.prio) >= (int)stats_threshold;
