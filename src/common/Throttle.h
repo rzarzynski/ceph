@@ -28,10 +28,10 @@
  */
 class Throttle final : public ThrottleInterface {
     static constexpr perf_counter_meta_t l_throttle_val {
-      PERFCOUNTER_U64, "val", "Currently available throttle"
+      PERFCOUNTER_SETABLE, "val", "Currently available throttle"
     };
     static constexpr perf_counter_meta_t l_throttle_max {
-      PERFCOUNTER_U64, "max", "Max value for throttle"
+      PERFCOUNTER_SETABLE, "max", "Max value for throttle"
     };
     static constexpr perf_counter_meta_t l_throttle_get_started {
       PERFCOUNTER_U64_CTR, "get_started", "Number of get calls, increased before wait"
