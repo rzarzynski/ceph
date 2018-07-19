@@ -415,12 +415,12 @@ static constexpr std::size_t EXPECTED_THREAD_NUM { 32 };
 template <const perf_counter_meta_t&... P>
 class perf_counters_t {
   union perf_counter_any_data_t {
-    std::size_t val;
+    std::uint64_t val;
     // other types
   };
 
   union perf_counter_atomic_any_data_t {
-    std::atomic_size_t val;
+    std::atomic_uint64_t val;
   };
 
   struct alignas(CACHE_LINE_SIZE_) thread_group_t
