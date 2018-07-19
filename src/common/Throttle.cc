@@ -20,26 +20,11 @@ using ceph::mono_clock;
 using ceph::mono_time;
 using ceph::uniquely_lock;
 
-enum {
-  l_throttle_first = 532430,
-  l_throttle_val,
-  l_throttle_max,
-  l_throttle_get_started,
-  l_throttle_get,
-  l_throttle_get_sum,
-  l_throttle_get_or_fail_fail,
-  l_throttle_get_or_fail_success,
-  l_throttle_take,
-  l_throttle_take_sum,
-  l_throttle_put,
-  l_throttle_put_sum,
-  l_throttle_wait,
-  l_throttle_last,
-};
 
 Throttle::Throttle(CephContext *cct, const std::string& n, int64_t m,
 		   bool _use_perf)
-  : cct(cct), name(n), max(m), use_perf(_use_perf)
+  : cct(cct), name(n), max(m), use_perf(_use_perf),
+    logger(std::string("throttle-") + name)
 {
   assert(m >= 0);
 
@@ -47,23 +32,9 @@ Throttle::Throttle(CephContext *cct, const std::string& n, int64_t m,
     return;
 
   if (cct->_conf->throttler_perf_counter) {
-    PerfCountersBuilder b(cct, string("throttle-") + name, l_throttle_first, l_throttle_last);
-    b.add_u64(l_throttle_val, "val", "Currently available throttle");
-    b.add_u64(l_throttle_max, "max", "Max value for throttle");
-    b.add_u64_counter(l_throttle_get_started, "get_started", "Number of get calls, increased before wait");
-    b.add_u64_counter(l_throttle_get, "get", "Gets");
-    b.add_u64_counter(l_throttle_get_sum, "get_sum", "Got data");
-    b.add_u64_counter(l_throttle_get_or_fail_fail, "get_or_fail_fail", "Get blocked during get_or_fail");
-    b.add_u64_counter(l_throttle_get_or_fail_success, "get_or_fail_success", "Successful get during get_or_fail");
-    b.add_u64_counter(l_throttle_take, "take", "Takes");
-    b.add_u64_counter(l_throttle_take_sum, "take_sum", "Taken data");
-    b.add_u64_counter(l_throttle_put, "put", "Puts");
-    b.add_u64_counter(l_throttle_put_sum, "put_sum", "Put data");
-    b.add_time_avg(l_throttle_wait, "wait", "Waiting latency");
-
-    logger = { b.create_perf_counters(), cct };
-    cct->get_perfcounters_collection()->add(logger.get());
-    logger->set(l_throttle_max, max);
+    // TODO:
+    // cct->get_perfcounters_collection()->add(logger.get());
+    // logger->set(l_throttle_max, max);
   }
 }
 
@@ -80,8 +51,7 @@ void Throttle::_reset_max(int64_t m)
     return;
   if (!conds.empty())
     conds.front().notify_one();
-  if (logger)
-    logger->set(l_throttle_max, m);
+  logger.set<l_throttle_max>(m);
   max = m;
 }
 
@@ -99,8 +69,8 @@ bool Throttle::_wait(int64_t c, UNIQUE_LOCK_T(lock)& l)
 	});
 
       ldout(cct, 2) << "_wait waiting..." << dendl;
-      if (logger)
-	start = mono_clock::now();
+//      if (logger)
+//	start = mono_clock::now();
 
       while (_should_wait(c) || cv != conds.begin()) {
 	cv->wait(l);
@@ -108,9 +78,9 @@ bool Throttle::_wait(int64_t c, UNIQUE_LOCK_T(lock)& l)
       }
 
       ldout(cct, 2) << "_wait finished waiting" << dendl;
-      if (logger) {
-	logger->tinc(l_throttle_wait, mono_clock::now() - start);
-      }
+//      if (logger) {
+//	logger->tinc(l_throttle_wait, mono_clock::now() - start);
+//      }
     }
     // wake up the next guy
     if (!conds.empty())
@@ -145,11 +115,9 @@ int64_t Throttle::take(int64_t c)
     auto l = uniquely_lock(lock);
     count += c;
   }
-  if (logger) {
-    logger->inc(l_throttle_take);
-    logger->inc(l_throttle_take_sum, c);
-    logger->set(l_throttle_val, count);
-  }
+  logger.inc<l_throttle_take>();
+  logger.inc<l_throttle_take_sum>(c);
+  logger.set<l_throttle_val>(count);
   return count;
 }
 
@@ -161,9 +129,7 @@ bool Throttle::get(int64_t c, int64_t m)
 
   assert(c >= 0);
   ldout(cct, 10) << "get " << c << " (" << count.load() << " -> " << (count.load() + c) << ")" << dendl;
-  if (logger) {
-    logger->inc(l_throttle_get_started);
-  }
+  logger.inc<l_throttle_get_started>();
   bool waited = false;
   {
     auto l = uniquely_lock(lock);
@@ -174,11 +140,9 @@ bool Throttle::get(int64_t c, int64_t m)
     waited = _wait(c, l);
     count += c;
   }
-  if (logger) {
-    logger->inc(l_throttle_get);
-    logger->inc(l_throttle_get_sum, c);
-    logger->set(l_throttle_val, count);
-  }
+  logger.inc<l_throttle_get>();
+  logger.inc<l_throttle_get_sum>(c);
+  logger.set<l_throttle_val>(count);
   return waited;
 }
 
@@ -203,19 +167,15 @@ bool Throttle::get_or_fail(int64_t c)
 
   if (should_wait) {
     ldout(cct, 10) << "get_or_fail " << c << " failed" << dendl;
-    if (logger) {
-      logger->inc(l_throttle_get_or_fail_fail);
-    }
+    logger.inc<l_throttle_get_or_fail_fail>();
     return false;
   } else {
     ldout(cct, 10) << "get_or_fail " << c << " success (" << count_snap
 		   << " -> " << (count_snap + c) << ")" << dendl;
-    if (logger) {
-      logger->inc(l_throttle_get_or_fail_success);
-      logger->inc(l_throttle_get);
-      logger->inc(l_throttle_get_sum, c);
-      logger->set(l_throttle_val, count_snap + c);
-    }
+    logger.inc<l_throttle_get_or_fail_success>();
+    logger.inc<l_throttle_get>();
+    logger.inc<l_throttle_get_sum>(c);
+    logger.set<l_throttle_val>(count_snap + c);
     return true;
   }
 }
@@ -239,11 +199,9 @@ int64_t Throttle::put(int64_t c)
     }
     // if count goes negative, we failed somewhere!
     assert(count_snap >= c);
-    if (logger) {
-      logger->inc(l_throttle_put);
-      logger->inc(l_throttle_put_sum, c);
-      logger->set(l_throttle_val, count_snap - c);
-    }
+    logger.inc<l_throttle_put>();
+    logger.inc<l_throttle_put_sum>(c);
+    logger.set<l_throttle_val>(count_snap - c);
   }
   return count_snap - c;
 }
@@ -254,13 +212,11 @@ void Throttle::reset()
   if (!conds.empty())
     conds.front().notify_one();
   count = 0;
-  if (logger) {
-    logger->set(l_throttle_val, 0);
-  }
+  logger.set<l_throttle_val>(0);
 }
 
 enum {
-  l_backoff_throttle_first = l_throttle_last + 1,
+  l_backoff_throttle_first = 532430 + 13 + 1,
   l_backoff_throttle_val,
   l_backoff_throttle_max,
   l_backoff_throttle_get,
