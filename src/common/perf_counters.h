@@ -395,4 +395,125 @@ public:
 
 using PerfCountersRef = std::unique_ptr<PerfCounters, PerfCountersDeleter>;
 
+namespace ceph {
+
+static constexpr auto PERFCOUNTER_U64_CTR = PERFCOUNTER_U64 | PERFCOUNTER_COUNTER;
+
+struct perf_counter_meta_t {
+  std::uint8_t type;
+  const char* name;
+  const char* description { nullptr };
+  const char* nick { nullptr };
+  uint8_t prio { 0 };
+};
+
+static constexpr std::size_t CACHE_LINE_SIZE_ { 64 };
+static constexpr std::size_t EXPECTED_THREAD_NUM { 32 };
+
+template <const perf_counter_meta_t&... P>
+class perf_counters_t {
+  union perf_counter_any_data_t {
+    std::size_t val;
+    // other types
+  };
+
+  struct alignas(CACHE_LINE_SIZE_) thread_group_t
+    : std::array<perf_counter_any_data_t, sizeof...(P)> {
+  };
+
+  const std::string name;
+  std::array<thread_group_t, EXPECTED_THREAD_NUM> threaded_perf_counters;
+  thread_group_t atomic_perf_counters;
+
+  perf_counter_any_data_t* _get_threaded_counters(const std::size_t idx) {
+    static std::atomic_size_t last_allocated_selector{ 0 };
+    static constexpr std::size_t FIRST_SEEN_THREAD{
+      std::tuple_size<decltype(threaded_perf_counters)>::value
+    };
+    thread_local std::size_t thread_selector{ FIRST_SEEN_THREAD };
+
+    if (likely(thread_selector < threaded_perf_counters.size())) {
+      return &threaded_perf_counters[thread_selector][idx];
+    } else if (likely(thread_selector == last_allocated_selector)) {
+      // Well, it looks we're ran out of per-thread slots.
+      return nullptr;
+    } else {
+      // The rare case
+      thread_selector = last_allocated_selector.fetch_add(1);
+      assert(thread_selector < threaded_perf_counters.size());
+      return &threaded_perf_counters[thread_selector][idx];
+    }
+  }
+
+  // Args-pack helpers. Many of them are here only because the constexpr
+  // -capable variant of <algorithm> isn't available in C++17. Sorry.
+  template<const perf_counter_meta_t& to_count,
+	   const perf_counter_meta_t& H,
+	   const perf_counter_meta_t&... T>
+  static constexpr std::size_t count() {
+    constexpr std::size_t curval = &to_count == &H ? 1 : 0;
+    if constexpr (sizeof...(T)) {
+      return curval + count<to_count, T...>();
+    } else {
+      return curval;
+    }
+  }
+
+  template<const perf_counter_meta_t& to_find,
+	   const perf_counter_meta_t& H,
+	   const perf_counter_meta_t&... T>
+  static constexpr std::size_t index_of() {
+    if constexpr (&to_find == &H) {
+      return sizeof...(P) - sizeof...(T) - 1 /* for H */;
+    } else {
+      return index_of<to_find, T...>();
+    }
+  }
+
+public:
+  perf_counters_t(std::string name)
+    : name(std::move(name))
+  {
+    // iterate over all thread slots
+    for (auto& perf_counters : threaded_perf_counters) {
+      memset(&perf_counters, 0, sizeof(perf_counters));
+    }
+
+    memset(&atomic_perf_counters, 0, sizeof(atomic_perf_counters));
+  }
+
+  template<const perf_counter_meta_t& pcid>
+  void inc(const std::size_t count = 1) {
+    static_assert(perf_counters_t::count<pcid, P...>() == 1);
+    static_assert(pcid.type & PERFCOUNTER_U64);
+
+    constexpr std::size_t idx = perf_counters_t::index_of<pcid, P...>();
+    perf_counter_any_data_t* const threaded_counters = \
+      _get_threaded_counters(idx);
+    if (likely(threaded_counters != nullptr)) {
+      threaded_counters->val += count;
+    } else {
+      atomic_perf_counters[idx].val += count;
+    }
+  }
+
+  template<const perf_counter_meta_t& pcid>
+  void set (std::uint64_t amount) {
+  }
+
+  template<const perf_counter_meta_t& pcid>
+  std::size_t get() const {
+    static_assert(perf_counters_t::count<pcid, P...>() == 1);
+    static_assert(pcid.type & PERFCOUNTER_U64);
+
+    constexpr std::size_t idx{ index_of<pcid, P...>() };
+    std::size_t aggregate{ atomic_perf_counters[idx].val };
+    for (const auto& threaded_counters : threaded_perf_counters) {
+      aggregate += threaded_counters[idx].val;
+    }
+    return aggregate;
+  }
+};
+
+} // namespace ceph
 #endif
