@@ -27,9 +27,55 @@
  * back, so @p get_current() drops below the limit after fulfills the requests.
  */
 class Throttle final : public ThrottleInterface {
+    static constexpr perf_counter_meta_t l_throttle_val {
+      PERFCOUNTER_U64, "val", "Currently available throttle"
+    };
+    static constexpr perf_counter_meta_t l_throttle_max {
+      PERFCOUNTER_U64, "max", "Max value for throttle"
+    };
+    static constexpr perf_counter_meta_t l_throttle_get_started {
+      PERFCOUNTER_U64_CTR, "get_started", "Number of get calls, increased before wait"
+    };
+    static constexpr perf_counter_meta_t l_throttle_get {
+      PERFCOUNTER_U64_CTR, "get", "Gets"
+    };
+    static constexpr perf_counter_meta_t l_throttle_get_sum {
+      PERFCOUNTER_U64_CTR, "get_sum", "Got data"
+    };
+    static constexpr perf_counter_meta_t l_throttle_get_or_fail_fail {
+      PERFCOUNTER_U64_CTR, "get_or_fail_fail", "Get blocked during get_or_fail"
+    };
+    static constexpr perf_counter_meta_t l_throttle_get_or_fail_success {
+      PERFCOUNTER_U64_CTR, "get_or_fail_success", "Successful get during get_or_fail"
+    };
+    static constexpr perf_counter_meta_t l_throttle_take {
+      PERFCOUNTER_U64_CTR, "take", "Takes"
+    };
+    static constexpr perf_counter_meta_t l_throttle_take_sum {
+      PERFCOUNTER_U64_CTR, "take_sum", "Taken data"
+    };
+    static constexpr perf_counter_meta_t l_throttle_put {
+      PERFCOUNTER_U64_CTR, "put", "Puts"
+    };
+    static constexpr perf_counter_meta_t l_throttle_put_sum {
+      PERFCOUNTER_U64_CTR, "put_sum", "Put data"
+    };
+    //b.add_time_avg(l_throttle_wait, "wait", "Waiting latency");
+
   CephContext *cct;
   const std::string name;
-  PerfCountersRef logger;
+  ceph::perf_counters_t<l_throttle_val,
+			l_throttle_max,
+			l_throttle_get_started,
+			l_throttle_get,
+			l_throttle_get_sum,
+			l_throttle_get_or_fail_fail,
+			l_throttle_get_or_fail_success,
+			l_throttle_take,
+			l_throttle_take_sum,
+			l_throttle_put,
+			l_throttle_put_sum> logger;
+//			l_throttle_wait>
   std::atomic<int64_t> count = { 0 }, max = { 0 };
   std::mutex lock;
   std::list<std::condition_variable> conds;
