@@ -64,22 +64,24 @@ class Throttle final : public ThrottleInterface {
 
   CephContext *cct;
   const std::string name;
-  ceph::perf_counters_t<l_throttle_val,
-			l_throttle_max,
-			l_throttle_get_started,
-			l_throttle_get,
-			l_throttle_get_sum,
-			l_throttle_get_or_fail_fail,
-			l_throttle_get_or_fail_success,
-			l_throttle_take,
-			l_throttle_take_sum,
-			l_throttle_put,
-			l_throttle_put_sum> logger;
-//			l_throttle_wait>
   std::atomic<int64_t> count = { 0 }, max = { 0 };
   std::mutex lock;
   std::list<std::condition_variable> conds;
   const bool use_perf;
+
+  ceph::perf_counters_t<
+    l_throttle_val,
+    l_throttle_max,
+    l_throttle_get_started,
+    l_throttle_get,
+    l_throttle_get_sum,
+    l_throttle_get_or_fail_fail,
+    l_throttle_get_or_fail_success,
+    l_throttle_take,
+    l_throttle_take_sum,
+    l_throttle_put,
+    l_throttle_put_sum> logger;
+  //  l_throttle_wait>
 
 public:
   Throttle(CephContext *cct, const std::string& n, int64_t m = 0, bool _use_perf = true);
