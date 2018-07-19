@@ -40,6 +40,8 @@ enum perfcounter_type_d : uint8_t
   PERFCOUNTER_LONGRUNAVG = 0x4, // paired counter + sum (time)
   PERFCOUNTER_COUNTER = 0x8,    // counter (vs guage)
   PERFCOUNTER_HISTOGRAM = 0x10, // histogram (vector) of values
+
+  PERFCOUNTER_SETABLE = 0x20,
 };
 
 enum unit_t : uint8_t
@@ -506,7 +508,12 @@ public:
   }
 
   template<const perf_counter_meta_t& pcid>
-  void set (std::uint64_t amount) {
+  void set(const std::uint64_t amount) {
+    static_assert(perf_counters_t::count<pcid, P...>() == 1);
+    static_assert(pcid.type == PERFCOUNTER_SETABLE);
+
+    constexpr std::size_t idx = perf_counters_t::index_of<pcid, P...>();
+    atomic_perf_counters[idx].val.store(amount, std::memory_order_relaxed);
   }
 
   template<const perf_counter_meta_t& pcid>
