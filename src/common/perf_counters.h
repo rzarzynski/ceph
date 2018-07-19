@@ -417,13 +417,21 @@ class perf_counters_t {
     // other types
   };
 
+  union perf_counter_atomic_any_data_t {
+    std::atomic_size_t val;
+  };
+
   struct alignas(CACHE_LINE_SIZE_) thread_group_t
     : std::array<perf_counter_any_data_t, sizeof...(P)> {
   };
 
+  struct alignas(CACHE_LINE_SIZE_) atomic_group_t
+    : std::array<perf_counter_atomic_any_data_t, sizeof...(P)> {
+  };
+
   const std::string name;
   std::array<thread_group_t, EXPECTED_THREAD_NUM> threaded_perf_counters;
-  thread_group_t atomic_perf_counters;
+  atomic_group_t atomic_perf_counters;
 
   perf_counter_any_data_t* _get_threaded_counters(const std::size_t idx) {
     static std::atomic_size_t last_allocated_selector{ 0 };
