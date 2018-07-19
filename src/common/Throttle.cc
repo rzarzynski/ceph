@@ -34,7 +34,7 @@ Throttle::Throttle(CephContext *cct, const std::string& n, int64_t m,
   if (cct->_conf->throttler_perf_counter) {
     // TODO:
     // cct->get_perfcounters_collection()->add(logger.get());
-    // logger->set(l_throttle_max, max);
+    logger.set<l_throttle_max>(max);
   }
 }
 
