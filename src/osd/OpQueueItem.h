@@ -25,8 +25,7 @@
 class OSD;
 class OSDShard;
 
-class OpQueueItem {
-public:
+namespace OpInterface {
   class OrderLocker {
   public:
     using Ref = unique_ptr<OrderLocker>;
@@ -34,7 +33,7 @@ public:
     virtual void unlock() = 0;
     virtual ~OrderLocker() {}
   };
-  // Abstraction for operations queueable in the op queue
+
   class OpQueueable {
   public:
     enum class op_type_t {
@@ -82,6 +81,63 @@ public:
     }
 
   };
+}
+
+/// Implements boilerplate for operations queued for the pg lock
+class PGOpQueueable : public OpInterface::OpQueueable {
+  spg_t pgid;
+protected:
+  const spg_t& get_pgid() const {
+    return pgid;
+  }
+public:
+  explicit PGOpQueueable(spg_t pg) : pgid(pg) {}
+  uint32_t get_queue_token() const override final {
+    return get_pgid().ps();
+  }
+
+  const spg_t& get_ordering_token() const override final {
+    return get_pgid();
+  }
+
+  OpInterface::OrderLocker::Ref get_order_locker(PGRef pg) override final {
+    class Locker : public OpInterface::OrderLocker {
+      PGRef pg;
+    public:
+      explicit Locker(PGRef pg) : pg(pg) {}
+      void lock() override final {
+	pg->lock();
+      }
+      void unlock() override final {
+	pg->unlock();
+      }
+    };
+    return OpInterface::OrderLocker::Ref(
+      new Locker(pg));
+  }
+};
+
+class PGOpItem : public PGOpQueueable {
+  OpRequestRef op;
+public:
+  PGOpItem(spg_t pg, OpRequestRef op) : PGOpQueueable(pg), op(op) {}
+  op_type_t get_op_type() const override final {
+    return op_type_t::client_op;
+  }
+  ostream &print(ostream &rhs) const override final {
+    return rhs << "PGOpItem(op=" << *(op->get_req()) << ")";
+  }
+  boost::optional<OpRequestRef> maybe_get_op() const override final {
+    return op;
+  }
+  void run(OSD *osd, OSDShard *sdata, PGRef& pg, ThreadPool::TPHandle &handle) override final;
+};
+
+class OpQueueItem {
+public:
+  // Abstraction for operations queueable in the op queue
+  using OrderLocker = OpInterface::OrderLocker;
+  using OpQueueable = OpInterface::OpQueueable;
 
 private:
   OpQueueable::Ref qitem;
@@ -163,56 +219,6 @@ public:
     return out << ")";
   }
 }; // class OpQueueItem
-
-/// Implements boilerplate for operations queued for the pg lock
-class PGOpQueueable : public OpQueueItem::OpQueueable {
-  spg_t pgid;
-protected:
-  const spg_t& get_pgid() const {
-    return pgid;
-  }
-public:
-  explicit PGOpQueueable(spg_t pg) : pgid(pg) {}
-  uint32_t get_queue_token() const override final {
-    return get_pgid().ps();
-  }
-
-  const spg_t& get_ordering_token() const override final {
-    return get_pgid();
-  }
-
-  OpQueueItem::OrderLocker::Ref get_order_locker(PGRef pg) override final {
-    class Locker : public OpQueueItem::OrderLocker {
-      PGRef pg;
-    public:
-      explicit Locker(PGRef pg) : pg(pg) {}
-      void lock() override final {
-	pg->lock();
-      }
-      void unlock() override final {
-	pg->unlock();
-      }
-    };
-    return OpQueueItem::OrderLocker::Ref(
-      new Locker(pg));
-  }
-};
-
-class PGOpItem : public PGOpQueueable {
-  OpRequestRef op;
-public:
-  PGOpItem(spg_t pg, OpRequestRef op) : PGOpQueueable(pg), op(op) {}
-  op_type_t get_op_type() const override final {
-    return op_type_t::client_op;
-  }
-  ostream &print(ostream &rhs) const override final {
-    return rhs << "PGOpItem(op=" << *(op->get_req()) << ")";
-  }
-  boost::optional<OpRequestRef> maybe_get_op() const override final {
-    return op;
-  }
-  void run(OSD *osd, OSDShard *sdata, PGRef& pg, ThreadPool::TPHandle &handle) override final;
-};
 
 class PGPeeringItem : public PGOpQueueable {
   PGPeeringEventRef evt;
