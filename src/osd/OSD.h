@@ -2246,4 +2246,14 @@ extern const CompatSet::Feature ceph_osd_feature_compat[];
 extern const CompatSet::Feature ceph_osd_feature_ro_compat[];
 extern const CompatSet::Feature ceph_osd_feature_incompat[];
 
+inline void PGOpItem::run(
+  OSD *osd,
+  OSDShard *sdata,
+  PGRef& pg,
+  ThreadPool::TPHandle &handle)
+{
+  osd->dequeue_op(pg, op, handle);
+  pg->unlock();
+}
+
 #endif // CEPH_OSD_H
