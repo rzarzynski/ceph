@@ -134,6 +134,84 @@ public:
   void run(OSD *osd, OSDShard *sdata, PGRef& pg, ThreadPool::TPHandle &handle) override final;
 };
 
+template <class InterfaceT,
+	  class SpecializationT>
+struct inline_ptr {
+  enum class op_t {
+    copy, move, destroy, size
+  };
+
+  // Nice implementation of C++ type erasure. Taken from Adam Emerson.
+  template <class T>
+  static std::size_t op_fun(op_t oper, void* p1, void* p2) {
+    auto me = static_cast<T*>(p1);
+
+    switch (oper) {
+    case op_t::copy:
+      // One conspicuous downside is that immovable/uncopyable functions
+      // kill compilation right here, even if nobody ever calls the move
+      // or copy methods. Working around this is a pain, since we'd need
+      // four operator functions and a top-level class to
+      // provide/withhold copy/move operations as appropriate.
+//      new (p2) T(*me);
+      ceph_abort();
+      break;
+
+    case op_t::move:
+      new (p2) T(std::move(*me));
+      break;
+
+    case op_t::destroy:
+      me->~T();
+      break;
+
+    case op_t::size:
+      return sizeof(T);
+    }
+    return 0;
+  }
+
+  std::size_t (*operate)(op_t, void*, void*) = nullptr;
+
+  typedef std::unique_ptr<InterfaceT> unique_ptr_type;
+
+  typedef InterfaceT interface_type;
+  typedef SpecializationT specialization_type;
+
+  mutable typename std::aligned_storage<
+    std::max(sizeof(InterfaceT), sizeof(SpecializationT))>::type storage;
+
+  inline_ptr(unique_ptr_type&& p)
+    : operate(op_fun<unique_ptr_type>) {
+    new (&storage) unique_ptr_type(std::move(p));
+  }
+
+  template <class... ArgsT>
+  inline_ptr(std::in_place_type_t<SpecializationT>, ArgsT&&... args)
+    : operate(op_fun<SpecializationT>) {
+    new (&storage) SpecializationT(std::forward<ArgsT>(args)...);
+  }
+
+  ~inline_ptr() {
+    operate(op_t::destroy, &storage, nullptr);
+  }
+};
+
+// Using a macro because I cannot find a counterpart of
+//    pointer_to_derived->Derived::virtual_method() nor
+//    reference_to_derived.Derived::virtual_method()
+// for pointer-to-members. There are some other possibilities. TODO.
+#define inline_ptr_call(obj, method_name, ...) \
+do { \
+    if (likely(obj.operate == &decltype(obj)::op_fun<decltype(obj)::specialization_type>)) { \
+      auto& i = reinterpret_cast<decltype(obj)::specialization_type&>(obj.storage); \
+      return i.decltype(obj)::specialization_type::method_name(__VA_ARGS__); \
+    } else { \
+      auto& i = reinterpret_cast<decltype(obj)::unique_ptr_type&>(obj.storage); \
+      return i->method_name(__VA_ARGS__); \
+    } \
+} while (0) 
+
 class OpQueueItem {
 public:
   // Abstraction for operations queueable in the op queue
@@ -141,7 +219,7 @@ public:
   using OpQueueable = OpInterface::OpQueueable;
 
 private:
-  std::variant<OpQueueable::Ref, PGOpItem> qitem;
+  inline_ptr<OpQueueable, PGOpItem> qitem_alt;
   int cost;
   unsigned priority;
   utime_t start_time;
@@ -156,7 +234,23 @@ public:
     utime_t start_time,
     uint64_t owner,
     epoch_t e)
-    : qitem(std::in_place_type_t<OpQueueable::Ref> {}, std::move(item)),
+    : qitem_alt(std::move(item)),
+      cost(cost),
+      priority(priority),
+      start_time(start_time),
+      owner(owner),
+      map_epoch(e)
+  {}
+  template <class... ArgsT>
+  OpQueueItem(
+    int cost,
+    unsigned priority,
+    utime_t start_time,
+    uint64_t owner,
+    epoch_t e,
+    std::in_place_type_t<PGOpItem>,
+    ArgsT... args)
+    : qitem_alt(std::in_place_type_t<PGOpItem>{}, std::forward<ArgsT>(args)...),
       cost(cost),
       priority(priority),
       start_time(start_time),
@@ -169,62 +263,28 @@ public:
   OpQueueItem &operator=(const OpQueueItem &) = delete;
 
   OrderLocker::Ref get_order_locker(PGRef pg) {
-    PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->get_order_locker(pg);
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->get_order_locker(pg);
-    }
+    inline_ptr_call(qitem_alt, get_order_locker, pg);
   }
   uint32_t get_queue_token() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->get_queue_token();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->get_queue_token();
-    }
+    inline_ptr_call(qitem_alt, get_queue_token);
   }
   const spg_t& get_ordering_token() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->get_ordering_token();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->get_ordering_token();
-    }
+    inline_ptr_call(qitem_alt, get_ordering_token);
   }
   using op_type_t = OpQueueable::op_type_t;
-  OpQueueable::op_type_t __attribute__((noinline)) get_op_type() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->get_op_type();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->get_op_type();
-    }
+  //OpQueueable::op_type_t __attribute__((noinline)) get_op_type() const {
+  OpQueueable::op_type_t get_op_type() const {
+    inline_ptr_call(qitem_alt, get_op_type);
   }
 
   boost::optional<OpRequestRef> maybe_get_op() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->maybe_get_op();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->maybe_get_op();
-    }
+    inline_ptr_call(qitem_alt, maybe_get_op);
   }
   uint64_t get_reserved_pushes() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->get_reserved_pushes();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->get_reserved_pushes();
-    }
+    inline_ptr_call(qitem_alt, get_reserved_pushes);
   }
   void run(OSD *osd, OSDShard *sdata,PGRef& pg, ThreadPool::TPHandle &handle) {
-    PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      v->run(osd, sdata, pg, handle);
-    } else {
-      std::get<OpQueueable::Ref>(qitem)->run(osd, sdata, pg, handle);
-    }
+    inline_ptr_call(qitem_alt, run, osd, sdata, pg, handle);
   }
   unsigned get_priority() const { return priority; }
   int get_cost() const { return cost; }
@@ -233,30 +293,15 @@ public:
   epoch_t get_map_epoch() const { return map_epoch; }
 
   bool is_peering() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->is_peering();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->is_peering();
-    }
+    inline_ptr_call(qitem_alt, is_peering);
   }
 
   const PGCreateInfo *creates_pg() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->creates_pg();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->creates_pg();
-    }
+    inline_ptr_call(qitem_alt, creates_pg);
   }
 
   bool peering_requires_pg() const {
-    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
-    if (likely(v != nullptr)) {
-      return v->peering_requires_pg();
-    } else {
-      return std::get<OpQueueable::Ref>(qitem)->peering_requires_pg();
-    }
+    inline_ptr_call(qitem_alt, peering_requires_pg);
   }
 
   friend ostream& operator<<(ostream& out, const OpQueueItem& item) {

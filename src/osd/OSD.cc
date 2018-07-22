@@ -8814,12 +8814,14 @@ void OSD::enqueue_op(spg_t pg, OpRequestRef& op, epoch_t epoch)
   logger->tinc(l_osd_op_before_queue_op_lat, latency);
   op_shardedwq.queue(
     OpQueueItem(
-      unique_ptr<OpQueueItem::OpQueueable>(new PGOpItem(pg, op)),
       op->get_req()->get_cost(),
       op->get_req()->get_priority(),
       op->get_req()->get_recv_stamp(),
       op->get_req()->get_source().num(),
-      epoch));
+      epoch,
+      std::in_place_type_t<PGOpItem>{},
+      pg,
+      op));
 }
 
 void OSD::enqueue_peering_evt(spg_t pgid, PGPeeringEventRef evt)
