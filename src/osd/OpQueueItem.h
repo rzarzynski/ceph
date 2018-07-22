@@ -15,6 +15,7 @@
 #pragma once
 
 #include <ostream>
+#include <variant>
 
 #include "include/types.h"
 #include "include/utime.h"
@@ -140,7 +141,7 @@ public:
   using OpQueueable = OpInterface::OpQueueable;
 
 private:
-  OpQueueable::Ref qitem;
+  std::variant<OpQueueable::Ref, PGOpItem> qitem;
   int cost;
   unsigned priority;
   utime_t start_time;
@@ -155,7 +156,7 @@ public:
     utime_t start_time,
     uint64_t owner,
     epoch_t e)
-    : qitem(std::move(item)),
+    : qitem(std::in_place_type_t<OpQueueable::Ref> {}, std::move(item)),
       cost(cost),
       priority(priority),
       start_time(start_time),
@@ -168,26 +169,62 @@ public:
   OpQueueItem &operator=(const OpQueueItem &) = delete;
 
   OrderLocker::Ref get_order_locker(PGRef pg) {
-    return qitem->get_order_locker(pg);
+    PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->get_order_locker(pg);
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->get_order_locker(pg);
+    }
   }
   uint32_t get_queue_token() const {
-    return qitem->get_queue_token();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->get_queue_token();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->get_queue_token();
+    }
   }
   const spg_t& get_ordering_token() const {
-    return qitem->get_ordering_token();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->get_ordering_token();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->get_ordering_token();
+    }
   }
   using op_type_t = OpQueueable::op_type_t;
-  OpQueueable::op_type_t get_op_type() const {
-    return qitem->get_op_type();
+  OpQueueable::op_type_t __attribute__((noinline)) get_op_type() const {
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->get_op_type();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->get_op_type();
+    }
   }
+
   boost::optional<OpRequestRef> maybe_get_op() const {
-    return qitem->maybe_get_op();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->maybe_get_op();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->maybe_get_op();
+    }
   }
   uint64_t get_reserved_pushes() const {
-    return qitem->get_reserved_pushes();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->get_reserved_pushes();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->get_reserved_pushes();
+    }
   }
   void run(OSD *osd, OSDShard *sdata,PGRef& pg, ThreadPool::TPHandle &handle) {
-    qitem->run(osd, sdata, pg, handle);
+    PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      v->run(osd, sdata, pg, handle);
+    } else {
+      std::get<OpQueueable::Ref>(qitem)->run(osd, sdata, pg, handle);
+    }
   }
   unsigned get_priority() const { return priority; }
   int get_cost() const { return cost; }
@@ -196,20 +233,35 @@ public:
   epoch_t get_map_epoch() const { return map_epoch; }
 
   bool is_peering() const {
-    return qitem->is_peering();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->is_peering();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->is_peering();
+    }
   }
 
   const PGCreateInfo *creates_pg() const {
-    return qitem->creates_pg();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->creates_pg();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->creates_pg();
+    }
   }
 
   bool peering_requires_pg() const {
-    return qitem->peering_requires_pg();
+    const PGOpItem* const v = std::get_if<PGOpItem>(&qitem);
+    if (likely(v != nullptr)) {
+      return v->peering_requires_pg();
+    } else {
+      return std::get<OpQueueable::Ref>(qitem)->peering_requires_pg();
+    }
   }
 
   friend ostream& operator<<(ostream& out, const OpQueueItem& item) {
      out << "OpQueueItem("
-	 << item.get_ordering_token() << " " << *item.qitem
+	 //<< item.get_ordering_token() << " " << *item.qitem
 	 << " prio " << item.get_priority()
 	 << " cost " << item.get_cost()
 	 << " e" << item.get_map_epoch();
