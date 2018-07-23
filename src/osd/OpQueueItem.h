@@ -15,7 +15,6 @@
 #pragma once
 
 #include <ostream>
-#include <variant>
 
 #include "include/types.h"
 #include "include/utime.h"
@@ -192,8 +191,35 @@ struct inline_ptr {
     new (&storage) SpecializationT(std::forward<ArgsT>(args)...);
   }
 
+  inline_ptr(inline_ptr&& rhs)
+    : operate(rhs.operate) {
+    if (operate) {
+      operate(op_t::move, &rhs.storage, &storage);
+    }
+  }
+
+  inline_ptr& operator =(inline_ptr&& rhs) {
+    reset();
+    if (rhs) {
+      operate = rhs.operate;
+      operate(op_t::move, &rhs.storage, &storage);
+    }
+    return *this;
+  }
+
+  operator bool() const noexcept {
+    return !!operate;
+  }
+
+  void reset() noexcept {
+    if (operate) {
+      operate(op_t::destroy, &storage, nullptr);
+      operate = nullptr;
+    }
+  }
+
   ~inline_ptr() {
-    operate(op_t::destroy, &storage, nullptr);
+    reset();
   }
 };
 
