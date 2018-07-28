@@ -18,6 +18,52 @@
 #include "Crypto.h"
 #ifdef USE_OPENSSL
 # include <openssl/aes.h>
+
+/*
+ * from OpenSSL's crypto/aes/asm/aesni-x86_64.pl (yes, it's Perl-crafted
+ * assember ;-).
+ *
+ *   # This module implements support for Intel AES-NI extension. In
+ *   # OpenSSL context it's used with Intel engine, but can also be used as
+ *   # drop-in replacement for crypto/aes/asm/aes-x86_64.pl [see below for
+ *   # details].
+ *
+ *   # ...
+ *
+ *   # void $PREFIX_cbc_encrypt (const void *inp, void *out,
+ *   #                           size_t length, const AES_KEY *key,
+ *   #                           unsigned char *ivp,const int enc);
+ *
+ * from OpenSSL's crypto/aes/asm/aes-x86_64.pl:
+ *
+ *   # void AES_cbc_encrypt (const void char *inp, unsigned char *out,
+ *   #                       size_t length, const AES_KEY *key,
+ *   #                       unsigned char *ivp,const int enc);
+ *
+ * Beware: https://stackoverflow.com/a/11369504
+ *
+ * This is a really ugly hack. We're accesing things that are not exposed
+ * to us via headers (aren't parts of the public interface). Even worse,
+ * they employ AES-NI  without the required run-time CPUID check.
+ *
+ * For testing PR #23260.
+ */
+
+extern "C" {
+
+extern void aesni_cbc_encrypt(
+  const unsigned char *in,
+  unsigned char *out,
+  size_t length,
+  const AES_KEY *key,
+  unsigned char *ivec, int enc) __attribute__((weak));
+
+extern int aesni_set_encrypt_key(
+  const unsigned char *userKey,
+  int bits,
+  AES_KEY *key) __attribute__((weak));
+
+}
 #endif
 
 #include "include/assert.h"
@@ -202,9 +248,14 @@ public:
   int init(const bufferptr& s, ostringstream& err) {
     secret = s;
 
-    const int enc_key_ret = \
-      AES_set_encrypt_key((const unsigned char*)secret.c_str(),
+    int enc_key_ret;
+    if (likely(aesni_set_encrypt_key != nullptr)) {
+      enc_key_ret = aesni_set_encrypt_key((const unsigned char*)secret.c_str(),
+			    AES_KEY_LEN * CHAR_BIT, &enc_key);
+    } else {
+      enc_key_ret = AES_set_encrypt_key((const unsigned char*)secret.c_str(),
 			  AES_KEY_LEN * CHAR_BIT, &enc_key);
+    }
     if (enc_key_ret != 0) {
       err << "cannot set OpenSSL encrypt key for AES: " << enc_key_ret;
       return -1;
@@ -254,8 +305,13 @@ public:
     // shows the cost is quite high. Endianness might be an issue.
     // However, as they would affect Cephx, any fallout should pop up
     // rather early, hopefully.
-    AES_cbc_encrypt(in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()),
-		    out_tmp.length(), &enc_key, iv, AES_ENCRYPT);
+    if (likely(aesni_cbc_encrypt != nullptr)) {
+      aesni_cbc_encrypt(in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()),
+			out_tmp.length(), &enc_key, iv, AES_ENCRYPT);
+    } else {
+      AES_cbc_encrypt(in_buf, reinterpret_cast<unsigned char*>(out_tmp.c_str()),
+		      out_tmp.length(), &enc_key, iv, AES_ENCRYPT);
+    }
 
     out.append(out_tmp);
     return 0;
@@ -323,13 +379,23 @@ public:
 
     const std::size_t main_encrypt_size = \
       std::min(in.length - tail_len, out.max_length);
-    AES_cbc_encrypt(in.buf, out.buf, main_encrypt_size, &enc_key, iv.data(),
-		    AES_ENCRYPT);
+    if (likely(aesni_cbc_encrypt != nullptr)) {
+      aesni_cbc_encrypt(in.buf, out.buf, main_encrypt_size, &enc_key, iv.data(),
+		        AES_ENCRYPT);
+    } else {
+      AES_cbc_encrypt(in.buf, out.buf, main_encrypt_size, &enc_key, iv.data(),
+		      AES_ENCRYPT);
+    }
 
     const std::size_t tail_encrypt_size = \
       std::min(AES_BLOCK_LEN, out.max_length - main_encrypt_size);
-    AES_cbc_encrypt(last_block.data(), out.buf + main_encrypt_size,
-		    tail_encrypt_size, &enc_key, iv.data(), AES_ENCRYPT);
+    if (likely(aesni_cbc_encrypt != nullptr)) {
+      aesni_cbc_encrypt(last_block.data(), out.buf + main_encrypt_size,
+		      tail_encrypt_size, &enc_key, iv.data(), AES_ENCRYPT);
+    } else {
+      AES_cbc_encrypt(last_block.data(), out.buf + main_encrypt_size,
+		      tail_encrypt_size, &enc_key, iv.data(), AES_ENCRYPT);
+    }
 
     return main_encrypt_size + tail_encrypt_size;
   }
