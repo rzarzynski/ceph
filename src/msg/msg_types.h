@@ -243,6 +243,12 @@ struct entity_addr_t {
     }
   };
 
+  // TODO: move into separated class intended to be used in dout-heavy
+  // scenarios?
+  // TODO: switch to our sstring to save a dynalloc?
+  mutable std::string addr_cache;
+  const std::string& to_string() const;
+
   __u32 type;
   __u32 nonce;
   union {

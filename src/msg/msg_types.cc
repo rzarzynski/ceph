@@ -4,6 +4,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cstring>
 #include <netdb.h>
 
 #include "common/Formatter.h"
@@ -167,6 +168,44 @@ bool entity_addr_t::parse(const char *s, const char **end)
   return true;
 }
 
+const std::string& entity_addr_t::to_string() const {
+  if (!addr_cache.empty()) {
+    return addr_cache;
+  }
+
+  char buf[NI_MAXHOST] = { 0 };
+  char serv[NI_MAXSERV] = { 0 };
+  std::size_t hostlen;
+
+  if (get_sockaddr()->sa_family == AF_INET)
+    hostlen = sizeof(struct sockaddr_in);
+  else if (get_sockaddr()->sa_family == AF_INET6)
+    hostlen = sizeof(struct sockaddr_in6);
+  else
+    hostlen = sizeof(struct sockaddr_storage);
+  getnameinfo(get_sockaddr(), hostlen, buf, sizeof(buf),
+	      serv, sizeof(serv),
+	      NI_NUMERICHOST | NI_NUMERICSERV);
+
+  const auto buflen = std::strlen(buf);
+  const auto servlen = std::strlen(serv);
+  const auto noncestr = std::to_string(nonce); // I count on SSO
+  const auto noncelen = noncestr.length();
+
+  if (get_sockaddr()->sa_family == AF_INET6) {
+    addr_cache.reserve(std::strlen("[") + buflen + std::strlen("]:") + \
+		       servlen + std::strlen("/") + noncelen);
+    addr_cache.append("[").append(buf, buflen).append("]:") \
+	      .append(serv, servlen).append("/").append(noncestr);
+  } else {
+    addr_cache.reserve(buflen + std::strlen(":") + \
+		       servlen + std::strlen("/") + noncelen);
+    addr_cache.append(buf, buflen).append(":") \
+	      .append(serv, servlen).append("/").append(noncestr);
+  }
+  return addr_cache;
+}
+
 ostream& operator<<(ostream& out, const entity_addr_t &addr)
 {
   if (addr.type == entity_addr_t::TYPE_NONE) {
@@ -175,7 +214,8 @@ ostream& operator<<(ostream& out, const entity_addr_t &addr)
   if (addr.type != entity_addr_t::TYPE_DEFAULT) {
     out << entity_addr_t::get_type_name(addr.type) << ":";
   }
-  out << addr.get_sockaddr() << '/' << addr.nonce;
+  // TODO: specialize std::to_string()?
+  out << addr.to_string();
   return out;
 }
 
