@@ -40,7 +40,7 @@ PERF_COUNTERS_ADD_TIME_AVG(l_msgr_running_fast_dispatch_time,
   "msgr_running_fast_dispatch_time", "The total time of fast dispatch");
 
 
-using msgr_perf_counters_t = ceph::perf_counters_t<
+using msgr_perf_counters_t = ceph::perf_counters_t<32,
   l_msgr_recv_messages,
   l_msgr_send_messages,
   l_msgr_recv_bytes,

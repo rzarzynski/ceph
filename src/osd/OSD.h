@@ -320,6 +320,8 @@ PERF_COUNTERS_ADD_U64_COUNTER(l_osd_object_ctx_cache_total,
 
 
 using osd_perf_counters_t = ceph::perf_counters_t<
+  32,
+
   l_osd_op_before_queue_op_lat,
   l_osd_op_before_dequeue_op_lat,
 

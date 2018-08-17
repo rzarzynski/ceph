@@ -226,7 +226,7 @@ PERF_COUNTERS_ADD_U64_SETABLE(l_bluestore_fragmentation,
   "bluestore_fragmentation_micros", "How fragmented bluestore free space is "
   "(free extents / max possible number of free extents) * 1000");
 
-using bluestore_perf_counters_t = ceph::perf_counters_t<
+using bluestore_perf_counters_t = ceph::perf_counters_t<24,
   l_bluestore_kv_flush_lat,
   l_bluestore_kv_commit_lat,
   l_bluestore_kv_sync_lat,

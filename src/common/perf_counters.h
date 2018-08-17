@@ -603,12 +603,12 @@ static constexpr auto PERFCOUNTER_U64_HIST = \
 
 
 static constexpr std::size_t CACHE_LINE_SIZE_ { 64 };
-static constexpr std::size_t EXPECTED_THREAD_NUM { 32 };
 
 #define DEBUG_NOINLINE
 #define ALWAYS_INLINE  __attribute__((always_inline))
 
-template <const perf_counter_meta_t&... P>
+template <std::size_t ExptectedThreadNumV,
+	  const perf_counter_meta_t&... P>
 class perf_counters_t : public PerfCountersCollectionable {
   union perf_counter_any_data_t {
     struct val_with_counter_t {
@@ -644,7 +644,7 @@ class perf_counters_t : public PerfCountersCollectionable {
   std::string name;
   int prio_adjust = 0;
 
-  std::array<thread_group_t, EXPECTED_THREAD_NUM> threaded_perf_counters;
+  std::array<thread_group_t, ExptectedThreadNumV> threaded_perf_counters;
   atomic_group_t atomic_perf_counters;
 
   // threaded selection

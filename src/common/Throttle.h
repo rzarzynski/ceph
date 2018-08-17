@@ -66,7 +66,7 @@ class Throttle final : public ThrottleInterface {
       PERFCOUNTER_LONGRUNAVG), "wait", "Waiting latency"
   };
 
-  using throttle_perf_counters_t = ceph::perf_counters_t<
+  using throttle_perf_counters_t = ceph::perf_counters_t<24,
     l_throttle_val,
     l_throttle_max,
     l_throttle_get_started,
