@@ -1066,6 +1066,7 @@ public:
 
     std::atomic<uint64_t> num_extents = {0};
     std::atomic<uint64_t> num_blobs = {0};
+    ceph::bufferlist clean_outside_lock_bl;
 
     static Cache *create(CephContext* cct, string type, PerfCounters *logger);
 

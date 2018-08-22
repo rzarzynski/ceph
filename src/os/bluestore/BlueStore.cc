@@ -785,14 +785,20 @@ BlueStore::Cache *BlueStore::Cache::create(CephContext* cct, string type,
 
 void BlueStore::Cache::trim(uint64_t onode_max, uint64_t buffer_max)
 {
-  std::lock_guard<std::recursive_mutex> l(lock);
-  _trim(onode_max, buffer_max);
+  {
+    std::lock_guard<std::recursive_mutex> l(lock);
+    _trim(onode_max, buffer_max);
+  }
+  clean_outside_lock_bl.clear();
 }
 
 void BlueStore::Cache::trim_all()
 {
-  std::lock_guard<std::recursive_mutex> l(lock);
-  _trim(0, 0);
+  {
+    std::lock_guard<std::recursive_mutex> l(lock);
+    _trim(0, 0);
+  }
+  clean_outside_lock_bl.clear();
 }
 
 // LRUCache
@@ -1077,7 +1083,10 @@ void BlueStore::TwoQCache::_trim(uint64_t onode_max, uint64_t buffer_max)
       to_evict_bytes -= b->length;
       evicted += b->length;
       b->state = Buffer::STATE_EMPTY;
+
+      clean_outside_lock_bl.claim_append(b->data);
       b->data.clear();
+
       buffer_warm_in.erase(buffer_warm_in.iterator_to(*b));
       buffer_warm_out.push_front(*b);
       b->cache_private = BUFFER_WARM_OUT;
