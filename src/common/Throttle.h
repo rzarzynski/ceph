@@ -86,7 +86,7 @@ class Throttle final : public ThrottleInterface {
   std::mutex lock;
   std::list<std::condition_variable> conds;
   const bool use_perf;
-  std::unique_ptr<throttle_perf_counters_t> logger;
+  throttle_perf_counters_t logger;
 
 public:
   Throttle(CephContext *cct, const std::string& n, int64_t m = 0, bool _use_perf = true);
