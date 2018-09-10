@@ -7149,6 +7149,22 @@ int BlueStore::set_collection_opts(
   return 0;
 }
 
+static void __attribute__ ((noinline))
+pr22458_trace_read_noinline(const coll_t& cid,
+			    const ghobject_t& oid,
+			    uint64_t offset,
+			    size_t length,
+			    int r)
+{
+  trace_read(10, bluestore,
+             coll_t, cid, cid,
+             ghobject_t, oid, oid,
+             uint64_t, offset, offset,
+             size_t, length, length,
+             int, r, r,
+             "%s %s 0x%x~%x = %d");
+}
+
 int BlueStore::read(
   CollectionHandle &c_,
   const ghobject_t& oid,
@@ -7198,13 +7214,9 @@ int BlueStore::read(
     trace_read_inject_random_eio(0, bluestore, ": inject random EIOD");
     r = -EIO;
   }
-  trace_read(10, bluestore,
-             coll_t, cid, cid,
-             ghobject_t, oid, oid,
-             uint64_t, offset, offset,
-             size_t, length, length,
-             int, r, r,
-             "%s %s 0x%x~%x = %d");
+  pr22458_trace_read_noinline(cid /* as const coll_t&, not std::string */,
+			      oid /* as const ghobject_t&, not std::string */,
+			      offset, length, r);
   logger->tinc(l_bluestore_read_lat, ceph_clock_now() - start);
   return r;
 }
