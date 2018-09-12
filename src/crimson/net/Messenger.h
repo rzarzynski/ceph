@@ -41,15 +41,16 @@ class Messenger {
   }
 
   /// bind to the given address
-  virtual void bind(const entity_addr_t& addr) = 0;
+  virtual seastar::future<> bind(const entity_addr_t& addr) = 0;
 
   /// start the messenger
   virtual seastar::future<> start(Dispatcher *dispatcher) = 0;
 
   /// either return an existing connection to the peer,
   /// or a new pending connection
-  virtual ConnectionRef connect(const entity_addr_t& peer_addr,
-                                const entity_type_t& peer_type) = 0;
+  virtual seastar::future<ConnectionXRef>
+  connect(const entity_addr_t& peer_addr,
+          const entity_type_t& peer_type) = 0;
 
   /// stop listenening and wait for all connections to close. safe to destruct
   /// after this future becomes available
@@ -70,6 +71,11 @@ class Messenger {
   }
   void set_crc_header() {
     crc_flags |= MSG_CRC_HEADER;
+  }
+
+  // get the locol dispatcher shard if it is accessed by another core
+  virtual Messenger* get_local_shard() {
+    return this;
   }
 };
 

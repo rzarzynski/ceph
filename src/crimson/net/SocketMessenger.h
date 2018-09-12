@@ -19,6 +19,7 @@
 #include <set>
 #include <seastar/core/gate.hh>
 #include <seastar/core/reactor.hh>
+#include <seastar/core/sharded.hh>
 
 #include "msg/Policy.h"
 #include "Messenger.h"
@@ -29,7 +30,10 @@ namespace ceph::net {
 
 using SocketPolicy = ceph::net::Policy<ceph::thread::Throttle>;
 
-class SocketMessenger final : public Messenger {
+class SocketMessenger final : public Messenger, public seastar::peering_sharded_service<SocketMessenger> {
+  const seastar::shard_id sid;
+  seastar::promise<> shutdown_promise;
+
   std::optional<seastar::server_socket> listener;
   Dispatcher *dispatcher = nullptr;
   std::map<entity_addr_t, SocketConnectionRef> connections;
@@ -37,17 +41,34 @@ class SocketMessenger final : public Messenger {
   using Throttle = ceph::thread::Throttle;
   ceph::net::PolicySet<Throttle> policy_set;
 
+  void do_bind(const entity_addr_t& addr);
+  seastar::future<> do_start(Dispatcher *disp);
+  seastar::foreign_ptr<ConnectionRef> do_connect(const entity_addr_t& peer_addr,
+                                                 const entity_type_t& peer_type);
+  seastar::future<> do_shutdown();
+  // conn sharding options:
+  // 1. Simplest: sharded by ip only
+  // 2. Balanced: sharded by ip + port + nonce,
+  //        but, need to move SocketConnection between cores.
+  seastar::shard_id locate_shard(const entity_addr_t& addr);
+
  public:
   SocketMessenger(const entity_name_t& myname);
 
-  void bind(const entity_addr_t& addr) override;
+  // Messenger interfaces are assumed to be called from its own shard, but its
+  // behavior should be symmetric when called from any shard.
+  seastar::future<> bind(const entity_addr_t& addr) override;
 
   seastar::future<> start(Dispatcher *dispatcher) override;
 
-  ConnectionRef connect(const entity_addr_t& peer_addr,
-                        const entity_type_t& peer_type) override;
+  seastar::future<ConnectionXRef> connect(const entity_addr_t& peer_addr,
+                                          const entity_type_t& peer_type) override;
 
   seastar::future<> shutdown() override;
+
+  Messenger* get_local_shard() override {
+    return &container().local();
+  }
 
  public:
   void set_default_policy(const SocketPolicy& p);
@@ -59,6 +80,19 @@ class SocketMessenger final : public Messenger {
   void unaccept_conn(SocketConnectionRef);
   void register_conn(SocketConnectionRef);
   void unregister_conn(SocketConnectionRef);
+
+  // required by sharded<>
+  seastar::future<> stop() {
+    return seastar::make_ready_future<>();
+  }
+  // can only wait once
+  seastar::future<> wait() {
+    return shutdown_promise.get_future();
+  }
+
+  seastar::shard_id shard_id() const {
+    return sid;
+  }
 };
 
 } // namespace ceph::net
