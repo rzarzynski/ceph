@@ -851,12 +851,13 @@ using namespace ceph;
   {
     if (_raw) {
       bdout << "ptr " << this << " release " << _raw << bendl;
-      if (--_raw->nref == 0) {
+      if (_raw->nref == 1) {
 	//cout << "hosing raw " << (void*)_raw << " len " << _raw->len << std::endl;
         ANNOTATE_HAPPENS_AFTER(&_raw->nref);
         ANNOTATE_HAPPENS_BEFORE_FORGET_ALL(&_raw->nref);
 	delete _raw;  // dealloc old (if any)
       } else {
+        --_raw->nref;
         ANNOTATE_HAPPENS_BEFORE(&_raw->nref);
       }
       _raw = 0;
