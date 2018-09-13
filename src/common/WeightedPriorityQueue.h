@@ -16,6 +16,7 @@
 #define WP_QUEUE_H
 
 #include "OpQueue.h"
+#include "include/slab_containers.h"
 
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/rbtree.hpp>
@@ -63,7 +64,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
     };
     class Klass : public bi::set_base_hook<>
     {
-      typedef bi::list<ListPair> ListPairs;
+      typedef mempool::common::slab_list<ListPair, 32, 32> ListPairs;
       typedef typename ListPairs::iterator Lit;
       public:
         K key;		// klass
@@ -79,9 +80,9 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
         { return a.key == b.key; }
       void insert(unsigned cost, T&& item, bool front) {
         if (front) {
-          lp.push_front(*new ListPair(cost, std::move(item)));
+          lp.emplace_front(cost, std::move(item));
         } else {
-          lp.push_back(*new ListPair(cost, std::move(item)));
+          lp.emplace_back(cost, std::move(item));
         }
       }
       //Get the cost of the next item to dequeue
@@ -92,7 +93,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       T pop() {
 	ceph_assert(!lp.empty());
 	T ret = std::move(lp.begin()->item);
-        lp.erase_and_dispose(lp.begin(), DelItem<ListPair>());
+        lp.erase(lp.begin());
         return ret;
       }
       bool empty() const {
@@ -107,7 +108,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
           if (out) {
             out->push_front(std::move(i->item));
           }
-          i = lp.erase_and_dispose(i, DelItem<ListPair>());
+          i = lp.erase(i);
           ++count;
           if (i == lp.begin()) {
             break;
