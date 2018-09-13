@@ -384,7 +384,7 @@ public:
   void dump(ceph::Formatter *f, stats_t *ptotal=0) const;
 };
 
-void dump(ceph::Formatter *f, size_t skip=2);
+void dump(ceph::Formatter *f, size_t skip=0);
 
 
 //
