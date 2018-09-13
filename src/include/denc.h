@@ -1641,6 +1641,7 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
 // {ENCODE,DECODE}_{START,FINISH} macros.
 
 #define DENC_START(v, compat, p)					\
+  [&]() __attribute__((noinline)) { \
   __u8 struct_v = v;							\
   __u8 struct_compat = compat;						\
   char *_denc_pchar;							\
@@ -1650,7 +1651,8 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
 
 #define DENC_FINISH(p)							\
   } while (false);							\
-  _denc_finish(p, &struct_v, &struct_compat, &_denc_pchar, &_denc_u32);
+  _denc_finish(p, &struct_v, &struct_compat, &_denc_pchar, &_denc_u32); \
+  }();
 
 
 // ----------------------------------------------------------------------

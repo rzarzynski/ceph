@@ -1209,6 +1209,7 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
 #define ENCODE_START(v, compat, bl)			     \
   using ::ceph::encode;					     \
   __u8 struct_v = v, struct_compat = compat;		     \
+  [&]() __attribute__((noinline)) { \
   encode(struct_v, (bl));				     \
   encode(struct_compat, (bl));			     \
   ::ceph::buffer::list::iterator struct_compat_it = (bl).end();	\
@@ -1233,7 +1234,7 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
   if (new_struct_compat) {						\
     struct_compat = new_struct_compat;					\
     struct_compat_it.copy_in(1, (char *)&struct_compat);		\
-  }
+  }}();
 
 #define ENCODE_FINISH(bl) ENCODE_FINISH_NEW_COMPAT(bl, 0)
 
