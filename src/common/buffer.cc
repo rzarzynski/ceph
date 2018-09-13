@@ -736,36 +736,36 @@ using namespace ceph;
     return new raw_unshareable(len);
   }
 
-  buffer::ptr::ptr(raw *r) : _raw(r), _off(0), _len(r->len)   // no lock needed; this is an unref raw.
+  __attribute__((noinline)) buffer::ptr::ptr(raw *r) : _raw(r), _off(0), _len(r->len)   // no lock needed; this is an unref raw.
   {
     r->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
-  buffer::ptr::ptr(unsigned l) : _off(0), _len(l)
+  __attribute__((noinline)) buffer::ptr::ptr(unsigned l) : _off(0), _len(l)
   {
     _raw = create(l);
     _raw->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
-  buffer::ptr::ptr(const char *d, unsigned l) : _off(0), _len(l)    // ditto.
+  __attribute__((noinline)) buffer::ptr::ptr(const char *d, unsigned l) : _off(0), _len(l)    // ditto.
   {
     _raw = copy(d, l);
     _raw->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
-  buffer::ptr::ptr(const ptr& p) : _raw(p._raw), _off(p._off), _len(p._len)
+  __attribute__((noinline)) buffer::ptr::ptr(const ptr& p) : _raw(p._raw), _off(p._off), _len(p._len)
   {
     if (_raw) {
       _raw->nref++;
       bdout << "ptr " << this << " get " << _raw << bendl;
     }
   }
-  buffer::ptr::ptr(ptr&& p) noexcept : _raw(p._raw), _off(p._off), _len(p._len)
+  __attribute__((noinline)) buffer::ptr::ptr(ptr&& p) noexcept : _raw(p._raw), _off(p._off), _len(p._len)
   {
     p._raw = nullptr;
     p._off = p._len = 0;
   }
-  buffer::ptr::ptr(const ptr& p, unsigned o, unsigned l)
+  __attribute__((noinline)) buffer::ptr::ptr(const ptr& p, unsigned o, unsigned l)
     : _raw(p._raw), _off(p._off + o), _len(l)
   {
     assert(o+l <= p._len);
@@ -773,7 +773,7 @@ using namespace ceph;
     _raw->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
-  buffer::ptr& buffer::ptr::operator= (const ptr& p)
+  buffer::ptr& __attribute__((noinline)) buffer::ptr::operator= (const ptr& p)
   {
     if (p._raw) {
       p._raw->nref++;
@@ -790,7 +790,7 @@ using namespace ceph;
     }
     return *this;
   }
-  buffer::ptr& buffer::ptr::operator= (ptr&& p) noexcept
+  buffer::ptr& __attribute__((noinline)) buffer::ptr::operator= (ptr&& p) noexcept
   {
     release();
     buffer::raw *raw = p._raw;
@@ -811,7 +811,7 @@ using namespace ceph;
     return _raw->clone();
   }
 
-  buffer::ptr& buffer::ptr::make_shareable() {
+  buffer::ptr& __attribute__((noinline)) buffer::ptr::make_shareable() {
     if (_raw && !_raw->is_shareable()) {
       buffer::raw *tr = _raw;
       _raw = tr->clone();
@@ -840,7 +840,7 @@ using namespace ceph;
     other._len = l;
   }
 
-  void buffer::ptr::release()
+  void __attribute__((noinline)) buffer::ptr::release()
   {
     if (_raw) {
       bdout << "ptr " << this << " release " << _raw << bendl;
