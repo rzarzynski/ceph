@@ -392,7 +392,7 @@ void dump(ceph::Formatter *f, size_t skip=0);
 // There are actually a couple of types of allocators
 // so we make a base class that can be customized.
 
-template<pool_index_t pool_ix, typename T>
+template<pool_index_t pool_ix, typename T, bool AccountedV = true>
 class pool_allocator_base_t {
 protected:
   pool_t *pool;
@@ -400,6 +400,9 @@ protected:
 
   // a sorta-constructor
   void ctor(bool force_register,size_t sizeofT) {
+    if constexpr (!AccountedV) {
+      return;
+    }
     pool = &get_pool(pool_ix);
     if (debug_mode || force_register) {
       type = pool->get_type(typeid(T), sizeofT);
@@ -409,6 +412,9 @@ protected:
   }
 
   void dtor() {
+    if constexpr (!AccountedV) {
+      return;
+    }
     if (type) type->containers--;
     shard_t *shard = pool->pick_a_shard();
     shard->containers--;
@@ -526,7 +532,7 @@ public:
 // I put it here because it's all about the mempool stats
 //
 template<pool_index_t pool_ix, typename T>
-class pool_slab_allocator : public pool_allocator_base_t<pool_ix,T> {
+class pool_slab_allocator : public pool_allocator_base_t<pool_ix,T, false> {
 
 public:
 
@@ -544,6 +550,7 @@ public:
   // But when you delete a slab you don't iterate over the slots, so we have to do that here
   //
   void slab_allocate(size_t n, size_t sizeof_T, size_t extra) {
+#if 0
     size_t total = sizeof_T * n;
     shard_t *shard = this->pool->pick_a_shard();
     shard->bytes += total + extra;
@@ -553,9 +560,11 @@ public:
       this->type->items += n;
       this->type->slabs++;
     }
+#endif
   }
 
   void slab_deallocate(size_t n, size_t sizeof_T, size_t extra,bool free_free_items) {
+#if 0
     size_t total = sizeof_T * n;
     shard_t *shard = this->pool->pick_a_shard();
     shard->bytes -= total + extra;
@@ -570,24 +579,29 @@ public:
       this->type->slabs--;
       if (free_free_items) this->type->free_items -= n;
     }
+#endif
   }
 
   void slab_item_allocate(size_t sizeof_T) {
+#if 0
     shard_t *shard = this->pool->pick_a_shard();
     shard->free_bytes -= sizeof_T;
     shard->free_items -= 1;
     if (this->type) {
       this->type->free_items -= 1;
     }
+#endif
   }
 
   void slab_item_free(size_t sizeof_T, size_t num = 1) {
+#if 0
     shard_t *shard = this->pool->pick_a_shard();
     shard->free_bytes += sizeof_T * num;
     shard->free_items += num;
     if (this->type) {
       this->type->free_items += num;
     }
+#endif
   }
 
 };
