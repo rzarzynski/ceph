@@ -148,7 +148,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
     {
       typedef bi::rbtree<Klass> Klasses;
       typedef typename Klasses::iterator Kit;
-      SlabAllocHelper<Klass, 8, 8> memhelper;
+      SlabAllocHelper<Klass, 4, 8> memhelper;
 
       void check_end() {
         if (next == klasses.end()) {
@@ -223,7 +223,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       SubQueues queues;
       unsigned total_prio;
       unsigned max_cost;
-      SlabAllocHelper<SubQueue, 8, 8> memhelper;
+      SlabAllocHelper<SubQueue, 2, 2> memhelper;
       public:
 	unsigned size;
 	Queue() :
