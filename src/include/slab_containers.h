@@ -517,12 +517,21 @@ struct slab_list : public std::list<node,slab_allocator<pool_ix,node,stackCount,
    slab_list& operator=(const slab_list& o) { copy(o); return *this; }
 
    typedef typename std::list<node,slab_allocator<pool_ix,node,stackCount,heapCount>>::iterator it;
+   typedef typename std::list<node,slab_allocator<pool_ix,node,stackCount,heapCount> > base;
    //
    // We support splice, but it requires actually copying each node, so it's O(N) not O(1)
    //
-   void splice(it pos, slab_list& other)        { this->splice(pos, other, other.begin(), other.end()); }
-   void splice(it pos, slab_list& other, it it) { this->splice(pos, other, it, it == other.end() ? it : std::next(it)); }
+   void splice(it pos, slab_list& other) {
+     this->splice(pos, other, other.begin(), other.end());
+   }
+   void splice(it pos, slab_list& other, it it) {
+     this->splice(pos, other, it, it == other.end() ? it : std::next(it));
+   }
    void splice(it pos, slab_list& other, it first, it last) {
+      if (&other == this) {
+        base::splice(pos, other, first, last);
+        return;
+      }
       while (first != last) {
          pos = std::next(this->insert(pos,*first)); // points after insertion of this element
          first = other.erase(first);
