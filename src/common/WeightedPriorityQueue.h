@@ -91,7 +91,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
     };
     class Klass : public bi::set_base_hook<>
     {
-      typedef mempool::common::slab_list<ListPair, 32, 32> ListPairs;
+      typedef mempool::common::slab_list<ListPair, 4, 32> ListPairs;
       typedef typename ListPairs::iterator Lit;
       public:
         K key;		// klass
