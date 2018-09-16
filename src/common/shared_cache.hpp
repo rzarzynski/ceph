@@ -22,6 +22,7 @@
 #include "common/lock_mutex.h"
 #include "common/lock_policy.h"
 #include "common/lock_shared_ptr.h"
+#include "include/slab_containers.h"
 #include "include/unordered_map.h"
 
 // re-include our assert to clobber the system one; fix dout:
@@ -44,9 +45,10 @@ private:
   using C = std::less<K>;
   using H = std::hash<K>;
   ceph::unordered_map<K, typename std::list<std::pair<K, VPtr> >::iterator, H> contents;
-  std::list<std::pair<K, VPtr> > lru;
+  mempool::common::slab_list<std::pair<K, VPtr>, 32, 32> lru;
 
   std::map<K, std::pair<WeakVPtr, V*>, C> weak_refs;
+  //mempool::common::slab_map<K, std::pair<WeakVPtr, V*>, 32, 32, C> weak_refs;
 
   void trim_cache(std::list<VPtr> *to_release) {
     while (size > max_size) {
