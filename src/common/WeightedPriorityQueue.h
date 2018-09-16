@@ -40,12 +40,39 @@ class MapKey
   }
 };
 
-template <typename T>
-class DelItem
-{
+// TODO: make this helper a part of the slab_allocator.h as dealing
+// with boost::intrusive's containers isn't so rare.
+template <typename T, size_t StackSlabSizeV, size_t HeapSlabSizeV>
+class SlabAllocHelper {
+  using allocator_t = mempool::slab_allocator<
+    mempool::mempool_common, T, StackSlabSizeV, HeapSlabSizeV>;
+  allocator_t alloc;
+
+public:
+  class Deleter {
+    allocator_t& alloc;
+
   public:
-  void operator()(T* delete_this)
-    { delete delete_this; }
+    Deleter(allocator_t& alloc)
+      : alloc(alloc) {
+    }
+
+    void operator()(T* const delete_this) {
+      alloc.destroy(delete_this);
+      alloc.deallocate(delete_this, sizeof(T));
+    }
+  };
+
+  Deleter get_deleter() {
+    return Deleter(alloc);
+  }
+
+  template <typename... Args>
+  T* allocate_and_construct(Args&&... args) {
+    auto* storage = alloc.allocate(sizeof(T));
+    alloc.construct(storage, std::forward<Args>(args)...);
+    return storage;
+  }
 };
 
 template <typename T, typename K>
@@ -121,6 +148,8 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
     {
       typedef bi::rbtree<Klass> Klasses;
       typedef typename Klasses::iterator Kit;
+      SlabAllocHelper<Klass, 8, 8> memhelper;
+
       void check_end() {
         if (next == klasses.end()) {
           next = klasses.begin();
@@ -148,7 +177,8 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       	std::pair<Kit, bool> ret =
           klasses.insert_unique_check(cl, MapKey<Klass, K>(), insert_data);
       	if (ret.second) {
-      	  ret.first = klasses.insert_unique_commit(*new Klass(cl), insert_data);
+      	  ret.first = klasses.insert_unique_commit(
+            *memhelper.allocate_and_construct(cl), insert_data);
           check_end();
 	}
 	ret.first->insert(cost, std::move(item), front);
@@ -160,7 +190,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       T pop() {
         T ret = next->pop();
         if (next->empty()) {
-          next = klasses.erase_and_dispose(next, DelItem<Klass>());
+          next = klasses.erase_and_dispose(next, memhelper.get_deleter());
         } else {
 	  ++next;
 	}
@@ -172,7 +202,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
         Kit i = klasses.find(cl, MapKey<Klass, K>());
         if (i != klasses.end()) {
           count = i->filter_class(out);
-	  Kit tmp = klasses.erase_and_dispose(i, DelItem<Klass>());
+	  Kit tmp = klasses.erase_and_dispose(i, memhelper.get_deleter());
 	  if (next == i) {
             next = tmp;
           }
@@ -193,6 +223,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       SubQueues queues;
       unsigned total_prio;
       unsigned max_cost;
+      SlabAllocHelper<SubQueue, 8, 8> memhelper;
       public:
 	unsigned size;
 	Queue() :
@@ -208,7 +239,8 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
       	  std::pair<typename SubQueues::iterator, bool> ret =
       	    queues.insert_unique_check(p, MapKey<SubQueue, unsigned>(), insert_data);
       	  if (ret.second) {
-      	    ret.first = queues.insert_unique_commit(*new SubQueue(p), insert_data);
+      	    ret.first = queues.insert_unique_commit(
+              *memhelper.allocate_and_construct(p), insert_data);
 	    total_prio += p;
       	  }
 	  ret.first->insert(cl, cost, std::move(item), front);
@@ -223,7 +255,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
 	  if (strict) {
 	    T ret = i->pop();
 	    if (i->empty()) {
-	      queues.erase_and_dispose(i, DelItem<SubQueue>());
+	      queues.erase_and_dispose(i, memhelper.get_deleter());
 	    }
 	    return ret;
 	  }
@@ -255,7 +287,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
 	  T ret = i->pop();
 	  if (i->empty()) {
 	    total_prio -= i->key;
-	    queues.erase_and_dispose(i, DelItem<SubQueue>());
+	    queues.erase_and_dispose(i, memhelper.get_deleter());
 	  }
 	  return ret;
 	}
@@ -264,7 +296,7 @@ class WeightedPriorityQueue :  public OpQueue <T, K>
 	    size -= i->filter_class(cl, out);
 	    if (i->empty()) {
 	      total_prio -= i->key;
-	      i = queues.erase_and_dispose(i, DelItem<SubQueue>());
+	      i = queues.erase_and_dispose(i, memhelper.get_deleter());
 	    } else {
 	      ++i;
 	    }
