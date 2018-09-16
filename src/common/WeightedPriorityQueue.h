@@ -52,7 +52,7 @@ template <typename T, typename K>
 class WeightedPriorityQueue :  public OpQueue <T, K>
 {
   private:
-    class ListPair : public bi::list_base_hook<>
+    class ListPair
     {
       public:
         unsigned cost;
