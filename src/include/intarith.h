@@ -203,16 +203,16 @@ class p2_t {
   static_assert(std::numeric_limits<exponent_type>::max() >
 		std::numeric_limits<value_type>::digits);
 
-  value_type value;
+  exponent_type exponent;
 
-  struct _check_skipper_t {};
-  p2_t(const value_type value, _check_skipper_t)
+  struct _validation_skipper_t {};
+  p2_t(const value_type value, _validation_skipper_t)
     : value(value) {
   }
 
 public:
   p2_t(const value_type value)
-    : value(value) {
+    : exponent(ctz(value)) {
     // 0 isn't a power of two. Additional validation is necessary as
     // the isp2 routine doesn't sanitize that case.
     //assert(value != 0);
@@ -220,35 +220,39 @@ public:
   }
 
   static p2_t<value_type> from_p2(const value_type p2) {
-    return p2_t(p2, _check_skipper_t());
+    return p2_t(p2, _validation_skipper_t());
   }
 
   static p2_t<value_type> from_exponent(const exponent_type exponent) {
-    return p2_t(1 << exponent, _check_skipper_t());
+    return p2_t(1 << exponent, _validation_skipper_t());
   }
 
   exponent_type get_exponent() const {
-    return ctz(value);
+    return exponent;
   }
 
   value_type get_value() const {
-    return value;
+    return 1 << exponent;
   }
 
   operator value_type() const {
-    return value;
+    return get_value();
   }
 
   friend value_type operator/(const value_type& l,
                               const p2_t<value_type>& r) {
-    return l >> (cbits(r.value) - 1);
+    return l >> r.get_exponent();
   }
 
   friend value_type operator%(const value_type& l,
                               const p2_t<value_type>& r) {
-    return l & (r.value - 1);
+    return l & (r.get_value() - 1);
   }
 };
+
+using p2_uint64_t = p2_t<std::uint64_t>;
+using p2_uint32_t = p2_t<std::uint32_t>;
+using p2_uint8_t = p2_t<std::uint8_t>;
 
 } // namespace ceph::math
 
