@@ -19,6 +19,12 @@
 #include <type_traits>
 #include <cstdint>
 
+#ifdef __CEPH__
+# include "include/ceph_assert.h"
+#else
+# include <assert.h>
+#endif
+
 template<typename T, typename U>
 constexpr inline std::make_unsigned_t<std::common_type_t<T, U>> div_round_up(T n, U d) {
   return (n + d - 1) / d;
@@ -199,56 +205,79 @@ class p2_t {
   typedef std::uint8_t exponent_type;
   typedef UnsignedValueT value_type;
 
-  static_assert(std::is_unsigned_v<value_type>);
-  static_assert(std::numeric_limits<exponent_type>::max() >
-		std::numeric_limits<value_type>::digits);
+  exponent_type exponent;
 
-  value_type value;
-
-  struct _check_skipper_t {};
-  p2_t(const value_type value, _check_skipper_t)
-    : value(value) {
+  struct _validation_skipper_t {};
+  explicit p2_t(const value_type value, _validation_skipper_t)
+    : exponent(ctz(value)) {
   }
 
 public:
-  p2_t(const value_type value)
-    : value(value) {
+  explicit p2_t(const value_type value)
+    : exponent(ctz(value)) {
+    static_assert(std::is_unsigned_v<value_type>);
+    static_assert(std::numeric_limits<exponent_type>::max() >
+                  std::numeric_limits<value_type>::digits);
+
     // 0 isn't a power of two. Additional validation is necessary as
     // the isp2 routine doesn't sanitize that case.
-    //assert(value != 0);
-    assert(isp2(value));
+    ceph_assert(value != 0);
+    ceph_assert(isp2(value));
+  }
+
+  template <class T,
+            typename = std::enable_if_t<std::is_convertible_v<T, value_type>>>
+  explicit p2_t(const p2_t<T>& r)
+    : exponent(r.get_exponent()) {
   }
 
   static p2_t<value_type> from_p2(const value_type p2) {
-    return p2_t(p2, _check_skipper_t());
+    return p2_t(p2, _validation_skipper_t());
   }
 
   static p2_t<value_type> from_exponent(const exponent_type exponent) {
-    return p2_t(1 << exponent, _check_skipper_t());
+    return p2_t(1 << exponent, _validation_skipper_t());
   }
 
   exponent_type get_exponent() const {
-    return ctz(value);
+    return exponent;
   }
 
   value_type get_value() const {
-    return value;
+    return 1 << exponent;
   }
 
   operator value_type() const {
-    return value;
+    return get_value();
   }
 
-  friend value_type operator/(const value_type& l,
-                              const p2_t<value_type>& r) {
-    return l >> (cbits(r.value) - 1);
+  template <typename RightT>
+  p2_t<value_type>& operator=(const p2_t<RightT>& r) {
+    static_assert(std::is_convertible_v<RightT, value_type>);
+    exponent = r.get_exponent();
+    return *this;
   }
 
-  friend value_type operator%(const value_type& l,
-                              const p2_t<value_type>& r) {
-    return l & (r.value - 1);
+  template <typename LeftT>
+  friend auto operator/(const LeftT& l, const p2_t<value_type>& r) {
+    if constexpr (std::is_same_v<LeftT, p2_t<value_type>>) {
+      const auto result_exp = l.get_exponent() - r.get_exponent();
+      return p2_t<value_type>::from_exponent(result_exp);
+    } else {
+      static_assert(std::is_unsigned_v<LeftT>);
+      return l >> r.get_exponent();
+    }
+  }
+
+  template <typename LeftT>
+  friend auto operator%(const LeftT& l, const p2_t<value_type>& r) {
+    return l & (r.get_value() - 1);
   }
 };
+
+using p2_uint64_t = p2_t<std::uint64_t>;
+using p2_uint32_t = p2_t<std::uint32_t>;
+using p2_uint8_t = p2_t<std::uint8_t>;
 
 } // namespace ceph::math
 
@@ -257,6 +286,22 @@ namespace std {
 template <typename T>
 struct is_integral<ceph::math::p2_t<T>> : public std::is_integral<T> {
 };
+
+template <typename T, typename U, template <typename> class P2T>
+struct common_type<T, P2T<U>> : public common_type<T, U> {
+};
+
+template <typename T>
+const ceph::math::p2_t<T>& max(const ceph::math::p2_t<T>& a,
+                               const ceph::math::p2_t<T>& b) {
+  return a.get_exponent() < b.get_exponent() ? b : a;
+}
+
+template <typename T>
+const ceph::math::p2_t<T>& min(const ceph::math::p2_t<T>& a,
+                               const ceph::math::p2_t<T>& b) {
+  return b.get_exponent() < a.get_exponent() ? b : a;
+}
 
 } // namespace std
 
