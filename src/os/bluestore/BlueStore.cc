@@ -4547,8 +4547,6 @@ int BlueStore::_open_bdev(bool create)
 
   // initialize global block parameters
   block_size = bdev->get_block_size();
-  block_size_order = block_size.get_exponent();
-  ceph_assert(block_size == 1u << block_size_order);
   // and set cache_size based on device type
   r = _set_cache_sizes();
   if (r < 0) {
@@ -11454,8 +11452,8 @@ int BlueStore::_do_alloc_write(
       if (l->length() != wi.blob_length) {
         // hrm, maybe we could do better here, but let's not bother.
         dout(20) << __func__ << " forcing csum_order to block_size_order "
-                << block_size_order << dendl;
-	csum_order = block_size_order;
+                << block_size.get_exponent() << dendl;
+	csum_order = block_size.get_exponent();
       } else {
         csum_order = std::min(wctx->csum_order, ctz(l->length()));
       }
@@ -11693,7 +11691,7 @@ void BlueStore::_choose_write_options(
   }
 
   // apply basic csum block size
-  wctx->csum_order = block_size_order;
+  wctx->csum_order = block_size.get_exponent();
 
   // compression parameters
   unsigned alloc_hints = o->onode.alloc_hint_flags;
