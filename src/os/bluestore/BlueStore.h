@@ -2562,7 +2562,7 @@ private:
     bool compress = false;          ///< compressed write
     /// target checksum chunk order
     ceph::math::p2_uint64_t csum_chunk_size = 0;
-    static_assert(sizeof(csum_block_size) == sizeof(std::uint8_t));
+    static_assert(sizeof(csum_chunk_size) == sizeof(std::uint8_t));
 
     old_extent_map_t old_extents;   ///< must deref these blobs
 
