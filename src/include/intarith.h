@@ -207,7 +207,7 @@ class p2_t {
 
   struct _validation_skipper_t {};
   p2_t(const value_type value, _validation_skipper_t)
-    : value(value) {
+    : exponent(ctz(value)) {
   }
 
 public:
