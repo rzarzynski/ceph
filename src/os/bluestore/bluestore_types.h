@@ -830,11 +830,11 @@ public:
       csum_data.zero(t.length(), csum_data.length() - t.length());
     }
   }
-  uint32_t get_release_size(uint32_t min_alloc_size) const {
+  uint32_t get_release_size(ceph::math::p2_uint64_t min_alloc_size) const {
     if (is_compressed()) {
       return get_logical_length();
     }
-    uint32_t res = get_csum_chunk_size();
+    auto res = get_csum_chunk_size();
     if (!has_csum() || res < min_alloc_size) {
       res = min_alloc_size;
     }
