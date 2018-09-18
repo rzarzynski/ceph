@@ -2695,7 +2695,7 @@ private:
       BlobRef b,
       uint64_t loffs,
       uint64_t loffs_end,
-      uint64_t min_alloc_size);
+      ceph::math::p2_uint64_t min_alloc_size);
   };
 
   void _do_write_small(
