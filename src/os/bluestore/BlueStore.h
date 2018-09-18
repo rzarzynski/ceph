@@ -1914,7 +1914,6 @@ private:
 
   ///< block size of block device (power of 2)
   ceph::math::p2_uint64_t block_size = 0;
-  size_t block_size_order = 0; ///< bits to shift to get block size
 
   uint64_t min_alloc_size = 0; ///< minimum allocation unit (power of 2)
   ///< bits for min_alloc_size
