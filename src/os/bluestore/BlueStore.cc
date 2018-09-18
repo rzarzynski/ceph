@@ -3868,7 +3868,6 @@ BlueStore::BlueStore(CephContext *cct,
     kv_sync_thread(this),
     kv_finalize_thread(this),
     min_alloc_size(_min_alloc_size),
-    min_alloc_size_order(ctz(_min_alloc_size)),
     mempool_thread(this)
 {
   _init_logger();
@@ -4538,7 +4537,6 @@ void BlueStore::_set_alloc_sizes(void)
   }
 
   dout(10) << __func__ << " min_alloc_size 0x" << std::hex << min_alloc_size
-	   << std::dec << " order " << (int)min_alloc_size_order
 	   << " max_alloc_size 0x" << std::hex << max_alloc_size
 	   << " prefer_deferred_size 0x" << prefer_deferred_size
 	   << std::dec
@@ -5660,27 +5658,30 @@ int BlueStore::mkfs()
   if (r < 0)
     goto out_close_fsid;
 
+  uint64_t = min_alloc_size_cfg = 0;
   // choose min_alloc_size
   if (cct->_conf->bluestore_min_alloc_size) {
-    min_alloc_size = cct->_conf->bluestore_min_alloc_size;
+    min_alloc_size_cfg = cct->_conf->bluestore_min_alloc_size;
   } else {
     assert(bdev);
     if (bdev->is_rotational()) {
-      min_alloc_size = cct->_conf->bluestore_min_alloc_size_hdd;
+      min_alloc_size_cfg = cct->_conf->bluestore_min_alloc_size_hdd;
     } else {
-      min_alloc_size = cct->_conf->bluestore_min_alloc_size_ssd;
+      min_alloc_size_cfg = cct->_conf->bluestore_min_alloc_size_ssd;
     }
   }
   _validate_bdev();
 
   // make sure min_alloc_size is power of 2 aligned.
-  if (!isp2(min_alloc_size)) {
+  if (!isp2(min_alloc_size_cfg)) {
     derr << __func__ << " min_alloc_size 0x"
-	 << std::hex << min_alloc_size << std::dec
+	 << std::hex << min_alloc_size_cfg << std::dec
 	 << " is not power of 2 aligned!"
 	 << dendl;
     r = -EINVAL;
     goto out_close_bdev;
+  } else {
+    min_alloc_size = ceph::math::p2_uint64_t::from_p2(min_alloc_size_cfg);
   }
 
   r = _open_db(true);
@@ -8485,8 +8486,6 @@ int BlueStore::_open_super_meta()
       uint64_t val;
       decode(val, p);
       min_alloc_size = val;
-      min_alloc_size_order = ctz(val);
-      assert(min_alloc_size == 1u << min_alloc_size_order);
     } catch (buffer::error& e) {
       derr << __func__ << " unable to read min_alloc_size" << dendl;
       return -EIO;
@@ -11106,9 +11105,9 @@ void BlueStore::_choose_write_options(
 
     if (o->onode.expected_write_size) {
       wctx->csum_chunk_size = \
-	std::max(1ULL << min_alloc_size_order, o->onode.expected_write_size);
+	std::max(min_alloc_size, o->onode.expected_write_size);
     } else {
-      wctx->csum_chunk_size = 1ULL << min_alloc_size_order;
+      wctx->csum_chunk_size = min_alloc_size;
     }
 
     if (wctx->compress) {
