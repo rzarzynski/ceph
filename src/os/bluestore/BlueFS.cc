@@ -627,7 +627,7 @@ int BlueFS::_replay(bool noop, bool to_stdout)
     false,  // !random
     true);  // ignore eof
   while (true) {
-    ceph_assert((log_reader->buf.pos & ~super.block_mask()) == 0);
+    ceph_assert((log_reader->buf.pos % super.get_block_size()) == 0);
     uint64_t pos = log_reader->buf.pos;
     uint64_t read_pos = pos;
     bufferlist bl;
@@ -1374,10 +1374,10 @@ int BlueFS::_read(
     size_t left;
     if (off < buf->bl_off || off >= buf->get_buf_end()) {
       buf->bl.clear();
-      buf->bl_off = off & super.block_mask();
+      buf->bl_off = p2align(off, super.get_block_size());
       uint64_t x_off = 0;
       auto p = h->file->fnode.seek(buf->bl_off, &x_off);
-      uint64_t want = round_up_to(len + (off & ~super.block_mask()),
+      uint64_t want = round_up_to(len + (off % super.get_block_size()),
 				  super.block_size);
       want = std::max(want, buf->max_prefetch);
       uint64_t l = std::min(p->length - x_off, want);
@@ -1433,8 +1433,8 @@ void BlueFS::_invalidate_cache(FileRef f, uint64_t offset, uint64_t length)
   dout(10) << __func__ << " file " << f->fnode
 	   << " 0x" << std::hex << offset << "~" << length << std::dec
            << dendl;
-  if (offset & ~super.block_mask()) {
-    offset &= super.block_mask();
+  if (offset % super.get_block_size()) {
+    offset = p2align(offset, super.get_block_size());
     length = round_up_to(length, super.block_size);
   }
   uint64_t x_off = 0;
@@ -2091,7 +2091,7 @@ int BlueFS::_flush_range(FileWriter *h, uint64_t offset, uint64_t length)
   dout(20) << __func__ << " in " << *p << " x_off 0x"
            << std::hex << x_off << std::dec << dendl;
 
-  unsigned partial = x_off & ~super.block_mask();
+  unsigned partial = x_off % super.get_block_size();
   bufferlist bl;
   if (partial) {
     dout(20) << __func__ << " using partial tail 0x"
@@ -2143,7 +2143,7 @@ int BlueFS::_flush_range(FileWriter *h, uint64_t offset, uint64_t length)
     uint64_t x_len = std::min(p->length - x_off, length);
     bufferlist t;
     t.substr_of(bl, bloff, x_len);
-    unsigned tail = x_len & ~super.block_mask();
+    unsigned tail = x_len % super.get_block_size();
     if (tail) {
       size_t zlen = super.block_size - tail;
       dout(20) << __func__ << " caching tail of 0x"

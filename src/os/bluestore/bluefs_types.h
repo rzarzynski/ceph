@@ -119,7 +119,7 @@ struct bluefs_super_t {
   uuid_d uuid;      ///< unique to this bluefs instance
   uuid_d osd_uuid;  ///< matches the osd that owns us
   uint64_t version;
-  uint32_t block_size;
+  ceph::math::p2_uint32_t block_size;
 
   bluefs_fnode_t log_fnode;
 
@@ -127,8 +127,8 @@ struct bluefs_super_t {
     : version(0),
       block_size(4096) { }
 
-  uint64_t block_mask() const {
-    return ~((uint64_t)block_size - 1);
+  auto get_block_size() const {
+    return block_size;
   }
 
   void encode(bufferlist& bl) const;

@@ -37,7 +37,7 @@ void bluefs_super_t::encode(bufferlist& bl) const
   encode(uuid, bl);
   encode(osd_uuid, bl);
   encode(version, bl);
-  encode(block_size, bl);
+  encode(static_cast<uint32_t>(block_size), bl);
   encode(log_fnode, bl);
   ENCODE_FINISH(bl);
 }
@@ -48,7 +48,9 @@ void bluefs_super_t::decode(bufferlist::const_iterator& p)
   decode(uuid, p);
   decode(osd_uuid, p);
   decode(version, p);
-  decode(block_size, p);
+  uint32_t block_size_tmp;
+  decode(block_size_tmp, p);
+  block_size = ceph::math::p2_t(block_size_tmp);
   decode(log_fnode, p);
   DECODE_FINISH(p);
 }
@@ -67,7 +69,7 @@ void bluefs_super_t::generate_test_instances(list<bluefs_super_t*>& ls)
   ls.push_back(new bluefs_super_t);
   ls.push_back(new bluefs_super_t);
   ls.back()->version = 1;
-  ls.back()->block_size = 4096;
+  ls.back()->block_size = ceph::math::p2_uint64_t::from_p2(4096);
 }
 
 ostream& operator<<(ostream& out, const bluefs_super_t& s)
