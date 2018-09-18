@@ -988,9 +988,9 @@ void bluestore_blob_t::split(uint32_t blob_offset, bluestore_blob_t& rb)
   if (has_csum()) {
     rb.csum_type = csum_type;
     rb.csum_chunk_size = csum_chunk_size;
-    size_t csum_order = get_csum_chunk_size();
-    assert(blob_offset % csum_order == 0);
-    size_t pos = (blob_offset / csum_order) * get_csum_value_size();
+    const auto csum_chunk_size = get_csum_chunk_size();
+    assert(blob_offset % csum_chunk_size == 0);
+    size_t pos = (blob_offset / csum_chunk_size) * get_csum_value_size();
     // deep copy csum data
     bufferptr old;
     old.swap(csum_data);
