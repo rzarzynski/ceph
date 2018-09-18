@@ -10859,7 +10859,7 @@ int BlueStore::_do_alloc_write(
                  << " csum_order " << csum_order
                  << " csum_length 0x" << std::hex << csum_length << std::dec
                  << dendl;
-        dblob.init_csum(csum, csum_order, csum_length);
+        dblob.init_csum(csum, 1 << csum_order, csum_length);
       }
     }
 

@@ -628,7 +628,7 @@ void bluestore_blob_t::dump(Formatter *f) const
   f->dump_unsigned("compressed_length", compressed_length);
   f->dump_unsigned("flags", flags);
   f->dump_unsigned("csum_type", csum_type);
-  f->dump_unsigned("csum_chunk_order", csum_chunk_order);
+  f->dump_unsigned("csum_chunk_order", csum_chunk_size.get_exponent());
   f->open_array_section("csum_data");
   size_t n = get_csum_count();
   for (unsigned i = 0; i < n; ++i)
@@ -669,7 +669,7 @@ ostream& operator<<(ostream& out, const bluestore_blob_t& o)
   }
   if (o.has_csum()) {
     out << " " << Checksummer::get_csum_type_string(o.csum_type)
-	<< "/0x" << std::hex << (1ull << o.csum_chunk_order) << std::dec;
+	<< "/0x" << std::hex << o.csum_chunk_size << std::dec;
   }
   if (o.has_unused())
     out << " unused=0x" << std::hex << o.unused << std::dec;
@@ -987,7 +987,7 @@ void bluestore_blob_t::split(uint32_t blob_offset, bluestore_blob_t& rb)
 
   if (has_csum()) {
     rb.csum_type = csum_type;
-    rb.csum_chunk_order = csum_chunk_order;
+    rb.csum_chunk_size = csum_chunk_size;
     size_t csum_order = get_csum_chunk_size();
     assert(blob_offset % csum_order == 0);
     size_t pos = (blob_offset / csum_order) * get_csum_value_size();
