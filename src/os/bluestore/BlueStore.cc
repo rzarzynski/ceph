@@ -1785,7 +1785,7 @@ bool BlueStore::Blob::put_ref(
   return b.release_extents(empty, logical, r);
 }
 
-bool BlueStore::Blob::can_reuse_blob(uint32_t min_alloc_size,
+bool BlueStore::Blob::can_reuse_blob(ceph::math::p2_uint32_t min_alloc_size,
                 		     uint32_t target_blob_size,
 		                     uint32_t b_offset,
 		                     uint32_t *length0) {
