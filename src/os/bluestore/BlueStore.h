@@ -1912,7 +1912,7 @@ private:
 
   std::atomic<int> csum_type = {Checksummer::CSUM_CRC32C};
 
-  ///< block size of block device (power of 2)
+  /// block size of block device (power of 2)
   ceph::math::p2_uint64_t block_size = 0;
 
   uint64_t min_alloc_size = 0; ///< minimum allocation unit (power of 2)
