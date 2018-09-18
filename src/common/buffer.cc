@@ -1611,7 +1611,7 @@ using namespace ceph;
   void buffer::list::append(char c)
   {
     // put what we can into the existing append_buffer.
-    unsigned gap = _buffers.empty() ? 0 : _buffers.back().unused_tail_length();
+    unsigned gap = get_append_buffer_unused_tail_length();
     if (!gap) {
       // make a new buffer!
       auto& buf = _buffers.emplace_back(
@@ -1636,7 +1636,8 @@ using namespace ceph;
 
     while (len > 0) {
       ptr& last_one = _buffers.back();
-      unsigned gap = std::min(last_one.unused_tail_length(), len);
+      unsigned gap = \
+	std::min(last_one.raw_nref() == 1 ? last_one.unused_tail_length() : 0, len);
       last_one.append(data, gap);
       _len += gap;
       len -= gap;

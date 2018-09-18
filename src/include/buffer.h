@@ -580,7 +580,7 @@ namespace buffer CEPH_BUFFER_API {
       contiguous_appender(bufferlist *l, size_t len, bool d)
 	: pbl(l),
 	  deep(d) {
-	size_t unused = pbl->_buffers.empty() ? 0 : pbl->_buffers.back().unused_tail_length();
+	size_t unused = pbl->get_append_buffer_unused_tail_length();
 	if (len > unused) {
 	  // note: if len < the normal append_buffer size it *might*
 	  // be better to allocate a normal-sized append_buffer and
@@ -812,7 +812,16 @@ namespace buffer CEPH_BUFFER_API {
     void try_assign_to_mempool(int pool);
 
     size_t get_append_buffer_unused_tail_length() const {
-      return append_buffer.unused_tail_length();
+      if (_buffers.empty()) {
+	return 0;
+      }
+
+      auto& buf = _buffers.back();
+      if (buf.raw_nref() != 1) {
+	return 0;
+      }
+
+      return buf.unused_tail_length();
     }
 
     unsigned get_memcopy_count() const {return _memcopy_count; }
