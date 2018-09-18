@@ -437,7 +437,9 @@ public:
   unused_t unused = 0;     ///< portion that has never been written to (bitmap)
 
   uint8_t csum_type = Checksummer::CSUM_NONE;      ///< CSUM_*
-  uint8_t csum_chunk_order = 0;       ///< csum block size is 1<<block_order bytes
+  // valid only for csum_type
+  ceph::math::p2_uint64_t csum_chunk_size;
+  static_assert(sizeof(csum_chunk_size) == sizeof(std::uint8_t));
 
   bufferptr csum_data;                ///< opaque vector of csum data
 
@@ -458,6 +460,7 @@ public:
     denc_varint_lowz(logical_length, p);
     denc_varint_lowz(compressed_length, p);
     denc(csum_type, p);
+    const uint8_t csum_chunk_order = csum_chunk_size.get_exponent();
     denc(csum_chunk_order, p);
     denc_varint(csum_data.length(), p);
     p += csum_data.length();
@@ -474,6 +477,7 @@ public:
     }
     if (has_csum()) {
       denc(csum_type, p);
+      const uint8_t csum_chunk_order = csum_chunk_size.get_exponent();
       denc(csum_chunk_order, p);
       denc_varint(csum_data.length(), p);
       memcpy(p.get_pos_add(csum_data.length()), csum_data.c_str(),
@@ -496,7 +500,9 @@ public:
     }
     if (has_csum()) {
       denc(csum_type, p);
+      uint8_t csum_chunk_order;
       denc(csum_chunk_order, p);
+      csum_chunk_size = decltype(csum_chunk_size)::from_exponent(csum_chunk_order);
       int len;
       denc_varint(len, p);
       csum_data = p.get_ptr(len);
@@ -555,14 +561,13 @@ public:
   }
 
   /// return chunk (i.e. min readable block) size for the blob
-  ceph::math::p2_t<uint64_t>
-  get_chunk_size(ceph::math::p2_t<uint64_t> dev_block_size) const {
+  ceph::math::p2_uint64_t
+  get_chunk_size(const ceph::math::p2_uint64_t dev_block_size) const {
     return has_csum() ?
-      std::max(dev_block_size, get_csum_chunk_size<uint64_t>()) : dev_block_size;
+      std::max(dev_block_size, get_csum_chunk_size()) : dev_block_size;
   }
-  template<class UnsignedT = uint32_t>
-  ceph::math::p2_t<UnsignedT> get_csum_chunk_size() const {
-    return ceph::math::p2_t<UnsignedT>::from_p2(csum_chunk_order);
+  ceph::math::p2_uint64_t get_csum_chunk_size() const {
+    return csum_chunk_size;
   }
   uint32_t get_compressed_payload_length() const {
     return is_compressed() ? compressed_length : 0;
@@ -768,12 +773,14 @@ public:
     return csum_data.c_str() + (cs * i);
   }
 
-  void init_csum(unsigned type, unsigned order, unsigned len) {
+  void init_csum(const unsigned type,
+		 const ceph::math::p2_uint64_t chunk_size,
+		 const unsigned len) {
     flags |= FLAG_CSUM;
     csum_type = type;
-    csum_chunk_order = order;
+    csum_chunk_size = chunk_size;
     csum_data = buffer::create(
-     get_csum_value_size() * len / get_csum_chunk_size<size_t>());
+     get_csum_value_size() * len / get_csum_chunk_size());
     csum_data.zero();
     csum_data.reassign_to_mempool(mempool::mempool_bluestore_cache_other);
   }
@@ -818,7 +825,7 @@ public:
       bufferptr t;
       t.swap(csum_data);
       csum_data = buffer::create(
-	get_csum_value_size() * logical_length / get_csum_chunk_size<size_t>());
+	get_csum_value_size() * logical_length / get_csum_chunk_size());
       csum_data.copy_in(0, t.length(), t.c_str());
       csum_data.zero(t.length(), csum_data.length() - t.length());
     }

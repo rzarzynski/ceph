@@ -265,7 +265,7 @@ TEST(bluestore_blob_t, calc_csum)
     ASSERT_EQ(0, b.verify_csum(0, bl, &bad_off, &bad_csum));
     ASSERT_EQ(-1, bad_off);
 
-    b.init_csum(csum_type, 3, 24);
+    b.init_csum(csum_type, ceph::math::p2_uint64_t::from_exponent(3), 24);
     cout << "  value size " << b.get_csum_value_size() << std::endl;
     b.calc_csum(0, bl);
     ASSERT_EQ(0, b.verify_csum(0, bl, &bad_off, &bad_csum));
@@ -318,7 +318,8 @@ TEST(bluestore_blob_t, csum_bench)
        csum_type < Checksummer::CSUM_MAX;
        ++csum_type) {
     bluestore_blob_t b;
-    b.init_csum(csum_type, 12, bl.length());
+    b.init_csum(csum_type,
+		ceph::math::p2_uint64_t::from_exponent(12), bl.length());
     ceph::mono_clock::time_point start = ceph::mono_clock::now();
     for (int i = 0; i<count; ++i) {
       b.calc_csum(0, bl);
@@ -733,7 +734,8 @@ TEST(Blob, put_ref)
     bluestore_blob_t& b = B.dirty_blob();
     PExtentVector r;
     b.allocated_test(bluestore_pextent_t(0, mas*4));
-    b.init_csum(Checksummer::CSUM_CRC32C, 14, mas * 4);
+    b.init_csum(Checksummer::CSUM_CRC32C,
+		ceph::math::p2_uint64_t::from_exponent(14), mas * 4);
     B.get_ref(coll.get(), 0, mas*4);
     ASSERT_EQ(mas * 4, B.get_referenced_bytes());
     ASSERT_TRUE(b.is_allocated(0, mas*4));
@@ -759,7 +761,8 @@ TEST(Blob, put_ref)
     B.get_ref(coll.get(), 0x17c00, 0x6400);
     ASSERT_EQ(0x3800u + 0x6400u, B.get_referenced_bytes());
     b.set_flag(bluestore_blob_t::FLAG_SHARED);
-    b.init_csum(Checksummer::CSUM_CRC32C, 12, 0x1e000);
+    b.init_csum(Checksummer::CSUM_CRC32C,
+		ceph::math::p2_uint64_t::from_exponent(12), 0x1e000);
 
     cout << "before: " << B << std::endl;
     PExtentVector r;
@@ -858,7 +861,8 @@ TEST(bluestore_blob_t, can_split_at)
   a.allocated_test(bluestore_pextent_t(0x20000, 0x2000));
   ASSERT_TRUE(a.can_split_at(0x1000));
   ASSERT_TRUE(a.can_split_at(0x1800));
-  a.init_csum(Checksummer::CSUM_CRC32C, 12, 0x4000);
+  a.init_csum(Checksummer::CSUM_CRC32C,
+	      ceph::math::p2_uint64_t::from_exponent(12), 0x4000);
   ASSERT_TRUE(a.can_split_at(0x1000));
   ASSERT_TRUE(a.can_split_at(0x2000));
   ASSERT_TRUE(a.can_split_at(0x3000));
@@ -881,7 +885,8 @@ TEST(bluestore_blob_t, prune_tail)
 
   a.allocated_test(
     bluestore_pextent_t(bluestore_pextent_t::INVALID_OFFSET, 0x2000));
-  a.init_csum(Checksummer::CSUM_CRC32C_8, 12, 0x6000);
+  a.init_csum(Checksummer::CSUM_CRC32C_8,
+	      ceph::math::p2_uint64_t::from_exponent(12), 0x6000);
   ASSERT_EQ(6u, a.csum_data.length());
   ASSERT_TRUE(a.can_prune_tail());
   a.prune_tail();
@@ -909,7 +914,8 @@ TEST(Blob, split)
     R.shared_blob = new BlueStore::SharedBlob(coll.get());
     R.shared_blob->get();  // hack to avoid dtor from running
     L.dirty_blob().allocated_test(bluestore_pextent_t(0x2000, 0x2000));
-    L.dirty_blob().init_csum(Checksummer::CSUM_CRC32C, 12, 0x2000);
+    L.dirty_blob().init_csum(Checksummer::CSUM_CRC32C,
+			     ceph::math::p2_uint64_t::from_exponent(12), 0x2000);
     L.get_ref(coll.get(), 0, 0x2000);
     L.split(coll.get(), 0x1000, &R);
     ASSERT_EQ(0x1000u, L.get_blob().get_logical_length());
@@ -933,7 +939,8 @@ TEST(Blob, split)
     R.shared_blob->get();  // hack to avoid dtor from running
     L.dirty_blob().allocated_test(bluestore_pextent_t(0x2000, 0x1000));
     L.dirty_blob().allocated_test(bluestore_pextent_t(0x12000, 0x1000));
-    L.dirty_blob().init_csum(Checksummer::CSUM_CRC32C, 12, 0x2000);
+    L.dirty_blob().init_csum(Checksummer::CSUM_CRC32C,
+			     ceph::math::p2_uint64_t::from_exponent(12), 0x2000);
     L.get_ref(coll.get(), 0, 0x1000);
     L.get_ref(coll.get(), 0x1000, 0x1000);
     L.split(coll.get(), 0x1000, &R);
@@ -964,7 +971,8 @@ TEST(Blob, legacy_decode)
 
     B.shared_blob = new BlueStore::SharedBlob(coll.get());
     B.dirty_blob().allocated_test(bluestore_pextent_t(0x1, 0x2000));
-    B.dirty_blob().init_csum(Checksummer::CSUM_CRC32C, 12, 0x2000);
+    B.dirty_blob().init_csum(Checksummer::CSUM_CRC32C,
+			     ceph::math::p2_uint64_t::from_exponent(12), 0x2000);
     B.get_ref(coll.get(), 0, 0xff0);
     B.get_ref(coll.get(), 0x1fff, 1);
 
