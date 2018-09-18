@@ -556,8 +556,8 @@ public:
   }
 
   /// return chunk (i.e. min readable block) size for the blob
-  ceph::math::p2_uin64_t
-  get_chunk_size(const ceph::math::p2_uin64_t dev_block_size) const {
+  ceph::math::p2_uint64_t
+  get_chunk_size(const ceph::math::p2_uint64_t dev_block_size) const {
     return has_csum() ?
       std::max(dev_block_size, get_csum_chunk_size()) : dev_block_size;
   }
@@ -769,7 +769,7 @@ public:
   }
 
   void init_csum(const unsigned type,
-		 const ceph::math::p2_uin64_t chunk_size,
+		 const ceph::math::p2_uint64_t chunk_size,
 		 const unsigned len) {
     flags |= FLAG_CSUM;
     csum_type = type;
