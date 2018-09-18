@@ -1927,12 +1927,8 @@ private:
   /// block size of block device (power of 2)
   ceph::math::p2_uint64_t block_size;
 
-  uint64_t min_alloc_size = 0; ///< minimum allocation unit (power of 2)
-  ///< bits for min_alloc_size
-  uint8_t min_alloc_size_order = 0;
-  static_assert(std::numeric_limits<uint8_t>::max() >
-		std::numeric_limits<decltype(min_alloc_size)>::digits,
-		"not enough bits for min_alloc_size");
+  ///< minimum allocation unit (power of 2)
+  ceph::math::p2_uint64_t min_alloc_size;
 
   ///< maximum allocation unit (power of 2)
   std::atomic<uint64_t> max_alloc_size = {0};

@@ -3868,7 +3868,6 @@ BlueStore::BlueStore(CephContext *cct,
     kv_sync_thread(this),
     kv_finalize_thread(this),
     min_alloc_size(_min_alloc_size),
-    min_alloc_size_order(ctz(_min_alloc_size)),
     mempool_thread(this)
 {
   _init_logger();
@@ -4518,7 +4517,6 @@ void BlueStore::_set_alloc_sizes(void)
   }
 
   dout(10) << __func__ << " min_alloc_size 0x" << std::hex << min_alloc_size
-	   << std::dec << " order " << (int)min_alloc_size_order
 	   << " max_alloc_size 0x" << std::hex << max_alloc_size
 	   << " prefer_deferred_size 0x" << prefer_deferred_size
 	   << std::dec
@@ -4631,7 +4629,7 @@ int BlueStore::_open_fm(bool create)
 	      << cct->_conf->bluestore_debug_prefill << " with max free extent "
 	      << cct->_conf->bluestore_debug_prefragment_max << dendl;
       uint64_t start = p2roundup(reserved, min_alloc_size);
-      uint64_t max_b = cct->_conf->bluestore_debug_prefragment_max / min_alloc_size;
+      uint64_t max_b = static_cast<size_t>(cct->_conf->bluestore_debug_prefragment_max) / min_alloc_size;
       float r = cct->_conf->bluestore_debug_prefill;
       r /= 1.0 - r;
       bool stop = false;
@@ -5629,6 +5627,7 @@ int BlueStore::mkfs()
   dout(1) << __func__ << " path " << path << dendl;
   int r;
   uuid_d old_fsid;
+  uint64_t min_alloc_size_cfg = 0;
 
   {
     string done;
@@ -5723,25 +5722,27 @@ int BlueStore::mkfs()
 
   // choose min_alloc_size
   if (cct->_conf->bluestore_min_alloc_size) {
-    min_alloc_size = cct->_conf->bluestore_min_alloc_size;
+    min_alloc_size_cfg = cct->_conf->bluestore_min_alloc_size;
   } else {
     ceph_assert(bdev);
     if (bdev->is_rotational()) {
-      min_alloc_size = cct->_conf->bluestore_min_alloc_size_hdd;
+      min_alloc_size_cfg = cct->_conf->bluestore_min_alloc_size_hdd;
     } else {
-      min_alloc_size = cct->_conf->bluestore_min_alloc_size_ssd;
+      min_alloc_size_cfg = cct->_conf->bluestore_min_alloc_size_ssd;
     }
   }
   _validate_bdev();
 
   // make sure min_alloc_size is power of 2 aligned.
-  if (!isp2(min_alloc_size)) {
+  if (!isp2(min_alloc_size_cfg)) {
     derr << __func__ << " min_alloc_size 0x"
-	 << std::hex << min_alloc_size << std::dec
+	 << std::hex << min_alloc_size_cfg << std::dec
 	 << " is not power of 2 aligned!"
 	 << dendl;
     r = -EINVAL;
     goto out_close_bdev;
+  } else {
+    min_alloc_size = ceph::math::p2_uint64_t::from_p2(min_alloc_size_cfg);
   }
 
   r = _open_db(true);
@@ -9045,9 +9046,7 @@ int BlueStore::_open_super_meta()
     try {
       uint64_t val;
       decode(val, p);
-      min_alloc_size = val;
-      min_alloc_size_order = ctz(val);
-      ceph_assert(min_alloc_size == 1u << min_alloc_size_order);
+      min_alloc_size = ceph::math::p2_t(val);
     } catch (buffer::error& e) {
       derr << __func__ << " unable to read min_alloc_size" << dendl;
       return -EIO;
@@ -9089,7 +9088,7 @@ int BlueStore::_upgrade_super()
       try {
 	uint64_t val;
 	decode(val, p);
-	min_alloc_size = val;
+	min_alloc_size = ceph::math::p2_t(val);
       } catch (buffer::error& e) {
 	derr << __func__ << " failed to read min_min_alloc_size" << dendl;
 	return -EIO;
@@ -10930,10 +10929,10 @@ void BlueStore::_do_write_small(
     prev_ep = end; // to avoid this extent check as it's a duplicate
   }
 
-  auto max_bsize = std::max(wctx->target_blob_size, min_alloc_size);
+  auto max_bsize = std::max<uint64_t>(wctx->target_blob_size, min_alloc_size);
   auto min_off = offset >= max_bsize ? offset - max_bsize : 0;
+  auto offset0 = p2align(offset, min_alloc_size);
   uint32_t alloc_len = min_alloc_size;
-  auto offset0 = p2align(offset, alloc_len);
 
   bool any_change;
 
@@ -11226,7 +11225,7 @@ void BlueStore::_do_write_big(
   logger->inc(l_bluestore_write_big);
   logger->inc(l_bluestore_write_big_bytes, length);
   o->extent_map.punch_hole(c, offset, length, &wctx->old_extents);
-  auto max_bsize = std::max(wctx->target_blob_size, min_alloc_size);
+  auto max_bsize = std::max<uint64_t>(wctx->target_blob_size, min_alloc_size);
   while (length > 0) {
     bool new_blob = false;
     uint32_t l = std::min(max_bsize, length);
@@ -11361,7 +11360,7 @@ int BlueStore::_do_alloc_write(
 
   // compress (as needed) and calc needed space
   uint64_t need = 0;
-  auto max_bsize = std::max(wctx->target_blob_size, min_alloc_size);
+  auto max_bsize = std::max<uint64_t>(wctx->target_blob_size, min_alloc_size);
   for (auto& wi : wctx->writes) {
     if (c && wi.blob_length > min_alloc_size) {
       auto start = mono_clock::now();
@@ -11726,10 +11725,10 @@ BlueStore::WriteContext BlueStore::_choose_write_options(
     dout(20) << __func__ << " will prefer large blob and csum sizes" << dendl;
 
     if (o->onode.expected_write_size) {
-      wctx->csum_chunk_size = \
-	std::max(1ULL << min_alloc_size_order, o->onode.expected_write_size);
+      wctx->csum_chunk_size = std::max(min_alloc_size,
+	ceph::math::p2_uint64_t::from_p2(o->onode.expected_write_size));
     } else {
-      wctx->csum_chunk_size = 1ULL << min_alloc_size_order;
+      wctx->csum_chunk_size = min_alloc_size;
     }
 
     if (wctx->compress) {
