@@ -11106,8 +11106,7 @@ void BlueStore::_choose_write_options(
 
     if (o->onode.expected_write_size) {
       wctx->csum_chunk_size = \
-	std::max(min_alloc_size_order,
-			          (uint8_t)ctz(o->onode.expected_write_size));
+	std::max(1ULL << min_alloc_size_order, o->onode.expected_write_size);
     } else {
       wctx->csum_chunk_size = 1ULL << min_alloc_size_order;
     }
