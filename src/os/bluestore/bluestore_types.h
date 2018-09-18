@@ -825,15 +825,14 @@ public:
       csum_data.zero(t.length(), csum_data.length() - t.length());
     }
   }
-  uint32_t get_release_size(uint32_t min_alloc_size) const {
+  uint32_t get_release_size(ceph::math::p2_uint32_t min_alloc_size) const {
     if (is_compressed()) {
       return get_logical_length();
     }
-    uint32_t res = get_csum_chunk_size();
+    const auto res = get_csum_chunk_size();
     if (!has_csum() || res < min_alloc_size) {
-      res = min_alloc_size;
+      return min_alloc_size;
     }
-    return res;
   }
 
   void split(uint32_t blob_offset, bluestore_blob_t& rb);
