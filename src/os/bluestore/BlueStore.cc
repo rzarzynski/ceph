@@ -3046,7 +3046,7 @@ bool BlueStore::WriteContext::has_conflict(
   BlobRef b,
   uint64_t loffs,
   uint64_t loffs_end,
-  uint64_t min_alloc_size)
+  ceph::p2_uint64_t min_alloc_size)
 {
   assert((loffs % min_alloc_size) == 0);
   assert((loffs_end % min_alloc_size) == 0);
