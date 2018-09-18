@@ -2615,10 +2615,12 @@ private:
   // write ops
 
   struct WriteContext {
+    uint64_t target_blob_size = 0;  ///< target (max) blob size
     bool buffered = false;          ///< buffered write
     bool compress = false;          ///< compressed write
-    uint64_t target_blob_size = 0;  ///< target (max) blob size
-    unsigned csum_order = 0;        ///< target checksum chunk order
+    /// target checksum chunk order
+    ceph::math::p2_uint64_t csum_chunk_size;
+    static_assert(sizeof(csum_chunk_size) == sizeof(std::uint8_t));
 
     old_extent_map_t old_extents;   ///< must deref these blobs
 
@@ -2666,7 +2668,7 @@ private:
       buffered = other.buffered;
       compress = other.compress;
       target_blob_size = other.target_blob_size;
-      csum_order = other.csum_order;
+      csum_chunk_size = other.csum_chunk_size;
     }
     void write(
       uint64_t loffs,

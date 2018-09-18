@@ -11448,20 +11448,21 @@ int BlueStore::_do_alloc_write(
     } else if (wi.new_blob) {
       // initialize newly created blob only
       ceph_assert(dblob.is_mutable());
-      unsigned csum_order;
+      ceph::math::p2_uint64_t csum_chunk_size;
       if (l->length() != wi.blob_length) {
         // hrm, maybe we could do better here, but let's not bother.
-        dout(20) << __func__ << " forcing csum_order to block_size_order "
-                << block_size.get_exponent() << dendl;
-	csum_order = block_size.get_exponent();
+        dout(20) << __func__ << " forcing csum_chunk_size to block_size "
+                << block_size << dendl;
+	csum_chunk_size = block_size;
       } else {
-        csum_order = std::min(wctx->csum_order, ctz(l->length()));
+        csum_chunk_size = std::min(wctx->csum_chunk_size,
+				   ceph::math::p2_uint64_t(l->length()));
       }
       // try to align blob with max_blob_size to improve
       // its reuse ratio, e.g. in case of reverse write
       uint32_t suggested_boff =
        (wi.logical_offset - (wi.b_off0 - wi.b_off)) % max_bsize;
-      if ((suggested_boff % (1 << csum_order)) == 0 &&
+      if ((suggested_boff % csum_chunk_size) == 0 &&
            suggested_boff + final_length <= max_bsize &&
            suggested_boff > b_off) {
         dout(20) << __func__ << " forcing blob_offset to 0x"
@@ -11473,10 +11474,10 @@ int BlueStore::_do_alloc_write(
       if (csum != Checksummer::CSUM_NONE) {
         dout(20) << __func__ << " initialize csum setting for new blob " << *b
                  << " csum_type " << Checksummer::get_csum_type_string(csum)
-                 << " csum_order " << csum_order
+                 << " csum_chunk_size " << csum_chunk_size
                  << " csum_length 0x" << std::hex << csum_length << std::dec
                  << dendl;
-        dblob.init_csum(csum, 1 << csum_order, csum_length);
+        dblob.init_csum(csum, csum_chunk_size, csum_length);
       }
     }
 
@@ -11691,7 +11692,7 @@ void BlueStore::_choose_write_options(
   }
 
   // apply basic csum block size
-  wctx->csum_order = block_size.get_exponent();
+  wctx->csum_chunk_size = block_size;
 
   // compression parameters
   unsigned alloc_hints = o->onode.alloc_hint_flags;
@@ -11724,10 +11725,10 @@ void BlueStore::_choose_write_options(
     dout(20) << __func__ << " will prefer large blob and csum sizes" << dendl;
 
     if (o->onode.expected_write_size) {
-      wctx->csum_order = std::max(min_alloc_size_order,
-			          (uint8_t)ctz(o->onode.expected_write_size));
+      wctx->csum_chunk_size = \
+	std::max(1ULL << min_alloc_size_order, o->onode.expected_write_size);
     } else {
-      wctx->csum_order = min_alloc_size_order;
+      wctx->csum_chunk_size = 1ULL << min_alloc_size_order;
     }
 
     if (wctx->compress) {
@@ -11772,7 +11773,7 @@ void BlueStore::_choose_write_options(
     wctx->target_blob_size = min_alloc_size * 2;
   }
 
-  dout(20) << __func__ << " prefer csum_order " << wctx->csum_order
+  dout(20) << __func__ << " prefer csum_chunk_size " << wctx->csum_chunk_size
            << " target_blob_size 0x" << std::hex << wctx->target_blob_size
 	   << " compress=" << (int)wctx->compress
 	   << " buffered=" << (int)wctx->buffered
