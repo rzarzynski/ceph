@@ -579,7 +579,7 @@ namespace buffer CEPH_BUFFER_API {
 
       contiguous_appender(bufferlist *l, size_t len, bool d)
 	: pbl(l),
-	  deep(d) {
+	  deep(true) {
 	size_t unused = pbl->get_append_buffer_unused_tail_length();
 	if (len > unused) {
 	  // note: if len < the normal append_buffer size it *might*
