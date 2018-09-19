@@ -694,6 +694,7 @@ namespace buffer CEPH_BUFFER_API {
   private:
     mutable iterator last_p;
     int zero_copy_to_fd(int fd) const;
+    ptr& refill_append_space(const unsigned len);
 
   public:
     // cons/des
