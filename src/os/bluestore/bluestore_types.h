@@ -459,7 +459,8 @@ public:
     denc_varint_lowz(logical_length, p);
     denc_varint_lowz(compressed_length, p);
     denc(csum_type, p);
-    denc(csum_chunk_size, p);
+    const uint8_t csum_chunk_order = csum_chunk_size.get_exponent();
+    denc(csum_chunk_order, p);
     denc_varint(csum_data.length(), p);
     p += csum_data.length();
     p += sizeof(unused_t);
@@ -475,7 +476,8 @@ public:
     }
     if (has_csum()) {
       denc(csum_type, p);
-      denc(csum_chunk_size, p);
+      const uint8_t csum_chunk_order = csum_chunk_size.get_exponent();
+      denc(csum_chunk_order, p);
       denc_varint(csum_data.length(), p);
       memcpy(p.get_pos_add(csum_data.length()), csum_data.c_str(),
 	     csum_data.length());
@@ -497,7 +499,9 @@ public:
     }
     if (has_csum()) {
       denc(csum_type, p);
-      denc(csum_chunk_size, p);
+      uint8_t csum_chunk_order;
+      denc(csum_chunk_order, p);
+      csum_chunk_size = decltype(csum_chunk_size)::from_exponent(csum_chunk_order);
       int len;
       denc_varint(len, p);
       csum_data = p.get_ptr(len);
