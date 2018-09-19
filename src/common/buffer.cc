@@ -1616,38 +1616,33 @@ using namespace ceph;
     _len++;
   }
 
+  buffer::ptr& buffer::list::refill_append_space(const unsigned len)
+  {
+    // make a new buffer.  fill out a complete page, factoring in the
+    // raw_combined overhead.
+    size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
+    size_t alen = round_up_to(need, CEPH_BUFFER_ALLOC_UNIT) -
+      sizeof(raw_combined);
+    buffer::ptr& new_back = \
+      _buffers.emplace_back(raw_combined::create(alen, 0, get_mempool()));
+    new_back.set_length(0);   // unused, so far.
+    return new_back;
+  }
+
   void buffer::list::append(const char *data, unsigned len)
   {
-    // hmm, maybe let's provide ::appends with guarantee the container is
-    // never empty?
-    if (_buffers.empty()) {
-      size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
-      size_t alen = round_up_to(need, CEPH_BUFFER_ALLOC_UNIT) -
-	sizeof(raw_combined);
-      _buffers.emplace_back(raw_combined::create(alen, 0, get_mempool()));
-      _buffers.back().set_length(0);   // unused, so far.
+    _len += len;
+
+    const unsigned free_in_last = get_append_buffer_unused_tail_length();
+    const unsigned first_round = std::min(len, free_in_last);
+    if (first_round) {
+      _buffers.back().append(data, first_round);
     }
 
-    while (len > 0) {
-      ptr& last_one = _buffers.back();
-      unsigned gap = \
-	std::min(last_one.raw_nref() == 1 ? last_one.unused_tail_length() : 0, len);
-      last_one.append(data, gap);
-      _len += gap;
-      len -= gap;
-      data += gap;
-
-      if (len == 0) {
-	break;
-      }
-
-      // make a new buffer.  fill out a complete page, factoring in the
-      // raw_combined overhead.
-      size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
-      size_t alen = round_up_to(need, CEPH_BUFFER_ALLOC_UNIT) -
-	sizeof(raw_combined);
-      _buffers.emplace_back(raw_combined::create(alen, 0, get_mempool()));
-      _buffers.back().set_length(0);   // unused, so far.
+    const unsigned second_round = len - first_round;
+    if (second_round) {
+      auto& new_back = refill_append_space(second_round);
+      new_back.append(data + first_round, second_round);
     }
   }
 
