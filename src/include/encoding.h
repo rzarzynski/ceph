@@ -66,8 +66,10 @@ namespace ceph {
 // --------------------------------------
 // base types
 
+#define FORCE_INLINE __attribute__((used,always_inline))
+
 template<class T>
-inline void encode_raw(const T& t, bufferlist& bl)
+inline FORCE_INLINE void encode_raw(const T& t, bufferlist& bl)
 {
   bl.append((char*)&t, sizeof(t));
 }
@@ -109,7 +111,7 @@ inline void decode(bool &v, bufferlist::const_iterator& p) {
 // int types
 
 #define WRITE_INTTYPE_ENCODER(type, etype)				\
-  inline void encode(type v, ::ceph::bufferlist& bl, uint64_t features=0) { \
+  inline FORCE_INLINE void encode(type v, ::ceph::bufferlist& bl, uint64_t features=0) { \
     ceph_##etype e;					                \
     e = v;                                                              \
     ::ceph::encode_raw(e, bl);						\

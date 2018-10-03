@@ -644,23 +644,38 @@ unsigned Legacy::n_denc = 0;
 unsigned Legacy::n_decode = 0;
 
 bufferlist Legacy::encode_n(unsigned n, const vector<unsigned>& segments) {
+  std::cout << __func__ << " " << __LINE__ << " n=" << n << std::endl;
+
   vector<Legacy> v;
   for (unsigned i = 0; i < n; i++) {
     v.push_back(Legacy());
   }
+
+  std::cout << __func__ << " " << __LINE__ << std::endl;
+
   bufferlist bl(n * sizeof(uint8_t));
   using ceph::encode;
   encode(v, bl);
+
+  std::cout << __func__ << " " << __LINE__ << " bl.length()="
+            << bl.length() << std::endl;
+
   bufferlist segmented;
   auto p = bl.begin();
 
   auto sum = std::accumulate(segments.begin(), segments.end(), 0u);
   assert(sum != 0u);
+  std::cout << __func__ << " " << __LINE__ << " sum=" << sum
+            << std::endl;
+
   for (auto i : segments) {
+  std::cout << __func__ << " " << __LINE__ << std::endl;
     buffer::ptr seg;
     p.copy_deep(bl.length() * i / sum, seg);
     segmented.push_back(seg);
+  std::cout << __func__ << " " << __LINE__ << std::endl;
   }
+  std::cout << __func__ << " " << __LINE__ << std::endl;
   p.copy_all(segmented);
   return segmented;
 }

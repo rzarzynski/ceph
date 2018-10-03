@@ -33,6 +33,7 @@
 #include "common/RWLock.h"
 #include "include/spinlock.h"
 #include "include/scope_guard.h"
+#include "common/buffer_impl.h"
 
 #if defined(HAVE_XIO)
 #include "msg/xio/XioMsg.h"
@@ -40,8 +41,6 @@
 
 using namespace ceph;
 
-#define CEPH_BUFFER_ALLOC_UNIT  (std::min(CEPH_PAGE_SIZE, 4096u))
-#define CEPH_BUFFER_APPEND_SIZE (CEPH_BUFFER_ALLOC_UNIT - sizeof(raw_combined))
 
 #ifdef BUFFER_DEBUG
 # define bdout { std::lock_guard<ceph::spinlock> lg(ceph::spinlock()); std::cout
@@ -167,58 +166,6 @@ using namespace ceph;
   buffer::error_code::error_code(int error) :
     buffer::malformed_input(cpp_strerror(error).c_str()), code(error) {}
 
-  /*
-   * raw_combined is always placed within a single allocation along
-   * with the data buffer.  the data goes at the beginning, and
-   * raw_combined at the end.
-   */
-  class buffer::raw_combined : public buffer::raw {
-    size_t alignment;
-  public:
-    raw_combined(char *dataptr, unsigned l, unsigned align,
-		 int mempool)
-      : raw(dataptr, l, mempool),
-	alignment(align) {
-      inc_total_alloc(len);
-      inc_history_alloc(len);
-    }
-    ~raw_combined() override {
-      dec_total_alloc(len);
-    }
-    raw* clone_empty() override {
-      return create(len, alignment);
-    }
-
-    static raw_combined *create(unsigned len,
-				unsigned align,
-				int mempool = mempool::mempool_buffer_anon) {
-      if (!align)
-	align = sizeof(size_t);
-      size_t rawlen = round_up_to(sizeof(buffer::raw_combined),
-				  alignof(buffer::raw_combined));
-      size_t datalen = round_up_to(len, alignof(buffer::raw_combined));
-
-#ifdef DARWIN
-      char *ptr = (char *) valloc(rawlen + datalen);
-#else
-      char *ptr = 0;
-      int r = ::posix_memalign((void**)(void*)&ptr, align, rawlen + datalen);
-      if (r)
-	throw bad_alloc();
-#endif /* DARWIN */
-      if (!ptr)
-	throw bad_alloc();
-
-      // actual data first, since it has presumably larger alignment restriction
-      // then put the raw_combined at the end
-      return new (ptr + datalen) raw_combined(ptr, len, align, mempool);
-    }
-
-    static void operator delete(void *ptr) {
-      raw_combined *raw = (raw_combined *)ptr;
-      ::free((void *)raw->data);
-    }
-  };
 
   class buffer::raw_malloc : public buffer::raw {
   public:
@@ -736,11 +683,6 @@ using namespace ceph;
     return new raw_unshareable(len);
   }
 
-  buffer::ptr::ptr(raw *r) : _raw(r), _off(0), _len(r->len)   // no lock needed; this is an unref raw.
-  {
-    r->nref++;
-    bdout << "ptr " << this << " get " << _raw << bendl;
-  }
   buffer::ptr::ptr(unsigned l) : _off(0), _len(l)
   {
     _raw = create(l);
@@ -858,13 +800,6 @@ using namespace ceph;
 
   bool buffer::ptr::at_buffer_tail() const { return _off + _len == _raw->len; }
 
-  int buffer::ptr::get_mempool() const {
-    if (_raw) {
-      return _raw->mempool;
-    }
-    return mempool::mempool_buffer_anon;
-  }
-
   void buffer::ptr::reassign_to_mempool(int pool) {
     if (_raw) {
       _raw->reassign_to_mempool(pool);
@@ -901,13 +836,6 @@ using namespace ceph;
     return _raw->get_data() + _off + _len;
   }
 
-  unsigned buffer::ptr::unused_tail_length() const
-  {
-    if (_raw)
-      return _raw->len - (_off+_len);
-    else
-      return 0;
-  }
   const char& buffer::ptr::operator[](unsigned n) const
   {
     assert(_raw);
@@ -922,8 +850,6 @@ using namespace ceph;
   }
 
   const char *buffer::ptr::raw_c_str() const { assert(_raw); return _raw->data; }
-  unsigned buffer::ptr::raw_length() const { assert(_raw); return _raw->len; }
-  int buffer::ptr::raw_nref() const { assert(_raw); return _raw->nref; }
 
   void buffer::ptr::copy_out(unsigned o, unsigned l, char *dest) const {
     assert(_raw);
@@ -965,16 +891,6 @@ using namespace ceph;
     char* ptr = _raw->data + _off + _len;
     *ptr = c;
     _len++;
-    return _len + _off;
-  }
-
-  unsigned buffer::ptr::append(const char *p, unsigned l)
-  {
-    assert(_raw);
-    assert(l <= unused_tail_length());
-    char* c = _raw->data + _off + _len;
-    maybe_inline_memcpy(c, p, l, 32);
-    _len += l;
     return _len + _off;
   }
 
@@ -1594,14 +1510,6 @@ using namespace ceph;
     return is_aligned(CEPH_PAGE_SIZE);
   }
 
-  int buffer::list::get_mempool() const
-  {
-    if (_buffers.empty()) {
-      return mempool::mempool_buffer_anon;
-    }
-    return _buffers.back().get_mempool();
-  }
-
   void buffer::list::reassign_to_mempool(int pool)
   {
     for (auto& p : _buffers) {
@@ -1805,36 +1713,6 @@ using namespace ceph;
     }
     _buffers.back().append(c);
     _len++;
-  }
-
-  buffer::ptr& buffer::list::refill_append_space(const unsigned len)
-  {
-    // make a new buffer.  fill out a complete page, factoring in the
-    // raw_combined overhead.
-    size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
-    size_t alen = round_up_to(need, CEPH_BUFFER_ALLOC_UNIT) -
-      sizeof(raw_combined);
-    buffer::ptr& new_back = \
-      _buffers.emplace_back(raw_combined::create(alen, 0, get_mempool()));
-    new_back.set_length(0);   // unused, so far.
-    return new_back;
-  }
-
-  void buffer::list::append(const char *data, unsigned len)
-  {
-    _len += len;
-
-    const unsigned free_in_last = get_append_buffer_unused_tail_length();
-    const unsigned first_round = std::min(len, free_in_last);
-    if (first_round) {
-      _buffers.back().append(data, first_round);
-    }
-
-    const unsigned second_round = len - first_round;
-    if (second_round) {
-      auto& new_back = refill_append_space(second_round);
-      new_back.append(data + first_round, second_round);
-    }
   }
 
   void buffer::list::append(const ptr& bp)
