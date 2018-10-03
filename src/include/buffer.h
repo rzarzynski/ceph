@@ -325,7 +325,7 @@ namespace buffer CEPH_BUFFER_API {
     unsigned offset() const { return _off; }
     unsigned start() const { return _off; }
     unsigned end() const { return _off + _len; }
-    unsigned unused_tail_length() const;
+    unsigned unused_tail_length() const __restrict__ noexcept;
     const char& operator[](unsigned n) const;
     char& operator[](unsigned n);
 
@@ -354,7 +354,7 @@ namespace buffer CEPH_BUFFER_API {
     }
 
     unsigned append(char c);
-    unsigned append(const char *p, unsigned l);
+    unsigned append(const char *p, unsigned l) __restrict__ noexcept;
 #if __cplusplus >= 201703L
     inline unsigned append(std::string_view s) {
       return append(s.data(), s.length());
@@ -693,10 +693,10 @@ namespace buffer CEPH_BUFFER_API {
   private:
     mutable iterator last_p;
     int zero_copy_to_fd(int fd) const;
-    ptr& refill_append_space(const unsigned len);
+    ptr& refill_append_space(const unsigned len) __restrict__ noexcept;
 
   public:
-    void microreserve(size_t);
+    void microreserve(size_t) __restrict__ noexcept;
     // cons/des
     list() : _len(0), _memcopy_count(0), last_p(this) {}
     // cppcheck-suppress noExplicitConstructor
@@ -735,7 +735,7 @@ namespace buffer CEPH_BUFFER_API {
     void reassign_to_mempool(int pool);
     void try_assign_to_mempool(int pool);
 
-    size_t get_append_buffer_unused_tail_length() const;
+    size_t get_append_buffer_unused_tail_length() __restrict__ const noexcept;
 
     unsigned get_memcopy_count() const {return _memcopy_count; }
     const std::list<ptr>& buffers() const { return _buffers; }
@@ -868,7 +868,7 @@ namespace buffer CEPH_BUFFER_API {
     void copy_in(unsigned off, unsigned len, const list& src);
 
     void append(char c);
-    void append(const char *data, unsigned len);
+    void append(const char *data, unsigned len) __restrict__ noexcept;
     void append(std::string s) {
       append(s.data(), s.length());
     }
