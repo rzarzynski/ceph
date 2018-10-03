@@ -193,9 +193,11 @@ namespace buffer CEPH_BUFFER_API {
    * a buffer pointer.  references (a subsequence of) a raw buffer.
    */
   class CEPH_BUFFER_API ptr {
+public:
     raw *_raw;
     unsigned _off, _len;
 
+private:
     void release();
 
     template<bool is_const>

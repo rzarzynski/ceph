@@ -209,14 +209,22 @@ inline void FORCE_INLINE buffer::list::append(const char* __restrict data, unsig
   // [1] https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60712
   unsigned free_in_last = 0;
   if (likely(!_buffers.empty())) {
-    const auto& __restrict__ last = _buffers.back();
-    free_in_last = last.get_raw()->len - (last.offset()+last.length());
+    auto& __restrict__ last = _buffers.back();
+    auto* __restrict__ raw = last._raw;
+    //free_in_last = last.get_raw()->len - (last.offset()+last.length());
+    free_in_last = raw->len - (last._off + last._len);
   }
 #endif // WANT_RAW_RELOAD
 
-  const unsigned first_round = std::min(len, len);
+  const unsigned first_round = len;
   if (likely(free_in_last >= len)) {
-    this->_buffers.back().append(data, first_round);
+    auto& __restrict__ last = _buffers.back();
+    //char* const __restrict__ c = last.get_raw()->data + last.offset()+last.length();
+    //memcpy(c, data, len);
+    last._len += len;
+
+    // Ooops, we've got a reload here. Why? Aliasing in std::list? :-/
+    assert(!_buffers.empty());
     return;
   }
 
