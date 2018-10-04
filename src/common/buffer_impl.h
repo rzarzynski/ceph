@@ -134,18 +134,18 @@ inline FORCE_INLINE int buffer::list::get_mempool() const
 
 inline FORCE_INLINE size_t buffer::list::get_append_buffer_unused_tail_length() __restrict__ const noexcept
 {
-      if (unlikely(_buffers.empty())) {
+      if (unlikely(last_writeable == nullptr)) {
 	return 0;
       }
 
-      auto& __restrict__ buf = _buffers.back();
 #if 0
       if (buf.raw_nref() != 1) {
 	return 0;
       }
 #endif
 
-      return buf.unused_tail_length();
+      //return last_writeable->unused_tail_length();
+      return last_writeable->_raw->len - (last_writeable->_off+last_writeable->_len);
     }
 
 inline FORCE_INLINE buffer::ptr& buffer::list::refill_append_space(const unsigned len) noexcept
@@ -158,6 +158,7 @@ inline FORCE_INLINE buffer::ptr& buffer::list::refill_append_space(const unsigne
   buffer::ptr& new_back = \
     _buffers.emplace_back(raw_combined::create(alen, 0));
   new_back.set_length(0);   // unused, so far.
+  last_writeable = &new_back;
   return new_back;
 }
 
@@ -170,17 +171,17 @@ inline FORCE_INLINE void buffer::list::microreserve(size_t len) noexcept
       __builtin_unreachable();
     if (new_back.length() != 0)
       __builtin_unreachable();
-  if (std::addressof(_buffers.back()) != std::addressof(new_back))
+  if (last_writeable != std::addressof(new_back))
     __builtin_unreachable();
   }
   } catch (...) { __builtin_unreachable(); }
 
   assert(get_append_buffer_unused_tail_length() >= len);
-  if (_buffers.empty())
+  if (last_writeable == nullptr)
     __builtin_unreachable();
-  if (_buffers.back().unused_tail_length() < len)
+  if (last_writeable->unused_tail_length() < len)
     __builtin_unreachable();
-  if (_buffers.back().raw_length() < len)
+  if (last_writeable->raw_length() < len)
     __builtin_unreachable();
 
   return;
@@ -208,26 +209,36 @@ inline void FORCE_INLINE buffer::list::append(const char* __restrict data, unsig
   // but who knows...
   // [1] https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60712
   unsigned free_in_last = 0;
-  if (likely(!_buffers.empty())) {
-    auto& __restrict__ last = _buffers.back();
-    auto* __restrict__ raw = last._raw;
+  if (likely(last_writeable != nullptr)) {
+    auto* raw = last_writeable->_raw;
     //free_in_last = last.get_raw()->len - (last.offset()+last.length());
-    free_in_last = raw->len - (last._off + last._len);
+    free_in_last = raw->len - (last_writeable->_off + last_writeable->_len);
   }
 #endif // WANT_RAW_RELOAD
 
-  const unsigned first_round = len;
   if (likely(free_in_last >= len)) {
-    auto& __restrict__ last = _buffers.back();
-    //char* const __restrict__ c = last.get_raw()->data + last.offset()+last.length();
-    //memcpy(c, data, len);
-    last._len += len;
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
 
-    // Ooops, we've got a reload here. Why? Aliasing in std::list? :-/
-    assert(!_buffers.empty());
+    //char* const __restrict__ c = last_writeable->get_raw()->data + last_writeable->offset()+last_writeable->length();
+    //memcpy(c, data, len);
+    last_writeable->_len += len;
+
+    // Easier to (not :-) - thankfully to DCE) spot in `perf annotate` and `objdump -dCS`
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
+    assert(last_writeable != nullptr);
     return;
   }
 
+  const unsigned first_round = len;
   //_len += len;
   const unsigned second_round = len; // - first_round;
   if (unlikely(second_round)) {

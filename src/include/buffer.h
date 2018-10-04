@@ -387,6 +387,7 @@ private:
   class CEPH_BUFFER_API list {
     // my private bits
     std::list<ptr> _buffers;
+    ptr* last_writeable = nullptr;
     unsigned _len;
     unsigned _memcopy_count; //the total of memcopy using rebuild().
 
