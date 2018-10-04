@@ -192,7 +192,7 @@ inline FORCE_INLINE void buffer::list::microreserve(size_t len) noexcept
 }
 
 
-inline void FORCE_INLINE buffer::list::append(const char* __restrict data, unsigned len) __restrict__ noexcept
+inline void FORCE_INLINE buffer::list::append(const char* __restrict data, unsigned len) noexcept
 {
   _len += len;
 

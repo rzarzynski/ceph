@@ -1553,16 +1553,25 @@ TEST(BufferList, encode_append_bench) {
     uint32_t u321 = 42;
     uint32_t u322 = 42;
 
-    void __attribute__((noinline)) encode(ceph::bufferlist &bl) const {
+    void __attribute__((noinline)) encode(ceph::bufferlist& __restrict__ bl) const {
       ENCODE_START(7, 2, bl);
       bl.microreserve(128);
       encode(s1, bl);
       encode(s2, bl);
+
       encode(s3, bl);
       encode(s4, bl);
-      encode(indirect_data, bl);
+      //encode(indirect_data, bl);
       encode(u321, bl);
       encode(u322, bl);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
+      assert(bl.length() > 0);
       ENCODE_FINISH(bl);
     }
   } average_encode_user;
