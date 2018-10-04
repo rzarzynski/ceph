@@ -184,6 +184,9 @@ inline FORCE_INLINE void buffer::list::microreserve(size_t len) noexcept
   if (last_writeable->raw_length() < len)
     __builtin_unreachable();
 
+  auto& last = _buffers.back();
+  _last_data = last._raw->data + last._off + last._len;
+  _free_in_last = len;
   return;
   assert(!_buffers.empty());
   assert(_buffers.back().raw_length() >= len);
@@ -208,6 +211,16 @@ inline void FORCE_INLINE buffer::list::append(const char* __restrict data, unsig
   // in GCC's tracker [1]. The comments say the issue has been fixed
   // but who knows...
   // [1] https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60712
+
+  if (likely(_free_in_last >= len)) {
+    //char* const c = last_writeable->_raw->data + last_writeable->_off+last_writeable->_len;
+    //char* __restrict__ const c = last_writeable->_raw->data; // + last_writeable->_off+last_writeable->_len;
+    __builtin_memcpy(_last_data + (128 - _free_in_last), data, len);
+    last_writeable->_len += len;
+    _free_in_last -= len;
+    return;
+  }
+
   unsigned free_in_last = 0;
   if (likely(last_writeable != nullptr)) {
     auto* raw = last_writeable->_raw;
@@ -225,6 +238,7 @@ inline void FORCE_INLINE buffer::list::append(const char* __restrict data, unsig
     //char* const __restrict__ c = last_writeable->get_raw()->data + last_writeable->offset()+last_writeable->length();
     //memcpy(c, data, len);
     last_writeable->_len += len;
+    free_in_last -= len;
 
     // Easier to (not :-) - thankfully to DCE) spot in `perf annotate` and `objdump -dCS`
     assert(last_writeable != nullptr);
