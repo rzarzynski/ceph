@@ -69,7 +69,7 @@ namespace ceph {
 #define FORCE_INLINE __attribute__((used,always_inline))
 
 template<class T>
-inline FORCE_INLINE void encode_raw(const T& t, bufferlist& bl)
+inline FORCE_INLINE void encode_raw(const T& __restrict__ t, bufferlist& __restrict__ bl)
 {
   bl.append((char*)&t, sizeof(t));
 }
@@ -80,7 +80,7 @@ inline void decode_raw(T& t, bufferlist::const_iterator &p)
 }
 
 #define WRITE_RAW_ENCODER(type)						\
-  inline void encode(const type &v, ::ceph::bufferlist& bl, uint64_t features=0) { ::ceph::encode_raw(v, bl); } \
+  inline void encode(const type &v, ::ceph::bufferlist& __restrict__ bl, uint64_t features=0) { ::ceph::encode_raw(v, bl); } \
   inline void decode(type &v, ::ceph::bufferlist::const_iterator& p) { __ASSERT_FUNCTION ::ceph::decode_raw(v, p); }
 
 WRITE_RAW_ENCODER(__u8)
@@ -111,7 +111,7 @@ inline void decode(bool &v, bufferlist::const_iterator& p) {
 // int types
 
 #define WRITE_INTTYPE_ENCODER(type, etype)				\
-  inline FORCE_INLINE void encode(type v, ::ceph::bufferlist& bl, uint64_t features=0) { \
+  inline FORCE_INLINE void encode(type v, ::ceph::bufferlist& __restrict__ bl, uint64_t features=0) { \
     ceph_##etype e;					                \
     e = v;                                                              \
     ::ceph::encode_raw(e, bl);						\

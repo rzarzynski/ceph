@@ -1553,7 +1553,7 @@ TEST(BufferList, encode_append_bench) {
     uint32_t u321 = 42;
     uint32_t u322 = 42;
 
-    void __attribute__((noinline)) encode(ceph::bufferlist& __restrict__ bl) const {
+    void __attribute__((noinline)) encode(ceph::bufferlist& bl) const {
       ENCODE_START(7, 2, bl);
       bl.microreserve(128);
       encode(s1, bl);

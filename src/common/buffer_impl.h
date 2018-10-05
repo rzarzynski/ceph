@@ -132,7 +132,7 @@ inline FORCE_INLINE int buffer::list::get_mempool() const
     return _buffers.back().get_mempool();
   }
 
-inline FORCE_INLINE size_t buffer::list::get_append_buffer_unused_tail_length() __restrict__ const noexcept
+inline FORCE_INLINE size_t buffer::list::get_append_buffer_unused_tail_length() const noexcept
 {
       if (unlikely(last_writeable == nullptr)) {
 	return 0;
