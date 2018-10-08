@@ -2310,6 +2310,19 @@ buffer::list buffer::list::static_from_string(string& s) {
   // const makes me generally sad.
 }
 
+bool buffer::hangable_ptr::dispose_if_hypercombined(
+  buffer::hangable_ptr* const delete_this)
+{
+  return false; // TODO
+}
+
+buffer::hangable_ptr& buffer::hangable_ptr::create_hypercombined(
+  buffer::raw* const r)
+{
+  ceph_assert(r->nref == 0);
+  return *new (&r->bptr_storage) hangable_ptr(r);
+}
+
 std::ostream& buffer::operator<<(std::ostream& out, const buffer::raw &r) {
   return out << "buffer::raw(" << (void*)r.data << " len " << r.len << " nref " << r.nref.load() << ")";
 }
