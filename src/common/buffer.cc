@@ -1471,7 +1471,7 @@ using namespace ceph;
         unaligned.rebuild(nb);
         _memcopy_count += unaligned._len;
       }
-      _buffers.insert(p, unaligned._buffers.front());
+      _buffers.insert(p, hangable_ptr::create(unaligned._buffers.front()));
     }
     last_p = begin();
 
