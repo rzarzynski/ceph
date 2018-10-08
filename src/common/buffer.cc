@@ -1393,7 +1393,7 @@ using namespace ceph;
   void buffer::list::rebuild()
   {
     if (_len == 0) {
-      _buffers.clear();
+      _buffers.clear_and_dispose(hangable_ptr::disposer());
       return;
     }
     ptr nb;
@@ -1414,9 +1414,9 @@ using namespace ceph;
       pos += it->length();
     }
     _memcopy_count += pos;
-    _buffers.clear();
+    _buffers.clear_and_dispose(hangable_ptr::disposer());
     if (nb.length())
-      _buffers.push_back(nb);
+      _buffers.push_back(hangable_ptr::create(nb));
     invalidate_crc();
     last_p = begin();
   }
@@ -1461,7 +1461,7 @@ using namespace ceph;
         */
         offset += p->length();
         unaligned.push_back(*p);
-        p = _buffers.erase(p);
+        p = _buffers.erase_and_dispose(p, hangable_ptr::disposer());
       } while (p != _buffers.end() &&
   	     (!p->is_aligned(align_memory) ||
   	      !p->is_n_align_sized(align_size) ||
@@ -1505,9 +1505,8 @@ using namespace ceph;
     _len += bl._len;
     if (!(flags & CLAIM_ALLOW_NONSHAREABLE))
       bl.make_shareable();
-    std::move(bl._buffers.begin(), bl._buffers.end(),
-      std::back_inserter(_buffers));
-    bl._buffers.clear();
+    _buffers.splice(std::end(_buffers), bl._buffers);
+    bl._buffers.clear_and_dispose(hangable_ptr::disposer());
     bl._len = 0;
     bl.last_p = bl.begin();
   }
@@ -1643,7 +1642,7 @@ using namespace ceph;
     for (buffers_t::const_iterator p = bl._buffers.begin();
 	 p != bl._buffers.end();
 	 ++p) 
-      _buffers.push_back(*p);
+      _buffers.push_back(hangable_ptr::create(*p));
   }
 
   void buffer::list::append(std::istream& in)
@@ -1678,10 +1677,10 @@ using namespace ceph;
 
   void buffer::list::prepend_zero(unsigned len)
   {
-    ptr bp(len);
+    auto& bp = hangable_ptr::create();
     bp.zero(false);
     _len += len;
-    _buffers.emplace_front(std::move(bp));
+    _buffers.push_front(bp);
   }
   
   void buffer::list::append_zero(unsigned len)
@@ -1693,7 +1692,7 @@ using namespace ceph;
       len -= need;
     }
     if (len) {
-      ptr bp = buffer::create_page_aligned(len);
+      auto& bp = hangable_ptr::create(buffer::create_page_aligned(len));
       bp.zero(false);
       append(std::move(bp));
     }
@@ -1771,7 +1770,7 @@ using namespace ceph;
       // partial?
       if (off + len < curbuf->length()) {
 	//cout << "copying partial of " << *curbuf << std::endl;
-	_buffers.push_back( ptr( *curbuf, off, len ) );
+	_buffers.push_back( hangable_ptr::create( *curbuf, off, len ) );
 	_len += len;
 	break;
       }
@@ -1779,7 +1778,7 @@ using namespace ceph;
       // through end
       //cout << "copying end (all?) of " << *curbuf << std::endl;
       unsigned howmuch = curbuf->length() - off;
-      _buffers.push_back( ptr( *curbuf, off, howmuch ) );
+      _buffers.push_back( hangable_ptr::create( *curbuf, off, howmuch ) );
       _len += howmuch;
       len -= howmuch;
       off = 0;
@@ -1819,7 +1818,7 @@ using namespace ceph;
       // add a reference to the front bit
       //  insert it before curbuf (which we'll hose)
       //cout << "keeping front " << off << " of " << *curbuf << std::endl;
-      _buffers.insert( curbuf, ptr( *curbuf, 0, off ) );
+      _buffers.insert( curbuf, hangable_ptr::create( *curbuf, 0, off ) );
       _len += off;
     }
     
@@ -1842,7 +1841,7 @@ using namespace ceph;
       if (claim_by) 
 	claim_by->append( *curbuf, off, howmuch );
       _len -= (*curbuf).length();
-      curbuf = _buffers.erase( curbuf );
+      curbuf = _buffers.erase_and_dispose( curbuf, hangable_ptr::disposer() );
       len -= howmuch;
       off = 0;
     }
