@@ -1455,8 +1455,10 @@ using namespace ceph;
   	     << " not ok" << std::endl;
         */
         offset += p->length();
+        // no need to reallocate, relinking is enough thankfully to bi::list.
+        auto after = _buffers.erase(p);
         unaligned.push_back(*p);
-        p = _buffers.erase_and_dispose(p, hangable_ptr::disposer());
+        p = after;
       } while (p != _buffers.end() &&
   	     (!p->is_aligned(align_memory) ||
   	      !p->is_n_align_sized(align_size) ||
