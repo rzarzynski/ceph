@@ -765,7 +765,7 @@ namespace buffer CEPH_BUFFER_API {
     }
 
   private:
-    ptr& refill_append_space(const unsigned len);
+    hangable_ptr& refill_append_space(const unsigned len);
 
   public:
     // cons/des
