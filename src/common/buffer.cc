@@ -2312,7 +2312,11 @@ buffer::list buffer::list::static_from_string(string& s) {
 bool buffer::hangable_ptr::dispose_if_hypercombined(
   buffer::hangable_ptr* const delete_this)
 {
-  return false; // TODO
+  if (static_cast<void*>(&delete_this->get_raw()->bptr_storage) == static_cast<void*>(delete_this)) {
+    delete_this->~hangable_ptr();
+    return true;
+  }
+  return false;
 }
 
 buffer::hangable_ptr& buffer::hangable_ptr::create_hypercombined(
