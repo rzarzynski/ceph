@@ -1467,7 +1467,8 @@ using namespace ceph;
   void buffer::list::reserve(size_t prealloc)
   {
     if (_buffers.empty() || _buffers.back().unused_tail_length() < prealloc) {
-      auto& ptr = _buffers.emplace_back(buffer::create_page_aligned(prealloc));
+      auto& ptr = hangable_ptr::create(buffer::create_page_aligned(prealloc));
+      _buffers.push_back(ptr);
       ptr.set_length(0);   // unused, so far.
     }
   }
@@ -1717,9 +1718,9 @@ using namespace ceph;
   void buffer::list::append_zero(unsigned len)
   {
     if (_buffers.empty()) {
-      auto& buf = _buffers.emplace_back(
-	buffer::create_page_aligned(len));
+      auto& buf = hangable_ptr::create(buffer::create_page_aligned(len));
       buf.set_length(0);   // unused, so far.
+      _buffers.push_back(buf);
     }
 
     auto& buf = _buffers.back();
