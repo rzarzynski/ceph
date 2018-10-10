@@ -44,6 +44,49 @@ using namespace ceph;
 
 namespace ceph {
 
+class contiguous_reserver {
+  ceph::bufferlist& bl;
+  std::size_t reserved;
+  char* buf;
+
+  static constexpr std::size_t RESERVATION_UNIT = 64;
+
+public:
+  contiguous_reserver(ceph::bufferlist& bl)
+    : bl(bl),
+      reserved(0) {
+  }
+
+  template <std::size_t LenV>
+  void append(char* __restrict__ const c) {
+    if (reserved >= LenV) {
+      // the fast, direct memcpy path
+      memcpy(buf + (RESERVATION_UNIT - reserved), c, LenV);
+      reserved -= LenV;
+    } else {
+      append(c, LenV);
+    }
+  }
+
+  void append(char* __restrict__ const c, const unsigned len) {
+    reserved = RESERVATION_UNIT;
+    buf = bl.append_n_reserve(c, len, RESERVATION_UNIT);
+  }
+
+  auto append_hole(unsigned len) {
+    return bl.append_hole(len);
+  }
+
+  auto length() const {
+    return bl.length();
+  }
+
+  operator ceph::bufferlist&() {
+    reserved = 0; // invalidate out reservation
+    return bl;
+  }
+};
+
 /*
  * Notes on feature encoding:
  *
@@ -66,20 +109,42 @@ namespace ceph {
 // --------------------------------------
 // base types
 
-template<class T>
-inline void encode_raw(const T& t, bufferlist& bl)
+template<class T, class U>
+inline typename std::enable_if_t<
+  std::is_same_v<std::decay_t<U>, ceph::bufferlist>>
+encode_raw(const T& t, U& bl)
 {
   bl.append((char*)&t, sizeof(t));
 }
+
+template<class T, class U>
+inline typename std::enable_if_t<
+  std::is_same_v<std::decay_t<U>, ceph::contiguous_reserver>>
+encode_raw(const T& t, U& bl)
+{
+  bl.append((char*)&t, sizeof(t));
+}
+
 template<class T>
 inline void decode_raw(T& t, bufferlist::const_iterator &p)
 {
   p.copy(sizeof(t), (char*)&t);
 }
 
-#define WRITE_RAW_ENCODER(type)						\
-  inline void encode(const type &v, ::ceph::bufferlist& bl, uint64_t features=0) { ::ceph::encode_raw(v, bl); } \
-  inline void decode(type &v, ::ceph::bufferlist::const_iterator& p) { ::ceph::decode_raw(v, p); }
+#define WRITE_RAW_ENCODER(etype)						\
+  template <class T>							\
+  inline typename std::enable_if_t<std::is_same_v<std::decay_t<T>, ceph::bufferlist>>\
+  encode(const etype& v, T& t, uint64_t features=0) {			\
+    ::ceph::encode_raw(v, std::forward<T&>(t));				\
+  }									\
+  template <class T>							\
+  inline typename std::enable_if_t<					\
+    std::is_same_v<std::decay_t<T>, ceph::contiguous_reserver>> 			\
+  encode(const etype& v, T& t, uint64_t features=0) {			\
+  }									\
+  inline void decode(etype& v, ::ceph::bufferlist::const_iterator& p) { 	\
+    ::ceph::decode_raw(v, p);						\
+  }
 
 WRITE_RAW_ENCODER(__u8)
 #ifndef _CHAR_IS_SIGNED
@@ -104,17 +169,28 @@ inline void decode(bool &v, bufferlist::const_iterator& p) {
   v = vv;
 }
 
+struct fake_arg {};
 
 // -----------------------------------
 // int types
 
-#define WRITE_INTTYPE_ENCODER(type, etype)				\
-  inline void encode(type v, ::ceph::bufferlist& bl, uint64_t features=0) { \
+#define WRITE_INTTYPE_ENCODER(rtype, etype)				\
+  template <class T>							\
+  inline typename std::enable_if_t<std::is_same_v<std::decay_t<T>, ceph::bufferlist>>\
+  encode(rtype v, T& bl, uint64_t features=0) { 			\
     ceph_##etype e;					                \
     e = v;                                                              \
     ::ceph::encode_raw(e, bl);						\
   }									\
-  inline void decode(type &v, ::ceph::bufferlist::const_iterator& p) {	\
+  template <class T>							\
+  inline typename std::enable_if_t<					\
+    std::is_same_v<std::decay_t<T>, ceph::contiguous_reserver>> 			\
+  encode(rtype v, T& cr, uint64_t features=0) {				\
+    ceph_##etype e;					                \
+    e = v;                                                              \
+    ::ceph::encode_raw(e, cr);						\
+  }									\
+  inline void decode(rtype &v, ::ceph::bufferlist::const_iterator& p) {	\
     ceph_##etype e;							\
     ::ceph::decode_raw(e, p);						\
     v = e;								\
@@ -1179,7 +1255,8 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
   for (auto& e : v)
     decode(e, p);
 }
-}
+} // namespace ceph
+
 
 /*
  * guards
@@ -1194,6 +1271,7 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
  *
  */
 #define ENCODE_START(v, compat, bl)			     \
+{							     \
   __u8 struct_v = v;                                         \
   __u8 struct_compat = compat;		                     \
   ceph_le32 struct_len;				             \
@@ -1201,7 +1279,9 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
     sizeof(struct_compat) + sizeof(struct_len));	     \
   const auto starting_bl_len = (bl).length();		     \
   using ::ceph::encode;					     \
-  do {
+  do { \
+  decltype(bl) my = bl;\
+  ::ceph::contiguous_reserver bl(my);				     
 
 /**
  * finish encoding block
@@ -1218,7 +1298,8 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
   filler.copy_in(sizeof(struct_v), (char *)&struct_v);       \
   filler.copy_in(sizeof(struct_compat),			     \
     (char *)&struct_compat);				     \
-  filler.copy_in(sizeof(struct_len), (char *)&struct_len);
+  filler.copy_in(sizeof(struct_len), (char *)&struct_len);   \
+}
 
 #define ENCODE_FINISH(bl) ENCODE_FINISH_NEW_COMPAT(bl, 0)
 

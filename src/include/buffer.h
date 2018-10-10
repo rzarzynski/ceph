@@ -1007,6 +1007,9 @@ namespace buffer CEPH_BUFFER_API {
     contiguous_filler append_hole(unsigned len);
     void append_zero(unsigned len);
     void prepend_zero(unsigned len);
+
+    char* __attribute__((malloc))
+    append_n_reserve(const char* data, unsigned len, unsigned reserve);
     
     /*
      * get a char
