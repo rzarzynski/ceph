@@ -115,12 +115,16 @@ public:
 // base types
 
 template<class T>
-inline typename std::enable_if_t<std::is_same_v<T,T>>
-encode_raw(const T& t, bufferlist& bl)
+inline void encode_raw(const T& t, bufferlist& bl)
 {
   bl.append((char*)&t, sizeof(t));
 }
 
+template<class T>
+inline void encode_raw(const T& t, contiguous_reserver& cr)
+{
+  cr.append<sizeof(t)>((char*)&t);
+}
 
 template<class T>
 inline void decode_raw(T& t, bufferlist::const_iterator &p)
@@ -130,10 +134,10 @@ inline void decode_raw(T& t, bufferlist::const_iterator &p)
 
 #define WRITE_RAW_ENCODER(etype)					\
   inline void encode(const etype& v, bufferlist& t, uint64_t features=0) {			\
-    ::ceph::encode_raw(v, static_cast<bufferlist&>(t));		\
+    ::ceph::encode_raw(v, t);		\
   }									\
   inline void encode(const etype& v, contiguous_reserver& t, uint64_t features=0) {			\
-    ::ceph::encode_raw(v, static_cast<bufferlist&>(t));		\
+    ::ceph::encode_raw(v, t);		\
   }									\
   inline void decode(etype& v, ::ceph::bufferlist::const_iterator& p) { \
     ::ceph::decode_raw(v, p);						\
@@ -699,12 +703,32 @@ inline std::enable_if_t<!traits::supported>
 }
 template<class T, class Alloc, typename traits>
 inline std::enable_if_t<!traits::supported>
+  encode(const std::list<T, Alloc>& ls, contiguous_reserver& cr)
+{
+  __u32 n = (__u32)(ls.size());  // c++11 std::list::size() is O(1)
+  encode(n, cr);
+  for (auto& elem : ls) {
+    encode(elem, cr);
+  }
+}
+template<class T, class Alloc, typename traits>
+inline std::enable_if_t<!traits::supported>
   encode(const std::list<T,Alloc>& ls, bufferlist& bl, uint64_t features)
 {
   __u32 n = (__u32)(ls.size());  // c++11 std::list::size() is O(1)
   encode(n, bl);
   for (auto& elem : ls) {
     encode(elem, bl, features);
+  }
+}
+template<class T, class Alloc, typename traits>
+inline std::enable_if_t<!traits::supported>
+  encode(const std::list<T,Alloc>& ls, contiguous_reserver& cr, uint64_t features)
+{
+  __u32 n = (__u32)(ls.size());  // c++11 std::list::size() is O(1)
+  encode(n, cr);
+  for (auto& elem : ls) {
+    encode(elem, cr, features);
   }
 }
 template<class T, class Alloc, typename traits>
@@ -874,7 +898,25 @@ inline std::enable_if_t<!traits::supported>
 }
 template<class T, class Alloc, typename traits>
 inline std::enable_if_t<!traits::supported>
+  encode(const std::vector<T,Alloc>& v, contiguous_reserver& bl, uint64_t features)
+{
+  __u32 n = (__u32)(v.size());
+  encode(n, bl);
+  for (auto p = v.begin(); p != v.end(); ++p)
+    encode(*p, bl, features);
+}
+template<class T, class Alloc, typename traits>
+inline std::enable_if_t<!traits::supported>
   encode(const std::vector<T,Alloc>& v, bufferlist& bl)
+{
+  __u32 n = (__u32)(v.size());
+  encode(n, bl);
+  for (auto p = v.begin(); p != v.end(); ++p)
+    encode(*p, bl);
+}
+template<class T, class Alloc, typename traits>
+inline std::enable_if_t<!traits::supported>
+  encode(const std::vector<T,Alloc>& v, contiguous_reserver& bl)
 {
   __u32 n = (__u32)(v.size());
   encode(n, bl);

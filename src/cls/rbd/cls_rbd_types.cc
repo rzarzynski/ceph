@@ -136,7 +136,7 @@ std::ostream& operator<<(std::ostream& os, const MirrorImage& mirror_image) {
 void MirrorImageStatus::encode(bufferlist &bl) const {
   ENCODE_START(1, 1, bl);
   encode(state, bl);
-  encode(description, bl);
+  encode(description, static_cast<bufferlist&>(bl));
   encode(last_update, bl);
   encode(up, bl);
   ENCODE_FINISH(bl);
