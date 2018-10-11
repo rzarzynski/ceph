@@ -332,6 +332,18 @@ inline void encode(const bufferlist& s, bufferlist& bl)
   encode(len, bl);
   bl.append(s);
 }
+inline void encode(const bufferlist& s, contiguous_reserver& cr)
+{
+  __u32 len = s.length();
+  encode(len, cr);
+  cr.append(s);
+}
+inline void encode(bufferlist& s, bufferlist& bl)
+{
+  __u32 len = s.length();
+  encode(len, bl);
+  bl.append(s);
+}
 inline void encode_destructively(bufferlist& s, bufferlist& bl) 
 {
   __u32 len = s.length();

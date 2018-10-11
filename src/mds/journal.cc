@@ -699,7 +699,7 @@ void EMetaBlob::dirlump::encode(bufferlist& bl, uint64_t features) const
   encode(nremote, bl);
   encode(nnull, bl);
   _encode_bits(features);
-  encode(dnbl, bl);
+  encode(dnbl, static_cast<bufferlist&>(bl));
   ENCODE_FINISH(bl);
 }
 
@@ -2721,7 +2721,7 @@ void EFragment::encode(bufferlist &bl, uint64_t features) const {
   encode(stamp, bl);
   encode(op, bl);
   encode(ino, bl);
-  encode(basefrag, bl);
+  encode(basefrag, static_cast<bufferlist&>(bl));
   encode(bits, bl);
   encode(metablob, bl, features);
   encode(orig_frags, bl);
