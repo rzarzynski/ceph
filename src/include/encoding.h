@@ -47,21 +47,33 @@ namespace ceph {
 class contiguous_reserver {
   ceph::bufferlist& bl;
   std::size_t reserved;
-  char* buf;
+  ceph::bufferlist::reserve_t promise;
 
   static constexpr std::size_t RESERVATION_UNIT = 64;
+  static constexpr std::size_t RESERVATION_INVALID = -1;
+
+  void commit_length_update() {
+    if (reserved != RESERVATION_INVALID) {
+      const auto used = RESERVATION_UNIT - reserved;
+      *promise.bl_len += used;
+      *promise.bp_len += used;
+    }
+  }
 
 public:
   contiguous_reserver(ceph::bufferlist& bl)
     : bl(bl),
-      reserved(0) {
+      reserved(RESERVATION_INVALID) {
+  }
+  ~contiguous_reserver() {
+    commit_length_update();
   }
 
   template <std::size_t LenV>
   void append(const char* __restrict__ const c) {
-    if (reserved >= LenV) {
+    if (reserved != RESERVATION_INVALID && reserved >= LenV) {
       // the fast, direct memcpy path
-      memcpy(buf + (RESERVATION_UNIT - reserved), c, LenV);
+      memcpy(promise.buf + (RESERVATION_UNIT - reserved), c, LenV);
       reserved -= LenV;
     } else {
       append(c, LenV);
@@ -70,15 +82,18 @@ public:
 
   void append(const char* __restrict__ const c, const unsigned len) {
     reserved = RESERVATION_UNIT;
-    buf = bl.append_n_reserve(c, len, RESERVATION_UNIT);
+    promise = bl.append_n_reserve(c, len, RESERVATION_UNIT);
   }
 
   void append(const ceph::bufferlist& ibl) {
-    reserved = 0;
+    commit_length_update();
+    reserved = RESERVATION_INVALID;
     bl.append(ibl);
   }
 
   auto append_hole(unsigned len) {
+    commit_length_update();
+    reserved = RESERVATION_INVALID;
     return bl.append_hole(len);
   }
 
@@ -87,7 +102,8 @@ public:
   }
 
   operator ceph::bufferlist&() {
-    reserved = 0; // invalidate out reservation
+    commit_length_update();
+    reserved = RESERVATION_INVALID; // invalidate out reservation
     return bl;
   }
 };

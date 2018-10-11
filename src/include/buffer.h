@@ -195,7 +195,9 @@ namespace buffer CEPH_BUFFER_API {
    */
   class CEPH_BUFFER_API ptr {
     raw *_raw;
+  public: // dirty hack for testing; if it works, this will be abstracted
     unsigned _off, _len;
+  private:
 
     void release();
 
@@ -1008,7 +1010,12 @@ namespace buffer CEPH_BUFFER_API {
     void append_zero(unsigned len);
     void prepend_zero(unsigned len);
 
-    char* append_n_reserve(const char* data, unsigned len, unsigned reserve);
+    struct reserve_t {
+      char* buf;
+      unsigned* bl_len;
+      unsigned* bp_len;
+    };
+    reserve_t append_n_reserve(const char* data, unsigned len, unsigned reserve);
     
     /*
      * get a char

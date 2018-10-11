@@ -1641,7 +1641,7 @@ using namespace ceph;
     }
   }
 
-  char* buffer::list::append_n_reserve(
+  buffer::list::reserve_t buffer::list::append_n_reserve(
     const char* const data,
     const unsigned len,
     const unsigned reserve)
@@ -1654,11 +1654,11 @@ using namespace ceph;
       // the raw_combined overhead.
       auto& new_back = refill_append_space(need);
       new_back.append(data, len);
-      return { new_back.end_c_str() };
+      return { new_back.end_c_str(), &_len, &new_back._len };
     } else {
       auto& cur_back = _buffers.back();
       cur_back.append(data, len);
-      return { cur_back.end_c_str() };
+      return { cur_back.end_c_str(), &_len, &cur_back._len };
     }
   }
 
