@@ -1008,8 +1008,7 @@ namespace buffer CEPH_BUFFER_API {
     void append_zero(unsigned len);
     void prepend_zero(unsigned len);
 
-    char* __attribute__((malloc))
-    append_n_reserve(const char* data, unsigned len, unsigned reserve);
+    char* append_n_reserve(const char* data, unsigned len, unsigned reserve);
     
     /*
      * get a char

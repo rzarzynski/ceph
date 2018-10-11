@@ -58,7 +58,7 @@ public:
   }
 
   template <std::size_t LenV>
-  void append(char* __restrict__ const c) {
+  void append(const char* __restrict__ const c) {
     if (reserved >= LenV) {
       // the fast, direct memcpy path
       memcpy(buf + (RESERVATION_UNIT - reserved), c, LenV);
@@ -68,9 +68,14 @@ public:
     }
   }
 
-  void append(char* __restrict__ const c, const unsigned len) {
+  void append(const char* __restrict__ const c, const unsigned len) {
     reserved = RESERVATION_UNIT;
     buf = bl.append_n_reserve(c, len, RESERVATION_UNIT);
+  }
+
+  void append(const ceph::bufferlist& ibl) {
+    reserved = 0;
+    bl.append(ibl);
   }
 
   auto append_hole(unsigned len) {
