@@ -60,6 +60,11 @@ class contiguous_reserver {
     }
   }
 
+  void commit_length_update_n_invalidate() {
+    commit_length_update();
+    reserved = RESERVATION_INVALID;
+  }
+
 public:
   contiguous_reserver(ceph::bufferlist& bl)
     : bl(bl),
@@ -72,8 +77,12 @@ public:
   template <std::size_t LenV>
   void append(const char* __restrict__ const c) {
     if (reserved != RESERVATION_INVALID && reserved >= LenV) {
-      // the fast, direct memcpy path
-      memcpy(promise.buf + (RESERVATION_UNIT - reserved), c, LenV);
+      // The fast, direct memcpy path. The check above is expected to be
+      // a subject to DCE (dead code elimination). As we are taking data
+      // as restricted pointer, compiler is promised the reserved member
+      // can be updated only by us. Thankfully to that, operations on it
+      // are heavily optimizable.
+      memcpy(promise.bp_data + (RESERVATION_UNIT - reserved), c, LenV);
       reserved -= LenV;
     } else {
       append(c, LenV);
@@ -85,25 +94,27 @@ public:
     promise = bl.append_n_reserve(c, len, RESERVATION_UNIT);
   }
 
-  void append(const ceph::bufferlist& ibl) {
-    commit_length_update();
-    reserved = RESERVATION_INVALID;
+  void append(const ceph::bufferlist& __restrict__ ibl) {
+    commit_length_update_n_invalidate();
     bl.append(ibl);
   }
 
-  auto append_hole(unsigned len) {
-    commit_length_update();
-    reserved = RESERVATION_INVALID;
+  auto append_hole(const unsigned len) {
+    commit_length_update_n_invalidate();
     return bl.append_hole(len);
   }
 
   auto length() const {
-    return bl.length();
+    const auto copied_but_uncommitted = \
+      reserved == RESERVATION_INVALID ? 0 : RESERVATION_UNIT - reserved;
+    return bl.length() + copied_but_uncommitted;
   }
 
   operator ceph::bufferlist&() {
-    commit_length_update();
-    reserved = RESERVATION_INVALID; // invalidate out reservation
+    // We're losing the underlying bufferlist to someone (typically ::encode)
+    // who does not know about contiguous_reserver. We need to commit updates
+    // to the bufferlist's size fields before.
+    commit_length_update_n_invalidate();
     return bl;
   }
 };

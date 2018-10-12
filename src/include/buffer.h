@@ -1011,9 +1011,9 @@ namespace buffer CEPH_BUFFER_API {
     void prepend_zero(unsigned len);
 
     struct reserve_t {
-      char* buf;
-      unsigned* bl_len;
+      char* bp_data;
       unsigned* bp_len;
+      unsigned* bl_len;
     };
     reserve_t append_n_reserve(const char* data, unsigned len, unsigned reserve);
     

@@ -1654,11 +1654,11 @@ using namespace ceph;
       // the raw_combined overhead.
       auto& new_back = refill_append_space(need);
       new_back.append(data, len);
-      return { new_back.end_c_str(), &_len, &new_back._len };
+      return { new_back.end_c_str(), &new_back._len, &_len };
     } else {
       auto& cur_back = _buffers.back();
       cur_back.append(data, len);
-      return { cur_back.end_c_str(), &_len, &cur_back._len };
+      return { cur_back.end_c_str(), &cur_back._len, &_len };
     }
   }
 
