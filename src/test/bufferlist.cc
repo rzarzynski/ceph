@@ -1292,6 +1292,34 @@ TEST(BufferList, BenchAlloc) {
   bench_bufferlist_alloc(4, 100000, 16);
 }
 
+TEST(BufferList, encode_append_bench) {
+  struct john_smith_t {
+    size_t s1 = 0;
+    std::vector<size_t> v1 = { 1, 2, 3, 4 };
+
+    void __attribute__((noinline)) encode(ceph::bufferlist &bl) const {
+      ENCODE_START(7, 2, bl);
+      encode(s1, bl);
+      encode(v1, bl);
+      ENCODE_FINISH(bl);
+    }
+  } average_encode_user;
+
+  for (size_t step = 4; step <= 16384; step *= 4) {
+    const utime_t start = ceph_clock_now();
+
+    ceph::bufferlist bl;
+    const size_t rounds = 40000 * step;
+    for (size_t r = 0; r < rounds; ++r) {
+      average_encode_user.encode(bl);
+    }
+    cout << rounds << " encodes "
+        << " in "
+        << (ceph_clock_now() - start) << std::endl;
+  }
+}
+
+
 TEST(BufferList, operator_equal) {
   //
   // list& operator= (const list& other)
