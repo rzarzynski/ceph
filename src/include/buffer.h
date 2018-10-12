@@ -1053,12 +1053,12 @@ namespace buffer CEPH_BUFFER_API {
 
     // crope lookalikes.
     // **** WARNING: this are horribly inefficient for large bufferlists. ****
-    void __attribute__((deprecated)) copy(unsigned off, unsigned len, char *dest) const;
-    void __attribute__((deprecated)) copy(unsigned off, unsigned len, list &dest) const;
-    void __attribute__((deprecated)) copy(unsigned off, unsigned len, std::string& dest) const;
-    void __attribute__((deprecated)) copy_in(unsigned off, unsigned len, const char *src);
-    void __attribute__((deprecated)) copy_in(unsigned off, unsigned len, const char *src, bool crc_reset);
-    void __attribute__((deprecated)) copy_in(unsigned off, unsigned len, const list& src);
+    void copy(unsigned off, unsigned len, char *dest) const;
+    void copy(unsigned off, unsigned len, list &dest) const;
+    void copy(unsigned off, unsigned len, std::string& dest) const;
+    void copy_in(unsigned off, unsigned len, const char *src);
+    void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset);
+    void copy_in(unsigned off, unsigned len, const list& src);
 
     typedef iterator iter_hint_t;
     typedef const_iterator constiter_hint_t;
