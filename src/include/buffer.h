@@ -761,6 +761,7 @@ namespace buffer CEPH_BUFFER_API {
       }
 
       void append(const char* __restrict__ const c, const unsigned len) {
+        commit_length_update();
         reserved = RESERVATION_UNIT;
         promise = bl.append_n_reserve(c, len, RESERVATION_UNIT);
       }
