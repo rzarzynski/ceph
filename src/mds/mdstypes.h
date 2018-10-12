@@ -677,7 +677,7 @@ void inode_t<Allocator>::encode(bufferlist &bl, uint64_t features) const
   encode(inline_data, bl);
   encode(quota, bl);
 
-  encode(stray_prior_path, bl);
+  encode(stray_prior_path, static_cast<bufferlist&>(bl));
 
   encode(last_scrub_version, bl);
   encode(last_scrub_stamp, bl);
