@@ -218,9 +218,20 @@ inline void encode(std::string_view s, bufferlist& bl, uint64_t features=0)
   if (len)
     bl.append(s.data(), len);
 }
+inline void encode(std::string_view s, contiguous_reserver& cr, uint64_t features=0)
+{
+  __u32 len = s.length();
+  encode(len, cr);
+  if (len)
+    cr.append(s.data(), len);
+}
 inline void encode(const std::string& s, bufferlist& bl, uint64_t features=0)
 {
   return encode(std::string_view(s), bl, features);
+}
+inline void encode(const std::string& s, contiguous_reserver& cr, uint64_t features=0)
+{
+  return encode(std::string_view(s), cr, features);
 }
 inline void decode(std::string& s, bufferlist::const_iterator& p)
 {
@@ -248,6 +259,11 @@ inline void decode_nohead(int len, std::string& s, bufferlist::const_iterator& p
 inline void encode(const char *s, bufferlist& bl) 
 {
   encode(std::string_view(s, strlen(s)), bl);
+}
+// const char* (encode only, string compatible)
+inline void encode(const char *s, contiguous_reserver& cr)
+{
+  encode(std::string_view(s, strlen(s)), cr);
 }
 
 
