@@ -1279,6 +1279,8 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
  */
 #define ENCODE_START(v, compat, bl)			     \
 {							     \
+  decltype(bl) _scoped_bl_ref = bl;			     \
+  ::ceph::contiguous_reserver bl(_scoped_bl_ref);	     \
   __u8 struct_v = v;                                         \
   __u8 struct_compat = compat;		                     \
   ceph_le32 struct_len;				             \
@@ -1286,9 +1288,7 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
     sizeof(struct_compat) + sizeof(struct_len));	     \
   const auto starting_bl_len = (bl).length();		     \
   using ::ceph::encode;					     \
-  do { \
-  decltype(bl) my = bl;\
-  ::ceph::contiguous_reserver bl(my);				     
+  do {
 
 /**
  * finish encoding block

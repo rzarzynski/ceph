@@ -694,6 +694,7 @@ namespace buffer CEPH_BUFFER_API {
 
     class contiguous_filler {
       friend buffer::list;
+      friend class contiguous_reserver;
       char* pos;
 
       contiguous_filler(char* const pos) : pos(pos) {}
@@ -769,9 +770,20 @@ namespace buffer CEPH_BUFFER_API {
         bl.append(ibl);
       }
 
+      // TODO: consider making len a non-type template parameter.
       auto append_hole(const unsigned len) {
-        commit_length_update_n_invalidate();
-        return bl.append_hole(len);
+        commit_length_update();
+        const auto need = len + RESERVATION_UNIT;
+        if (reserved == RESERVATION_INVALID || reserved < need) {
+          promise = bl.obtain_contiguous_space(need);
+          promise.bp_data += len;
+          reserved = RESERVATION_UNIT;
+          return contiguous_filler(promise.bp_data - len);
+        } else {
+          contiguous_filler f(promise.bp_data + (RESERVATION_UNIT - reserved));
+          reserved -= len;
+          return f;
+	}
       }
 
       auto length() const {
@@ -1092,6 +1104,7 @@ namespace buffer CEPH_BUFFER_API {
     void prepend_zero(unsigned len);
 
     reserve_t append_n_reserve(const char* data, unsigned len, unsigned reserve);
+    reserve_t obtain_contiguous_space(unsigned len);
     
     /*
      * get a char

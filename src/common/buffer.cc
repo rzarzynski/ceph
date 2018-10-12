@@ -1662,6 +1662,20 @@ using namespace ceph;
     }
   }
 
+  buffer::list::reserve_t buffer::list::obtain_contiguous_space(
+    const unsigned len)
+  {
+    if (unlikely(get_append_buffer_unused_tail_length() < len)) {
+      // make a new append_buffer.  fill out a complete page, factoring in
+      // the raw_combined overhead.
+      auto& new_back = refill_append_space(len);
+      return { new_back.c_str(), &new_back._len, &_len };
+    } else {
+      auto& cur_back = _buffers.back();
+      return { cur_back.end_c_str(), &cur_back._len, &_len };
+    }
+  }
+
   void buffer::list::append(const ptr& bp)
   {
     if (bp.length())
