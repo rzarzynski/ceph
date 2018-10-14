@@ -135,8 +135,8 @@ std::ostream& operator<<(std::ostream& os, const MirrorImage& mirror_image) {
 
 void MirrorImageStatus::encode(bufferlist &bl) const {
   ENCODE_START(1, 1, bl);
-  encode(state, static_cast<bufferlist&>(bl));
-  encode(description, static_cast<bufferlist&>(bl));
+  encode(state, bl);
+  encode(description, bl);
   encode(last_update, bl);
   encode(up, bl);
   ENCODE_FINISH(bl);
@@ -296,7 +296,7 @@ void GroupImageSpec::generate_test_instances(std::list<GroupImageSpec*> &o) {
 void GroupImageStatus::encode(bufferlist &bl) const {
   ENCODE_START(1, 1, bl);
   encode(spec, bl);
-  encode(state, static_cast<bufferlist&>(bl));
+  encode(state, bl);
   ENCODE_FINISH(bl);
 }
 
@@ -626,8 +626,8 @@ void GroupSnapshot::encode(bufferlist& bl) const {
   ENCODE_START(1, 1, bl);
   encode(id, bl);
   encode(name, bl);
-  encode(state, static_cast<bufferlist&>(bl));
-  encode(snaps, static_cast<bufferlist&>(bl));
+  encode(state, bl);
+  encode(snaps, bl);
   ENCODE_FINISH(bl);
 }
 
@@ -653,7 +653,7 @@ void GroupSnapshot::generate_test_instances(std::list<GroupSnapshot *> &o) {
 }
 void TrashImageSpec::encode(bufferlist& bl) const {
   ENCODE_START(1, 1, bl);
-  encode(source, static_cast<bufferlist&>(bl));
+  encode(source, bl);
   encode(name, bl);
   encode(deletion_time, bl);
   encode(deferment_end_time, bl);
@@ -769,7 +769,7 @@ std::ostream& operator<<(std::ostream& os,
 
 void MigrationSpec::encode(bufferlist& bl) const {
   ENCODE_START(1, 1, bl);
-  encode(header_type, static_cast<bufferlist&>(bl));
+  encode(header_type, bl);
   encode(pool_id, bl);
   encode(image_name, bl);
   encode(image_id, bl);
@@ -777,7 +777,7 @@ void MigrationSpec::encode(bufferlist& bl) const {
   encode(overlap, bl);
   encode(flatten, bl);
   encode(mirroring, bl);
-  encode(state, static_cast<bufferlist&>(bl));
+  encode(state, bl);
   encode(state_description, bl);
   ENCODE_FINISH(bl);
 }

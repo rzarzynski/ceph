@@ -1278,6 +1278,15 @@ decode(std::array<T, N>& v, bufferlist::const_iterator& p)
   for (auto& e : v)
     decode(e, p);
 }
+
+template <class T>
+inline void encode(T& t, contiguous_reserver& cr, uint64_t features) {
+  encode(t, static_cast<bufferlist&>(cr), features);
+}
+template <class T>
+inline void encode(T& t, contiguous_reserver& cr) {
+  encode(t, static_cast<bufferlist&>(cr));
+}
 } // namespace ceph
 
 

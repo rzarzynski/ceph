@@ -37,7 +37,7 @@ void ObjectPosition::generate_test_instances(std::list<ObjectPosition *> &o) {
 
 void ObjectSetPosition::encode(bufferlist& bl) const {
   ENCODE_START(1, 1, bl);
-  encode(object_positions, static_cast<bufferlist&>(bl));
+  encode(object_positions, bl);
   ENCODE_FINISH(bl);
 }
 
