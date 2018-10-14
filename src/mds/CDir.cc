@@ -2597,7 +2597,7 @@ void CDir::abort_import()
 void CDir::encode_dirstat(bufferlist& bl, const session_info_t& info, const DirStat& ds) {
   if (info.has_feature(CEPHFS_FEATURE_REPLY_ENCODING)) {
     ENCODE_START(1, 1, bl);
-    encode(ds.frag, static_cast<bufferlist&>(bl));
+    encode(ds.frag, bl);
     encode(ds.auth, bl);
     encode(ds.dist, bl);
     ENCODE_FINISH(bl);

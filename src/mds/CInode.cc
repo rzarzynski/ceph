@@ -3636,7 +3636,7 @@ int CInode::encode_inodestat(bufferlist& bl, Session *session,
     encode(file_i->rstat.rsubdirs, bl);
     encode(file_i->rstat.rctime, bl);
     dirfragtree.encode(bl);
-    encode(symlink, static_cast<bufferlist&>(bl));
+    encode(symlink, bl);
     encode(file_i->dir_layout, bl);
     encode_xattrs();
     encode(inline_version, bl);
