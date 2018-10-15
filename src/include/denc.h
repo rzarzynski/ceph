@@ -282,7 +282,7 @@ struct denc_traits<
   static constexpr bool featured = false;
   static constexpr bool bounded = true;
   static constexpr bool need_contiguous = false;
-  static void bound_encode(const T &o, size_t& p, uint64_t f=0) {
+  static void bound_encode(size_t& p, uint64_t f=0) {
     p += sizeof(T);
   }
   template<class It>
@@ -352,7 +352,7 @@ struct denc_traits<T, std::enable_if_t<!std::is_void_v<_denc::ExtType_t<T>>>>
   static constexpr bool bounded = true;
   static constexpr bool need_contiguous = false;
   using etype = _denc::ExtType_t<T>;
-  static void bound_encode(const T &o, size_t& p, uint64_t f=0) {
+  static void bound_encode(size_t& p, uint64_t f=0) {
     p += sizeof(etype);
   }
   template<class It>
@@ -603,7 +603,19 @@ denc_lba(uint64_t& v, It& p) {
 // denc top-level methods that call into denc_traits<T> methods
 
 template<typename T, typename traits=denc_traits<T>>
-inline std::enable_if_t<traits::supported> denc(
+inline std::enable_if_t<traits::supported && traits::bounded> denc(
+  const T&, // bound_encode() for bounded depends on type, not instance
+  size_t& p,
+  uint64_t f=0)
+{
+  if constexpr (traits::featured) {
+    traits::bound_encode(p, f);
+  } else {
+    traits::bound_encode(p);
+  }
+}
+template<typename T, typename traits=denc_traits<T>>
+inline std::enable_if_t<traits::supported && !traits::bounded> denc(
   const T& o,
   size_t& p,
   uint64_t f=0)
@@ -614,6 +626,21 @@ inline std::enable_if_t<traits::supported> denc(
     traits::bound_encode(o, p);
   }
 }
+
+template<typename T, typename traits=denc_traits<T>>
+inline std::enable_if_t<traits::supported> denc_type(
+  size_t& p,
+  uint64_t f=0)
+{
+  static_assert(traits::bounded,
+		"denc_type can be used only with bounded entities");
+  if constexpr (traits::featured) {
+    traits::bound_encode(p, f);
+  } else {
+    traits::bound_encode(p);
+  }
+}
+
 
 template<typename T, class It, typename traits=denc_traits<T>>
 inline std::enable_if_t<traits::supported && !is_const_iterator_v<It>>
@@ -829,13 +856,24 @@ struct denc_traits<
   static constexpr bool need_contiguous = (a_traits::need_contiguous ||
 					   b_traits::need_contiguous);
 
-  static void bound_encode(const std::pair<A,B>& v, size_t& p, uint64_t f = 0) {
+  static std::enable_if_t<!bounded>
+  bound_encode(const std::pair<A,B>& v, size_t& p, uint64_t f = 0) {
     if constexpr (featured) {
       denc(v.first, p, f);
       denc(v.second, p, f);
     } else {
       denc(v.first, p);
       denc(v.second, p);
+    }
+  }
+  static std::enable_if_t<bounded>
+  bound_encode(size_t& p, uint64_t f = 0) {
+    if constexpr (featured) {
+      denc_type<A>(p, f);
+      denc_type<B>(p, f);
+    } else {
+      denc_type<A>(p);
+      denc_type<B>(p);
     }
   }
 
@@ -882,17 +920,13 @@ namespace _denc {
     static void bound_encode(const container& s, size_t& p, uint64_t f = 0) {
       p += sizeof(uint32_t);
       if constexpr (traits::bounded) {
-        if (!s.empty()) {
-          // STL containers use weird element types like std::pair<const K, V>;
-          // cast to something we have denc_traits for.
-          size_t elem_size = 0;
-          if constexpr (traits::featured) {
-            denc(static_cast<const T&>(*s.begin()), elem_size, f);
-          } else {
-            denc(static_cast<const T&>(*s.begin()), elem_size);
-          }
-          p += sizeof(uint32_t) + elem_size * s.size();
+        size_t elem_size = 0;
+        if constexpr (traits::featured) {
+          denc_type<T>(elem_size, f);
+        } else {
+          denc_type<T>(elem_size);
         }
+        p += sizeof(uint32_t) + elem_size * s.size();
       } else {
         for (const T& e : s) {
           if constexpr (traits::featured) {
@@ -1090,28 +1124,26 @@ public:
   static constexpr bool bounded = traits::bounded;
   static constexpr bool need_contiguous = traits::need_contiguous;
 
-  static void bound_encode(const container& s, size_t& p, uint64_t f = 0) {
-    if constexpr (traits::bounded) {
+  static std::enable_if_t<!bounded>
+  bound_encode(const container& s, size_t& p, uint64_t f = 0) {
+    for (const auto& e : s) {
       if constexpr (traits::featured) {
-        if (!s.empty()) {
-          size_t elem_size = 0;
-          denc(*s.begin(), elem_size, f);
-          p += elem_size * s.size();
-        }
+        denc(e, p, f);
       } else {
-        size_t elem_size = 0;
-        denc(*s.begin(), elem_size);
-        p += elem_size * N;
-      }
-    } else {
-      for (const auto& e : s) {
-        if constexpr (traits::featured) {
-          denc(e, p, f);
-        } else {
-          denc(e, p);
-        }
+        denc(e, p);
       }
     }
+  }
+
+  static std::enable_if_t<bounded>
+  bound_encode(size_t& p, uint64_t f = 0) {
+    size_t elem_size = 0;
+    if constexpr (traits::featured) {
+      denc_type<T>(elem_size, f);
+    } else {
+      denc_type<T>(elem_size);
+    }
+    p += elem_size * N;
   }
 
   static void encode(const container& s, buffer::list::contiguous_appender& p,
@@ -1157,7 +1189,7 @@ public:
       (denc_traits<Ts>::need_contiguous || ...);
 
   template<typename U = container>
-  static std::enable_if_t<denc_traits<U>::featured>
+  static std::enable_if_t<denc_traits<U>::featured && !bounded>
   bound_encode(const container& s, size_t& p, uint64_t f) {
     ceph::for_each(s, [&p, f] (const auto& e) {
 	if constexpr (denc_traits<std::decay_t<decltype(e)>>::featured) {
@@ -1168,12 +1200,19 @@ public:
       });
   }
   template<typename U = container>
-  static std::enable_if_t<!denc_traits<U>::featured>
+  static std::enable_if_t<!denc_traits<U>::featured && !bounded>
   bound_encode(const container& s, size_t& p) {
     ceph::for_each(s, [&p] (const auto& e) {
 	denc(e, p);
       });
   }
+
+#if 0
+  static std::enable_if_t<bounded>
+  bound_encode(size_t &p, uint64_t f = 0) {
+    denc_type<Ts>(p, f)...;
+  }
+#endif
 
   template<typename U = container>
   static std::enable_if_t<denc_traits<U>::featured>
@@ -1304,7 +1343,7 @@ struct denc_traits<boost::none_t> {
   static constexpr bool bounded = true;
   static constexpr bool need_contiguous = false;
 
-  static void bound_encode(const boost::none_t& v, size_t& p) {
+  static void bound_encode(size_t& p) {
     p += sizeof(bool);
   }
 
@@ -1408,7 +1447,7 @@ struct denc_traits<std::nullopt_t> {
   static constexpr bool bounded = true;
   static constexpr bool need_contiguous = false;
 
-  static void bound_encode(const std::nullopt_t& v, size_t& p) {
+  static void bound_encode(size_t& p) {
     p += sizeof(bool);
   }
 
@@ -1424,18 +1463,18 @@ struct denc_traits<std::nullopt_t> {
 // Write denc_traits<> for a class that defines bound_encode/encode/decode
 // methods.
 
-#define WRITE_CLASS_DENC(T) _DECLARE_CLASS_DENC(T, false)
-#define WRITE_CLASS_DENC_BOUNDED(T) _DECLARE_CLASS_DENC(T, true)
-#define _DECLARE_CLASS_DENC(T, b)					\
+
+// no users for the bounded variant except unit tests
+#define WRITE_CLASS_DENC(T)						\
   template<> struct denc_traits<T> {					\
     static constexpr bool supported = true;				\
     static constexpr bool featured = false;				\
-    static constexpr bool bounded = b;					\
+    static constexpr bool bounded = false;				\
     static constexpr bool need_contiguous = !_denc::has_legacy_denc<T>::value;\
     static void bound_encode(const T& v, size_t& p, uint64_t f=0) {	\
       v.bound_encode(p);						\
     }									\
-    static void encode(const T& v, buffer::list::contiguous_appender& p, \
+    static void encode(const T& v, buffer::list::contiguous_appender& p,\
 		       uint64_t f=0) {					\
       v.encode(p);							\
     }									\
@@ -1444,18 +1483,16 @@ struct denc_traits<std::nullopt_t> {
     }									\
   };
 
-#define WRITE_CLASS_DENC_FEATURED(T) _DECLARE_CLASS_DENC_FEATURED(T, false)
-#define WRITE_CLASS_DENC_FEATURED_BOUNDED(T) _DECLARE_CLASS_DENC_FEATURED(T, true)
-#define _DECLARE_CLASS_DENC_FEATURED(T, b)				\
+#define WRITE_CLASS_DENC_FEATURED(T)					\
   template<> struct denc_traits<T> {					\
     static constexpr bool supported = true;				\
     static constexpr bool featured = true;				\
-    static constexpr bool bounded = b;					\
+    static constexpr bool bounded = false;				\
     static constexpr bool need_contiguous = !_denc::has_legacy_denc<T>::value;\
     static void bound_encode(const T& v, size_t& p, uint64_t f) {	\
       v.bound_encode(p, f);						\
     }									\
-    static void encode(const T& v, buffer::list::contiguous_appender& p, \
+    static void encode(const T& v, buffer::list::contiguous_appender& p,\
 		       uint64_t f) {					\
       v.encode(p, f);							\
     }									\
@@ -1479,7 +1516,11 @@ inline std::enable_if_t<traits::supported && !traits::featured> encode(
   uint64_t features_unused=0)
 {
   size_t len = 0;
-  traits::bound_encode(o, len);
+  if constexpr (traits::bounded) {
+    traits::bound_encode(len);
+  } else {
+    traits::bound_encode(o, len);
+  }
   auto a = bl.get_contiguous_appender(len);
   traits::encode(o, a);
 }
@@ -1490,7 +1531,11 @@ inline std::enable_if_t<traits::supported && traits::featured> encode(
   uint64_t features)
 {
   size_t len = 0;
-  traits::bound_encode(o, len, features);
+  if constexpr (traits::bounded) {
+    traits::bound_encode(len, features);
+  } else {
+    traits::bound_encode(o, len, features);
+  }
   auto a = bl.get_contiguous_appender(len);
   traits::encode(o, a, features);
 }

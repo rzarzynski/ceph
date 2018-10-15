@@ -144,7 +144,7 @@ struct denc_counter_bounded_t {
     ++counts.num_decode;
   }
 };
-WRITE_CLASS_DENC_BOUNDED(denc_counter_bounded_t)
+WRITE_CLASS_DENC(denc_counter_bounded_t)
 
 TEST(denc, denc_counter)
 {
@@ -348,7 +348,7 @@ struct foo_t {
     return l.a == r.a && l.b == r.b;
   }
 };
-WRITE_CLASS_DENC_BOUNDED(foo_t)
+WRITE_CLASS_DENC(foo_t)
 
 struct foo2_t {
   int32_t c = 0;
@@ -365,7 +365,7 @@ struct foo2_t {
     return l.c == r.c && l.d == r.d;
   }
 };
-WRITE_CLASS_DENC_BOUNDED(foo2_t)
+WRITE_CLASS_DENC(foo2_t)
 
 
 struct bar_t {
@@ -381,7 +381,7 @@ struct bar_t {
     return l.a == r.a && l.b == r.b;
   }
 };
-WRITE_CLASS_DENC_FEATURED_BOUNDED(bar_t)
+WRITE_CLASS_DENC_FEATURED(bar_t)
 
 TEST(denc, foo)
 {
@@ -523,6 +523,7 @@ TEST(denc, array)
   }
 }
 
+#if 0
 TEST(denc, tuple)
 {
   {
@@ -543,6 +544,7 @@ TEST(denc, tuple)
     test_denc(s);
   }
 }
+#endif
 
 TEST(denc, optional)
 {

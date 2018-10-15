@@ -132,8 +132,8 @@ struct denc_traits<snapid_t> {
   static constexpr bool featured = false;
   static constexpr bool bounded = true;
   static constexpr bool need_contiguous = true;
-  static void bound_encode(const snapid_t& o, size_t& p) {
-    denc(o.val, p);
+  static void bound_encode(size_t& p) {
+    denc_type<decltype(snapid_t::val)>(p);
   }
   static void encode(const snapid_t &o, buffer::list::contiguous_appender& p) {
     denc(o.val, p);
