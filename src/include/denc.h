@@ -1483,6 +1483,24 @@ struct denc_traits<std::nullopt_t> {
     }									\
   };
 
+#define WRITE_CLASS_DENC_BOUNDED(T)					\
+  template<> struct denc_traits<T> {					\
+    static constexpr bool supported = true;				\
+    static constexpr bool featured = false;				\
+    static constexpr bool bounded = true;				\
+    static constexpr bool need_contiguous = !_denc::has_legacy_denc<T>::value;\
+    static void bound_encode(size_t& p, uint64_t f=0) {			\
+      T::bound_encode(p);						\
+    }									\
+    static void encode(const T& v, buffer::list::contiguous_appender& p,\
+		       uint64_t f=0) {					\
+      v.encode(p);							\
+    }									\
+    static void decode(T& v, buffer::ptr::const_iterator& p, uint64_t f=0) {	\
+      v.decode(p);							\
+    }									\
+  };
+
 #define WRITE_CLASS_DENC_FEATURED(T)					\
   template<> struct denc_traits<T> {					\
     static constexpr bool supported = true;				\
@@ -1491,6 +1509,24 @@ struct denc_traits<std::nullopt_t> {
     static constexpr bool need_contiguous = !_denc::has_legacy_denc<T>::value;\
     static void bound_encode(const T& v, size_t& p, uint64_t f) {	\
       v.bound_encode(p, f);						\
+    }									\
+    static void encode(const T& v, buffer::list::contiguous_appender& p,\
+		       uint64_t f) {					\
+      v.encode(p, f);							\
+    }									\
+    static void decode(T& v, buffer::ptr::const_iterator& p, uint64_t f=0) {	\
+      v.decode(p, f);							\
+    }									\
+  };
+
+#define WRITE_CLASS_DENC_FEATURED_BOUNDED(T)				\
+  template<> struct denc_traits<T> {					\
+    static constexpr bool supported = true;				\
+    static constexpr bool featured = true;				\
+    static constexpr bool bounded = true;				\
+    static constexpr bool need_contiguous = !_denc::has_legacy_denc<T>::value;\
+    static void bound_encode(size_t& p, uint64_t f) {			\
+      T::bound_encode(p, f);						\
     }									\
     static void encode(const T& v, buffer::list::contiguous_appender& p,\
 		       uint64_t f) {					\

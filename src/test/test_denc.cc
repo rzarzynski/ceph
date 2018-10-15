@@ -131,7 +131,7 @@ struct denc_counter_t {
 WRITE_CLASS_DENC(denc_counter_t)
 
 struct denc_counter_bounded_t {
-  void bound_encode(size_t& p) const {
+  static void bound_encode(size_t& p) {
     ++counts.num_bound_encode;
     ++p;  // denc.h does not like 0-length objects
   }
@@ -144,7 +144,7 @@ struct denc_counter_bounded_t {
     ++counts.num_decode;
   }
 };
-WRITE_CLASS_DENC(denc_counter_bounded_t)
+WRITE_CLASS_DENC_BOUNDED(denc_counter_bounded_t)
 
 TEST(denc, denc_counter)
 {
