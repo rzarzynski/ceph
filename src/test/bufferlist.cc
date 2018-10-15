@@ -1363,6 +1363,7 @@ TEST(BufferList, encode_append_bench) {
     size_t s2 = 1;
     size_t s3 = 2;
     size_t s4 = 3;
+    std::vector<size_t> v1 {1, 2, 3, 4};
 
     //std::string indirect_data;
 
@@ -1376,6 +1377,7 @@ TEST(BufferList, encode_append_bench) {
       encode(s2, bl);
       encode(s3, bl);
       encode(s4, bl);
+      encode(v1, bl);
       //encode(indirect_data, bl);
       encode(u321, bl);
       encode(u322, bl);

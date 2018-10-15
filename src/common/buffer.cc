@@ -1665,6 +1665,14 @@ using namespace ceph;
   buffer::list::reserve_t buffer::list::obtain_contiguous_space(
     const unsigned len)
   {
+	  // note: if len < the normal append_buffer size it *might*
+	  // be better to allocate a normal-sized append_buffer and
+	  // use part of it.  however, that optimizes for the case of
+	  // old-style types including new-style types.  and in most
+	  // such cases, this won't be the very first thing encoded to
+	  // the list, so append_buffer will already be allocated.
+	  // OTOH if everything is new-style, we *should* allocate
+	  // only what we need and conserve memory.
     if (unlikely(get_append_buffer_unused_tail_length() < len)) {
       // make a new append_buffer.  fill out a complete page, factoring in
       // the raw_combined overhead.
