@@ -593,8 +593,8 @@ namespace buffer CEPH_BUFFER_API {
 
       void flush_and_continue() {
 	const size_t l = pos - promise.bp_data;
-	promise.bp_len += l;
-	promise.bl_len += l;
+	*promise.bp_len += l;
+	*promise.bl_len += l;
 	promise.bp_data = pos;
       }
 
