@@ -748,9 +748,8 @@ namespace buffer CEPH_BUFFER_API {
 
       // TODO: consider making len a non-type template parameter.
       auto CEPH_INLINE append_hole(const unsigned len) {
-        auto filler = bl.append_hole(len);
         commit_length_update_n_invalidate();
-        return filler;
+        return filler = bl.append_hole(len);
       }
 
       auto CEPH_INLINE length() const {
