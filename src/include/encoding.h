@@ -1304,7 +1304,7 @@ inline void encode(T& t, contiguous_reserver& cr) {
  */
 #define ENCODE_START(v, compat, bl)			     \
 {							     \
-  decltype(bl) _scoped_bl_ref = bl;			     \
+  decltype(bl)& _scoped_bl_ref = bl;			     \
   ::ceph::contiguous_reserver bl(_scoped_bl_ref);	     \
   __u8 struct_v = v;                                         \
   __u8 struct_compat = compat;		                     \
