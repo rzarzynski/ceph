@@ -1940,6 +1940,8 @@ using namespace ceph;
       _len += off;
     }
     
+    _carriage = &always_empty_bptr;
+
     while (len > 0) {
       // partial?
       if (off + len < (*curbuf).length()) {

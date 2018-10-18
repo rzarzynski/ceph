@@ -852,6 +852,7 @@ namespace buffer CEPH_BUFFER_API {
 
     list& operator= (const list& other) {
       if (this != &other) {
+        _carriage = &always_empty_bptr;
         _buffers.clone_from(other._buffers,
 			    hangable_ptr::cloner(), hangable_ptr::disposer());
         _len = other._len;
