@@ -589,14 +589,15 @@ namespace buffer CEPH_BUFFER_API {
 	: bl(*l),
 	  promise(bl.obtain_contiguous_space(len)),
 	  pos(promise.bp_data),
-	  deep(true) {
+	  deep(d) {
       }
 
-      void flush_and_continue() {
+      size_t flush_and_continue() {
 	const size_t l = pos - promise.bp_data;
 	*promise.bp_len += l;
 	*promise.bl_len += l;
 	promise.bp_data = pos;
+	return l;
       }
 
       friend class list;
@@ -626,9 +627,17 @@ namespace buffer CEPH_BUFFER_API {
 	if (deep) {
 	  append(p.c_str(), p.length());
 	} else {
-	  flush_and_continue();
+	  const auto flushed_size = flush_and_continue();
+	  const auto& flushed_bp = bl.back();
+
 	  bl.append(p);
 	  out_of_band_offset += p.length();
+
+	  if (flushed_size) {
+	    auto& new_back = hangable_ptr::create(flushed_bp, flushed_size, 0);
+            promise.bp_len = &new_back._len;
+	    bl.push_back(new_back);
+	  }
 	}
       }
       void append(const bufferlist& l) {
@@ -637,9 +646,17 @@ namespace buffer CEPH_BUFFER_API {
 	    append(p.c_str(), p.length());
 	  }
 	} else {
-	  flush_and_continue();
+	  const auto flushed_size = flush_and_continue();
+	  const auto& flushed_bp = bl.back();
+
 	  bl.append(l);
 	  out_of_band_offset += l.length();
+
+	  if (flushed_size) {
+	    auto& new_back = hangable_ptr::create(flushed_bp, flushed_size, 0);
+            promise.bp_len = &new_back._len;
+	    bl.push_back(new_back);
+	  }
 	}
       }
 
