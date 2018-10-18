@@ -1389,7 +1389,7 @@ TEST(BufferList, encode_append_bench) {
     const utime_t start = ceph_clock_now();
 
     ceph::bufferlist bl;
-    const size_t rounds = 40000 * step;
+    const size_t rounds = 4000 * step;
     for (size_t r = 0; r < rounds; ++r) {
       average_encode_user.encode(bl);
     }
