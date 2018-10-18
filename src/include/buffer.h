@@ -444,6 +444,7 @@ namespace buffer CEPH_BUFFER_API {
   private:
     // my private bits
     buffers_t _buffers;
+    ptr* _carriage;
     unsigned _len;
     unsigned _memcopy_count; //the total of memcopy using rebuild().
 
@@ -805,17 +806,19 @@ namespace buffer CEPH_BUFFER_API {
     }
 
   private:
+    static ptr always_empty_bptr;
     hangable_ptr& refill_append_space(const unsigned len);
 
   public:
     // cons/des
-    list() : _len(0), _memcopy_count(0) {}
+    list() : _carriage(&always_empty_bptr), _len(0), _memcopy_count(0) {}
     // cppcheck-suppress noExplicitConstructor
     list(unsigned prealloc) : _len(0), _memcopy_count(0) {
       reserve(prealloc);
     }
 
-    list(const list& other) : _len(other._len),
+    list(const list& other) : _carriage(&always_empty_bptr),
+			      _len(other._len),
 			      _memcopy_count(other._memcopy_count) {
       _buffers.clone_from(other._buffers,
 			  hangable_ptr::cloner(), hangable_ptr::disposer());
@@ -838,6 +841,7 @@ namespace buffer CEPH_BUFFER_API {
     }
     list& operator= (list&& other) noexcept {
       _buffers = std::move(other._buffers);
+      _carriage = other._carriage;
       _len = other._len;
       _memcopy_count = other._memcopy_count;
       other.clear();
@@ -853,16 +857,7 @@ namespace buffer CEPH_BUFFER_API {
     void try_assign_to_mempool(int pool);
 
     size_t get_append_buffer_unused_tail_length() const {
-      if (_buffers.empty()) {
-	return 0;
-      }
-
-      auto& buf = _buffers.back();
-      if (buf.raw_nref() != 1) {
-	return 0;
-      }
-
-      return buf.unused_tail_length();
+      return _carriage->unused_tail_length();
     }
 
     unsigned get_memcopy_count() const {return _memcopy_count; }
@@ -901,6 +896,7 @@ namespace buffer CEPH_BUFFER_API {
 
     // modifiers
     void clear() noexcept {
+      _carriage = &always_empty_bptr;
       _buffers.clear_and_dispose(hangable_ptr::disposer());
       _len = 0;
       _memcopy_count = 0;
@@ -916,15 +912,16 @@ namespace buffer CEPH_BUFFER_API {
 	return;
       _len += bp.length();
       _buffers.push_back(hangable_ptr::create(std::move(bp)));
+      _carriage = &_buffers.back();
     }
     void push_back(hangable_ptr& bp) {
-      if (bp.length() == 0)
-	return;
       _len += bp.length();
       _buffers.push_back(bp);
+      _carriage = &bp;
     }
     void push_back(raw *r) {
       _buffers.push_back(hangable_ptr::create(r));
+      _carriage = &_buffers.back();
       _len += _buffers.back().length();
     }
 
