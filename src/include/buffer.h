@@ -933,7 +933,7 @@ namespace buffer CEPH_BUFFER_API {
 	return;
       _len += bp.length();
       _buffers.push_back(hangable_ptr::create(std::move(bp)));
-      _carriage = &_buffers.back();
+      _carriage = &always_empty_bptr;
     }
     void push_back(hangable_ptr& bp) {
       _len += bp.length();
