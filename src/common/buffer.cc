@@ -2196,12 +2196,10 @@ int buffer::list::write_fd(int fd, uint64_t offset) const
     uint64_t size = std::min<uint64_t>(left_pbrs, IOV_MAX);
     left_pbrs -= size;
     while (size > 0) {
-      if (p->length() > 0) {
-        iov[iovlen].iov_base = (void *)p->c_str();
-        iov[iovlen].iov_len = p->length();
-        iovlen++;
-        bytes += p->length();
-      }
+      iov[iovlen].iov_base = (void *)p->c_str();
+      iov[iovlen].iov_len = p->length();
+      iovlen++;
+      bytes += p->length();
       ++p;
       size--;
     }

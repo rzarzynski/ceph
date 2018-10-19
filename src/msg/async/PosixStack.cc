@@ -123,11 +123,9 @@ class PosixConnectedSocketImpl final : public ConnectedSocketImpl {
       msg.msg_iov = msgvec;
       unsigned msglen = 0;
       for (auto iov = msgvec; iov != msgvec + size; iov++) {
-        if (pb->length() > 0) {
-	  iov->iov_base = (void*)(pb->c_str());
-	  iov->iov_len = pb->length();
-	  msglen += pb->length();
-	}
+	iov->iov_base = (void*)(pb->c_str());
+	iov->iov_len = pb->length();
+	msglen += pb->length();
 	++pb;
       }
       ssize_t r = do_sendmsg(_fd, msg, msglen, left_pbrs || more);
