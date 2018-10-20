@@ -1229,7 +1229,6 @@ using namespace ceph;
 	  ++b;
 	}
       }
-      ceph_assert(b == other._buffers.end());
       return true;
     }
 
