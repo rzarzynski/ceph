@@ -826,15 +826,14 @@ void SocketConnection::start_connect(const entity_addr_t& _peer_addr,
           execute_open();
         }).then([this] {
           // notify the dispatcher and allow them to reject the connection
-          return seastar::with_gate(messenger.pending_dispatch, [this] {
-            return dispatcher.ms_handle_connect(this);
+          return dispatcher.ms_handle_connect(this);
         }).then([this] {
           execute_open();
         }).handle_exception([this] (std::exception_ptr eptr) {
           // connecting fault
           // TODO: if not policy.lossy and not marked close
           //         close the socket and reconnect
-          return close();
+          close();
         });
     });
 }
@@ -878,10 +877,9 @@ void SocketConnection::start_accept(seastar::connected_socket&& fd,
           fut.forward_to(std::move(h.promise));
         }).then([this] {
           // notify the dispatcher and allow them to reject the connection
-          return seastar::with_gate(messenger.pending_dispatch, [this] {
-              return dispatcher.ms_handle_accept(this);
-            });
-        }).then([this] {
+          return dispatcher.ms_handle_accept(this);
+        }).then_wrapped([this] (auto fut) {
+          // satisfy the handshake's promise
           fut.forward_to(std::move(h.promise));
           // trigger open state
           messenger.register_conn(this);
@@ -889,7 +887,7 @@ void SocketConnection::start_accept(seastar::connected_socket&& fd,
           execute_open();
         }).handle_exception([this] (std::exception_ptr eptr) {
           // TODO: handle fault in the accepting state
-          return close();
+          close();
         });
     });
 }
@@ -906,7 +904,7 @@ void SocketConnection::execute_open()
           return read_message()
             .then([this] (MessageRef msg) {
               // start dispatch, ignoring exceptions from the application layer
-              seastar::with_gate(messenger.pending_dispatch, [this, msg = std::move(msg)] {
+              seastar::with_gate(dispatch_gate, [this, msg = std::move(msg)] {
                   return dispatcher.ms_dispatch(this, std::move(msg))
                     .handle_exception([] (std::exception_ptr eptr) {});
                 });
@@ -916,13 +914,9 @@ void SocketConnection::execute_open()
         }).handle_exception_type([this] (const std::system_error& e) {
           if (e.code() == error::connection_aborted ||
               e.code() == error::connection_reset) {
-            return seastar::with_gate(messenger.pending_dispatch, [this] {
-                return dispatcher.ms_handle_reset(this);
-              });
+            return dispatcher.ms_handle_reset(this);
           } else if (e.code() == error::read_eof) {
-            return seastar::with_gate(messenger.pending_dispatch, [this] {
-                return dispatcher.ms_handle_remote_reset(this);
-              });
+            return dispatcher.ms_handle_remote_reset(this);
           } else {
             throw e;
           }

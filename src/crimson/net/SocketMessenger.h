@@ -50,9 +50,6 @@ class SocketMessenger final : public Messenger {
   seastar::future<> shutdown() override;
 
  public:
-  // TODO: change to per-connection gate
-  seastar::gate pending_dispatch;
-
   void set_default_policy(const SocketPolicy& p);
   void set_policy(entity_type_t peer_type, const SocketPolicy& p);
   void set_policy_throttler(entity_type_t peer_type, Throttle* throttle);
