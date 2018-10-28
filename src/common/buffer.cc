@@ -1682,11 +1682,11 @@ using namespace ceph;
   {
     ceph_assert(len+off <= bp.length());
     if (!_buffers.empty()) {
-      ptr &l = _buffers.back();
+      const auto& l = _buffers.back();
       if (l.get_raw() == bp.get_raw() &&
 	  l.end() == bp.start() + off) {
 	// yay contiguous with tail bp!
-	l.set_length(l.length()+len);
+	const_cast<hangable_ptr&>(l).set_length(l.length()+len);
 	_len += len;
 	return;
       }
