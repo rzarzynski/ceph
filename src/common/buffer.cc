@@ -1469,7 +1469,7 @@ using namespace ceph;
 
   void buffer::list::reserve(size_t prealloc)
   {
-    if (_buffers.empty() || _buffers.back().unused_tail_length() < prealloc) {
+    if (get_append_buffer_unused_tail_length() < prealloc) {
       auto& ptr = hangable_ptr::create(buffer::create_page_aligned(prealloc));
       _buffers.push_back(ptr);
       _carriage = &ptr;
