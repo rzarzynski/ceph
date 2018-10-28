@@ -1028,9 +1028,6 @@ namespace buffer CEPH_BUFFER_API {
     void copy(unsigned off, unsigned len, char *dest) const;
     void copy(unsigned off, unsigned len, list &dest) const;
     void copy(unsigned off, unsigned len, std::string& dest) const;
-    void copy_in(unsigned off, unsigned len, const char *src);
-    void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset);
-    void copy_in(unsigned off, unsigned len, const list& src);
 
     typedef iterator iter_hint_t;
     typedef const_iterator constiter_hint_t;
@@ -1045,8 +1042,6 @@ namespace buffer CEPH_BUFFER_API {
     void copy(unsigned off, unsigned len, char *dest, constiter_hint_t& p_last) const;
     void copy(unsigned off, unsigned len, list &dest, constiter_hint_t& p_last) const;
     void copy(unsigned off, unsigned len, std::string& dest, constiter_hint_t& p_last) const;
-    void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset, iter_hint_t& p_last);
-    void copy_in(unsigned off, unsigned len, const list& src, iter_hint_t& p_last);
 
     void append(char c);
     void append(const char *data, unsigned len);

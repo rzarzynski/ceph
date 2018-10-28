@@ -1389,7 +1389,7 @@ using namespace ceph;
   {
     unsigned pos = 0;
     for (auto& node : _buffers) {
-      nb.copy_in(pos, node.length(), node.c_str(), false);
+      //nb.copy_in(pos, node.length(), node.c_str(), false);
       pos += node.length();
     }
     _memcopy_count += pos;
@@ -1564,47 +1564,6 @@ using namespace ceph;
   {
     constiter_hint_t last_p(this, off);
     copy(off, len, dest, last_p);
-  }
-
-  void buffer::list::copy_in(unsigned off, unsigned len, const char* src)
-  {
-    copy_in(off, len, src, true);
-  }
-
-  void buffer::list::copy_in(
-    const unsigned off,
-    const unsigned len,
-    const char* const src,
-    const bool crc_reset,
-    iter_hint_t& last_p)
-  {
-    if (off + len > length())
-      throw end_of_buffer();
-    
-    if (last_p.get_off() != off) 
-      last_p.seek(off);
-    last_p.copy_in(len, src, crc_reset);
-  }
-  void buffer::list::copy_in(unsigned off, unsigned len, const char* src, bool crc_reset)
-  {
-    iter_hint_t last_p(this, off);
-    copy_in(off, len, src, crc_reset, last_p);
-  }
-
-  void buffer::list::copy_in(
-    const unsigned off,
-    const unsigned len,
-    const list& src,
-    iter_hint_t& last_p)
-  {
-    if (last_p.get_off() != off) 
-      last_p.seek(off);
-    last_p.copy_in(len, src);
-  }
-  void buffer::list::copy_in(unsigned off, unsigned len, const list& src)
-  {
-    iter_hint_t last_p(this, off);
-    copy_in(off, len, src, last_p);
   }
 
   void buffer::list::append(char c)
