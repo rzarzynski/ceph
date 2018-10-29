@@ -558,11 +558,6 @@ namespace buffer CEPH_BUFFER_API {
       void copy(unsigned len, std::string &dest);
       void copy_all(list &dest);
 
-      // copy data in
-      void copy_in(unsigned len, const char *src);
-      void copy_in(unsigned len, const char *src, bool crc_reset);
-      void copy_in(unsigned len, const list& otherl);
-
       bool operator==(const iterator& rhs) const {
 	return bl == rhs.bl && off == rhs.off;
       }

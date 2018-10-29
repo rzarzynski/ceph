@@ -1205,47 +1205,6 @@ TEST(BufferListIterator, copy) {
   }
 }
 
-TEST(BufferListIterator, copy_in) {
-  bufferlist bl;
-  const char *existing = "XXX";
-  bl.append(existing, 3);
-  //
-  // void buffer::list::iterator::copy_in(unsigned len, const char *src)
-  //
-  {
-    bufferlist::iterator i(&bl);
-    //
-    // demonstrates that it seeks back to offset if p == ls->end()
-    //
-    EXPECT_THROW(i.advance(200u), buffer::end_of_buffer);
-    const char *expected = "ABC";
-    i.copy_in(3, expected);
-    EXPECT_EQ(0, ::memcmp(bl.c_str(), expected, 3));
-    EXPECT_EQ('A', bl[0]);
-    EXPECT_EQ('B', bl[1]);
-    EXPECT_EQ('C', bl[2]);
-    EXPECT_EQ((unsigned)3, bl.length());
-  }
-  //
-  // void buffer::list::iterator::copy_in(unsigned len, const list& otherl)
-  //
-  {
-    bufferlist::iterator i(&bl);
-    //
-    // demonstrates that it seeks back to offset if p == ls->end()
-    //
-    EXPECT_THROW(i.advance(200u), buffer::end_of_buffer);
-    bufferlist expected;
-    expected.append("ABC", 3);
-    i.copy_in(3, expected);
-    EXPECT_EQ(0, ::memcmp(bl.c_str(), expected.c_str(), 3));
-    EXPECT_EQ('A', bl[0]);
-    EXPECT_EQ('B', bl[1]);
-    EXPECT_EQ('C', bl[2]);
-    EXPECT_EQ((unsigned)3, bl.length());
-  }
-}
-
 // iterator& buffer::list::const_iterator::operator++()
 TEST(BufferListConstIterator, operator_plus_plus) {
   bufferlist bl;

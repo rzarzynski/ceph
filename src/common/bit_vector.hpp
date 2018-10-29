@@ -471,6 +471,7 @@ typename BitVector<_b>::ConstReference BitVector<_b>::operator[](uint64_t offset
   return ConstReference(m_data.c_str() + index, shift);
 }
 
+#if 1
 template <uint8_t _b>
 typename BitVector<_b>::Reference& BitVector<_b>::Reference::operator=(uint8_t v) {
   uint8_t mask = MASK << this->m_shift;
@@ -479,6 +480,10 @@ typename BitVector<_b>::Reference& BitVector<_b>::Reference::operator=(uint8_t v
   *this->m_data_iterator = packed_value;
   return *this;
 }
+#else
+template <uint8_t _b>
+typename BitVector<_b>::Reference& BitVector<_b>::Reference::operator=(uint8_t) = delete;
+#endif
 
 template <uint8_t _b>
 void BitVector<_b>::generate_test_instances(std::list<BitVector *> &o) {

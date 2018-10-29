@@ -1139,47 +1139,6 @@ using namespace ceph;
     buffer::list::iterator_impl<false>::copy_all(dest);
   }
 
-  void buffer::list::iterator::copy_in(unsigned len, const char *src)
-  {
-    copy_in(len, src, true);
-  }
-
-  // copy data in
-  void buffer::list::iterator::copy_in(unsigned len, const char *src, bool crc_reset)
-  {
-    // copy
-    if (p == ls->end())
-      seek(off);
-    while (len > 0) {
-      if (p == ls->end())
-	throw end_of_buffer();
-      
-      unsigned howmuch = p->length() - p_off;
-      if (len < howmuch)
-	howmuch = len;
-      p->copy_in(p_off, howmuch, src, crc_reset);
-	
-      src += howmuch;
-      len -= howmuch;
-      advance(howmuch);
-    }
-  }
-  
-  void buffer::list::iterator::copy_in(unsigned len, const list& otherl)
-  {
-    if (p == ls->end())
-      seek(off);
-    unsigned left = len;
-    for (const auto& node : otherl._buffers) {
-      unsigned l = node.length();
-      if (left < l)
-	l = left;
-      copy_in(l, node.c_str());
-      left -= l;
-      if (left == 0)
-	break;
-    }
-  }
 
   // -- buffer::list --
 
