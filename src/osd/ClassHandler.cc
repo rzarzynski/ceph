@@ -328,7 +328,7 @@ int ClassHandler::ClassMethod::exec(cls_method_context_t ctx, bufferlist& indata
     // C version
     char *out = NULL;
     int olen = 0;
-    ret = func(ctx, indata.c_str(), indata.length(), &out, &olen);
+    ret = func(ctx, indata.data(), indata.length(), &out, &olen);
     if (out) {
       // assume *out was allocated via cls_alloc (which calls malloc!)
       buffer::ptr bp = buffer::claim_malloc(olen, out);

@@ -143,7 +143,7 @@ void seed::sha1(SHA1 *h, bufferlist &bl, off_t bl_len)
   off_t remain = 0;
   remain = bl_len%info.piece_length;
 
-  char *pstr = bl.c_str();
+  const char* pstr = bl.c_str();
   char sha[25];
 
   /* get sha1 */

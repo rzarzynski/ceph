@@ -558,7 +558,7 @@ void AsyncConnection::process()
             if (!front.length())
               front.push_back(buffer::create(front_len));
 
-            r = read_until(front_len, front.c_str());
+            r = read_until(front_len, front.data());
             if (r < 0) {
               ldout(async_msgr->cct, 1) << __func__ << " read message front failed" << dendl;
               goto fail;
@@ -579,7 +579,7 @@ void AsyncConnection::process()
             if (!middle.length())
               middle.push_back(buffer::create(middle_len));
 
-            r = read_until(middle_len, middle.c_str());
+            r = read_until(middle_len, middle.data());
             if (r < 0) {
               ldout(async_msgr->cct, 1) << __func__ << " read message middle failed" << dendl;
               goto fail;
@@ -1314,7 +1314,7 @@ ssize_t AsyncConnection::_process_connection()
           if (!authorizer_buf.length())
             authorizer_buf.push_back(buffer::create(connect_msg.authorizer_len));
 
-          r = read_until(connect_msg.authorizer_len, authorizer_buf.c_str());
+          r = read_until(connect_msg.authorizer_len, authorizer_buf.data());
           if (r < 0) {
             ldout(async_msgr->cct, 1) << __func__ << " read connect authorizer failed" << dendl;
             goto fail;

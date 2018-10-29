@@ -380,8 +380,8 @@ public:
     size_t unaligned_rest_size = size - aligned_size;
     output.clear();
     buffer::ptr buf(aligned_size + AES_256_IVSIZE);
-    unsigned char* buf_raw = reinterpret_cast<unsigned char*>(buf.c_str());
-    unsigned char* input_raw = reinterpret_cast<unsigned char*>(input.c_str());
+    auto buf_raw = reinterpret_cast<unsigned char*>(buf.c_str());
+    auto input_raw = reinterpret_cast<const unsigned char*>(input.c_str());
 
     /* decrypt main bulk of data */
     result = cbc_transform(buf_raw,
@@ -778,7 +778,7 @@ static int request_key_from_barbican(CephContext *cct,
       secret_req.get_http_status() < 300 &&
       secret_bl.length() == AES_256_KEYSIZE) {
     actual_key.assign(secret_bl.c_str(), secret_bl.length());
-    memset(secret_bl.c_str(), 0, secret_bl.length());
+    memset(secret_bl.data(), 0, secret_bl.length());
     } else {
       res = -EACCES;
     }

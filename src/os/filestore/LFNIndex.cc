@@ -526,7 +526,7 @@ int LFNIndex::add_attr_path(const vector<string> &path,
   maybe_inject_failure();
   return chain_setxattr<false, true>(
     full_path.c_str(), mangle_attr_name(attr_name).c_str(),
-    reinterpret_cast<void *>(attr_value.c_str()),
+    reinterpret_cast<const void*>(attr_value.c_str()),
     attr_value.length());
 }
 

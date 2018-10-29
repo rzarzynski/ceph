@@ -1992,11 +1992,11 @@ FileJournal::read_entry_result FileJournal::do_read_entry(
     bl = &_bl;
 
   // header
-  entry_header_t *h;
+  const entry_header_t* h;
   bufferlist hbl;
   off64_t _next_pos;
   wrap_read_bl(cur_pos, sizeof(*h), &hbl, &_next_pos);
-  h = reinterpret_cast<entry_header_t *>(hbl.c_str());
+  h = reinterpret_cast<const entry_header_t*>(hbl.c_str());
 
   if (!h->check_magic(cur_pos, header.get_fsid64())) {
     dout(25) << "read_entry " << init_pos
@@ -2020,10 +2020,10 @@ FileJournal::read_entry_result FileJournal::do_read_entry(
     cur_pos += h->post_pad;
 
   // footer
-  entry_header_t *f;
+  const entry_header_t* f;
   bufferlist fbl;
   wrap_read_bl(cur_pos, sizeof(*f), &fbl, &cur_pos);
-  f = reinterpret_cast<entry_header_t *>(fbl.c_str());
+  f = reinterpret_cast<const entry_header_t*>(fbl.c_str());
   if (memcmp(f, h, sizeof(*f))) {
     if (ss)
       *ss << "bad footer magic, partial entry";

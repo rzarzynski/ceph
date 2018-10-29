@@ -251,7 +251,7 @@ TEST(ErasureCodeTest, encode)
 				 in,
 				 &encoded));
     EXPECT_EQ(4u, encoded.size());
-    char *last_chunk = encoded[1].c_str();
+    const char* const last_chunk = encoded[1].c_str();
     int length =encoded[1].length();
     EXPECT_EQ('X', last_chunk[0]);
     EXPECT_EQ('\0', last_chunk[length - trail_length]);

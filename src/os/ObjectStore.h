@@ -849,7 +849,7 @@ public:
       Transaction *t;
 
       uint64_t ops;
-      char* op_buffer_p;
+      const char* op_buffer_p;
 
       bufferlist::const_iterator data_bl_p;
 
@@ -889,10 +889,10 @@ public:
       bool have_op() {
         return ops > 0;
       }
-      Op* decode_op() {
+      const Op* decode_op() {
         ceph_assert(ops > 0);
 
-        Op* op = reinterpret_cast<Op*>(op_buffer_p);
+        const Op* op = reinterpret_cast<const Op*>(op_buffer_p);
         op_buffer_p += sizeof(Op);
         ops--;
 

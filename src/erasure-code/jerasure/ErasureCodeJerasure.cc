@@ -98,9 +98,9 @@ unsigned int ErasureCodeJerasure::get_chunk_size(unsigned int object_size) const
 int ErasureCodeJerasure::encode_chunks(const set<int> &want_to_encode,
 				       map<int, bufferlist> *encoded)
 {
-  char *chunks[k + m];
+  char* chunks[k + m];
   for (int i = 0; i < k + m; i++)
-    chunks[i] = (*encoded)[i].c_str();
+    chunks[i] = const_cast<char*>((*encoded)[i].c_str());
   jerasure_encode(&chunks[0], &chunks[k], (*encoded)[0].length());
   return 0;
 }
@@ -120,9 +120,9 @@ int ErasureCodeJerasure::decode_chunks(const set<int> &want_to_read,
       erasures_count++;
     }
     if (i < k)
-      data[i] = (*decoded)[i].c_str();
+      data[i] = (*decoded)[i].data();
     else
-      coding[i - k] = (*decoded)[i].c_str();
+      coding[i - k] = (*decoded)[i].data();
   }
   erasures[erasures_count] = -1;
 

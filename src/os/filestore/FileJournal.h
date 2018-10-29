@@ -229,7 +229,7 @@ public:
     static uint64_t make_magic(uint64_t seq, uint32_t len, uint64_t fsid) {
       return (fsid ^ seq ^ len);
     }
-    bool check_magic(off64_t pos, uint64_t fsid) {
+    bool check_magic(off64_t pos, uint64_t fsid) const {
       return
     magic1 == (uint64_t)pos &&
     magic2 == (fsid ^ seq ^ len);

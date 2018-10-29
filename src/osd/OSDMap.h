@@ -145,7 +145,7 @@ struct PGTempMap {
       data.rebuild();
     }
     //map.reserve(n);
-    char *start = data.c_str();
+    const char* start = data.c_str();
     for (auto i : offsets) {
       map.insert(map.end(), make_pair(i.first, (int32_t*)(start + i.second)));
     }

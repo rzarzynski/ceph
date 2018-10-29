@@ -1864,15 +1864,25 @@ using namespace ceph;
   /*
    * return a contiguous ptr to whole bufferlist contents.
    */
-  char *buffer::list::c_str()
+  const char* buffer::list::c_str()
   {
     if (_buffers.empty())
       return 0;                         // no buffers
 
-    auto iter = std::cbegin(_buffers);
+    buffers_t::const_iterator iter = _buffers.begin();
     ++iter;
 
-    if (iter != std::cend(_buffers)) {
+    if (iter != _buffers.end())
+      rebuild();
+    return _buffers.front().c_str();  // good, we're already contiguous.
+  }
+
+  char* buffer::list::data()
+  {
+    if (_buffers.empty())
+      return 0;                         // no buffers
+
+    if (_carriage != &_buffers.front() || _buffers.size() > 1) {
       rebuild();
     }
     return _buffers.front().c_str();  // good, we're already contiguous.

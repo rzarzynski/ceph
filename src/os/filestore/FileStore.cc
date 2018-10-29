@@ -2721,7 +2721,7 @@ void FileStore::_do_transaction(
     if (handle)
       handle->reset_tp_timeout();
 
-    Transaction::Op *op = i.decode_op();
+    const Transaction::Op* op = i.decode_op();
     int r = 0;
 
     _inject_failure();
@@ -2981,7 +2981,7 @@ void FileStore::_do_transaction(
 	ceph_assert(oid.hobj.pool >= -1);
 
         // always followed by OP_COLL_REMOVE
-        Transaction::Op *op2 = i.decode_op();
+        const Transaction::Op* op2 = i.decode_op();
         const coll_t &ocid2 = i.get_cid(op2->cid);
         const ghobject_t &oid2 = i.get_oid(op2->oid);
         ceph_assert(op2->op == Transaction::OP_COLL_REMOVE);

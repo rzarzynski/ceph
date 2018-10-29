@@ -135,7 +135,7 @@ int CephxServiceHandler::handle_request(bufferlist::const_iterator& indata, buff
         ldout(cct, 0) << " could not get mon caps for " << entity_name << dendl;
         ret = -EACCES;
       } else {
-        char *caps_str = caps.caps.c_str();
+        const char* caps_str = caps.caps.c_str();
         if (!caps_str || !caps_str[0]) {
           ldout(cct,0) << "mon caps null for " << entity_name << dendl;
           ret = -EACCES;

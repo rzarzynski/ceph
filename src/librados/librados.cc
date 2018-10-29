@@ -5224,7 +5224,7 @@ struct C_WatchCB2 : public librados::WatchCtx2 {
 		     uint64_t cookie,
 		     uint64_t notifier_gid,
 		     bufferlist& bl) override {
-    wcb(arg, notify_id, cookie, notifier_gid, bl.c_str(), bl.length());
+    wcb(arg, notify_id, cookie, notifier_gid, bl.data(), bl.length());
   }
   void handle_error(uint64_t cookie, int err) override {
     if (errcb)
@@ -6394,7 +6394,7 @@ extern "C" int rados_omap_get_next2(rados_omap_iter_t iter,
   if (key)
     *key = (char*)it->i->first.c_str();
   if (val)
-    *val = it->i->second.c_str();
+    *val = it->i->second.data();
   if (key_len)
     *key_len = it->i->first.length();
   if (val_len)

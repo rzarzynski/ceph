@@ -327,7 +327,6 @@ int Pipe::accept()
   socklen_t len;
   int r;
   char banner[strlen(CEPH_BANNER)+1];
-  bufferlist addrbl;
   ceph_msg_connect connect;
   ceph_msg_connect_reply reply;
   Pipe *existing = 0;
@@ -400,21 +399,22 @@ int Pipe::accept()
     ldout(msgr->cct,1) << "accept peer sent bad banner '" << banner << "' (should be '" << CEPH_BANNER << "')" << dendl;
     goto fail_unlocked;
   }
+
   {
-    bufferptr tp(sizeof(ceph_entity_addr));
-    addrbl.push_back(std::move(tp));
-  }
-  if (tcp_read(addrbl.c_str(), addrbl.length()) < 0) {
-    ldout(msgr->cct,10) << "accept couldn't read peer_addr" << dendl;
-    goto fail_unlocked;
-  }
-  try {
-    auto ti = addrbl.cbegin();
-    decode(peer_addr, ti);
-  } catch (const buffer::error& e) {
-    ldout(msgr->cct,2) << __func__ <<  " decode peer_addr failed: " << e.what()
-			<< dendl;
-    goto fail_unlocked;
+    ceph::bufferlist addrbl(sizeof(ceph_entity_addr));
+    auto filer = addrbl.append_hole(sizeof(ceph_entity_addr));
+    if (tcp_read(filer.c_str(), addrbl.length()) < 0) {
+      ldout(msgr->cct,10) << "accept couldn't read peer_addr" << dendl;
+      goto fail_unlocked;
+    }
+    try {
+      auto ti = addrbl.cbegin();
+      decode(peer_addr, ti);
+    } catch (const buffer::error& e) {
+      ldout(msgr->cct,2) << __func__ <<  " decode peer_addr failed: " << e.what()
+			 << dendl;
+      goto fail_unlocked;
+    }
   }
 
   ldout(msgr->cct,10) << "accept peer addr is " << peer_addr << dendl;
@@ -1093,7 +1093,7 @@ int Pipe::connect()
 #endif
     addrbl.push_back(std::move(p));
   }
-  rc = tcp_read(addrbl.c_str(), addrbl.length());
+  rc = tcp_read(addrbl.data(), addrbl.length());
   if (rc < 0) {
     ldout(msgr->cct,2) << "connect couldn't read peer addrs, " << cpp_strerror(rc) << dendl;
     goto fail;
@@ -1131,7 +1131,8 @@ int Pipe::connect()
   encode(msgr->my_addr, myaddrbl, 0);  // legacy
 
   memset(&msg, 0, sizeof(msg));
-  msgvec[0].iov_base = myaddrbl.c_str();
+  // do_sendmsg should treat this as read-only
+  msgvec[0].iov_base = const_cast<char*>(myaddrbl.c_str());
   msgvec[0].iov_len = myaddrbl.length();
   msg.msg_iov = msgvec;
   msg.msg_iovlen = 1;
@@ -1171,7 +1172,8 @@ int Pipe::connect()
     msg.msg_iovlen = 1;
     msglen = msgvec[0].iov_len;
     if (authorizer) {
-      msgvec[1].iov_base = authorizer->bl.c_str();
+      // do_sendmsg should treat this as read-only
+      msgvec[1].iov_base = const_cast<char*>(authorizer->bl.c_str());
       msgvec[1].iov_len = authorizer->bl.length();
       msg.msg_iovlen++;
       msglen += msgvec[1].iov_len;

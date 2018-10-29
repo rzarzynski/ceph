@@ -1084,7 +1084,8 @@ namespace buffer CEPH_BUFFER_API {
      * get a char
      */
     const char& operator[](unsigned n) const;
-    char *c_str();
+    const char* c_str();
+    char* data();
     std::string to_str() const;
 
     void substr_of(const list& other, unsigned off, unsigned len);

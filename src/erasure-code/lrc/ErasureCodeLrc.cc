@@ -757,6 +757,9 @@ int ErasureCodeLrc::encode_chunks(const set<int> &want_to_encode,
     for (vector<int>::const_iterator c = layer.chunks.begin();
 	 c != layer.chunks.end();
 	 ++c) {
+      // TODO: this needs rework as we're relying on cross-talk between two
+      // bufferlist instances. Changes made to layer_encoded[x].c_str() are
+      // supposed to be visible also by correspnding encoded[y].
       layer_encoded[j] = (*encoded)[*c];
       if (want_to_encode.find(*c) != want_to_encode.end())
 	layer_want_to_encode.insert(j);
