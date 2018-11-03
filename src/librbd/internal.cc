@@ -1601,12 +1601,12 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
       });
       auto gather_ctx = new C_Gather(m_dest->cct, end_op_ctx);
 
-      auto& m_ptr = buffer::ptr_node::create(m_bl->length());
-      m_bl->rebuild(m_ptr);
+      m_bl->rebuild(buffer::ptr_node::create(m_bl->length()));
       size_t write_offset = 0;
       size_t write_length = 0;
       size_t offset = 0;
       size_t length = m_bl->length();
+      const auto& m_ptr = m_bl->front();
       while (offset < length) {
 	if (util::calc_sparse_extent(m_ptr,
 				     m_sparse_size,
@@ -1614,10 +1614,9 @@ bool compare_by_name(const child_info_t& c1, const child_info_t& c2)
 				     &write_offset,
 				     &write_length,
 				     &offset)) {
-	  auto& write_ptr = \
-	    buffer::ptr_node::create(m_ptr, write_offset, write_length);
 	  bufferlist *write_bl = new bufferlist();
-	  write_bl->push_back(write_ptr);
+	  write_bl->push_back(
+	    buffer::ptr_node::create(m_ptr, write_offset, write_length));
 	  Context *ctx = new C_CopyWrite(write_bl, gather_ctx->new_sub());
 	  auto comp = io::AioCompletion::create(ctx);
 
