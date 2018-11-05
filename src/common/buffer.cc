@@ -1740,9 +1740,8 @@ using namespace ceph;
       _carriage = &bptr;
       _buffers.push_back(bptr);
     }
-    auto& cur_back = _buffers.back();
-    cur_back.set_length(cur_back.length() + len);
-    return { cur_back.end_c_str() - len };
+    _carriage.set_length(_carriage.length() + len);
+    return { _carriage.end_c_str() - len };
   }
 
   void buffer::list::prepend_zero(unsigned len)

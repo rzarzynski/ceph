@@ -439,7 +439,43 @@ namespace buffer CEPH_BUFFER_API {
 
   class CEPH_BUFFER_API list {
   public:
-    typedef boost::intrusive::list<hangable_ptr> buffers_t;
+    class buffers_t : private boost::intrusive::list<hangable_ptr> {
+      typedef boost::intrusive::list<hangable_ptr> base_t;
+
+    public:
+      using base_t::const_reference;
+      using base_t::const_iterator;
+      using base_t::iterator;
+
+      using base_t::base_t;
+
+      using base_t::push_back;
+      using base_t::clear_and_dispose;
+      using base_t::size;
+      using base_t::empty;
+
+      const_iterator begin() const {
+	return base_t::cbegin();
+      }
+      const_iterator end() const {
+	return base_t::cend();
+      }
+
+      const_reference front() const {
+	return base_t::front();
+      }
+      const_reference back() const {
+	return base_t::back();
+      }
+
+      void clone_from(const buffers_t& other) {
+	base_t::clone_from(other, hangable_ptr::cloner(), hangable_ptr::disposer());
+      }
+
+      void swap(buffers_t& other) {
+	base_t::swap(other);
+      }
+    };
     class iterator;
 
   private:
@@ -851,8 +887,7 @@ namespace buffer CEPH_BUFFER_API {
     list(const list& other) : _carriage(&always_empty_bptr),
 			      _len(other._len),
 			      _memcopy_count(other._memcopy_count) {
-      _buffers.clone_from(other._buffers,
-			  hangable_ptr::cloner(), hangable_ptr::disposer());
+      _buffers.clone_from(other._buffers);
     }
     list(list&& other) noexcept;
 
@@ -863,8 +898,7 @@ namespace buffer CEPH_BUFFER_API {
     list& operator= (const list& other) {
       if (this != &other) {
         _carriage = &always_empty_bptr;
-        _buffers.clone_from(other._buffers,
-			    hangable_ptr::cloner(), hangable_ptr::disposer());
+        _buffers.clone_from(other._buffers);
         _len = other._len;
       }
       return *this;
@@ -950,9 +984,10 @@ namespace buffer CEPH_BUFFER_API {
       _carriage = &bp;
     }
     void push_back(raw* r) {
-      _buffers.push_back(hangable_ptr::create(r));
-      _carriage = &_buffers.back();
-      _len += _buffers.back().length();
+      auto& new_back = hangable_ptr::create(r);
+      _carriage = &new_back;
+      _buffers.push_back(new_back);
+      _len += new_back.length();
     }
     void push_back(std::unique_ptr<raw> r) {
       push_back(r.release());
@@ -1001,11 +1036,11 @@ namespace buffer CEPH_BUFFER_API {
     operator seastar::net::packet() &&;
 #endif
 
-    iterator begin() {
-      return iterator(this, 0);
+    const_iterator begin() {
+      return const_iterator(this, 0);
     }
-    iterator end() {
-      return iterator(this, _len, _buffers.end(), 0);
+    const_iterator end() {
+      return const_iterator(this, _len, _buffers.end(), 0);
     }
 
     const_iterator begin() const {

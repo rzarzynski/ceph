@@ -6063,7 +6063,7 @@ ostream& operator<<(ostream& out, const OSDOp& op)
 
 void OSDOp::split_osd_op_vector_in_data(vector<OSDOp>& ops, bufferlist& in)
 {
-  bufferlist::iterator datap = in.begin();
+  auto datap = in.begin();
   for (unsigned i = 0; i < ops.size(); i++) {
     if (ops[i].op.payload_len) {
       datap.copy(ops[i].op.payload_len, ops[i].indata);
@@ -6083,7 +6083,7 @@ void OSDOp::merge_osd_op_vector_in_data(vector<OSDOp>& ops, bufferlist& out)
 
 void OSDOp::split_osd_op_vector_out_data(vector<OSDOp>& ops, bufferlist& in)
 {
-  bufferlist::iterator datap = in.begin();
+  auto datap = in.begin();
   for (unsigned i = 0; i < ops.size(); i++) {
     if (ops[i].op.payload_len) {
       datap.copy(ops[i].op.payload_len, ops[i].outdata);
