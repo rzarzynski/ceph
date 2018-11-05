@@ -1556,7 +1556,7 @@ using namespace ceph;
       _carriage = &bptr;
       _buffers.push_back(bptr);
     }
-    _buffers.back().append(c);
+    _carriage->append(c);
     _len++;
   }
 
@@ -1651,8 +1651,7 @@ using namespace ceph;
 	_carriage = &bptr;
 	_buffers.push_back(bptr);
       }
-      auto& cur_back = _buffers.back();
-      return { cur_back.end_c_str(), &cur_back._len, &_len };
+      return { _carriage->end_c_str(), &_carriage->_len, &_len };
     }
   }
 
@@ -1670,8 +1669,7 @@ using namespace ceph;
 	_carriage = &bptr;
 	_buffers.push_back(bptr);
       }
-      auto& cur_back = _buffers.back();
-      return { cur_back.end_c_str(), &cur_back._len, &_len };
+      return { _carriage->end_c_str(), &_carriage->_len, &_len };
     }
   }
 
@@ -1739,8 +1737,8 @@ using namespace ceph;
       _carriage = &bptr;
       _buffers.push_back(bptr);
     }
-    _carriage.set_length(_carriage.length() + len);
-    return { _carriage.end_c_str() - len };
+    _carriage->set_length(_carriage->length() + len);
+    return { _carriage->end_c_str() - len };
   }
 
   void buffer::list::prepend_zero(unsigned len)
@@ -1763,7 +1761,7 @@ using namespace ceph;
 	_carriage = &bptr;
 	_buffers.push_back(bptr);
       }
-      _buffers.back().append_zeros(first_round);
+      _carriage->append_zeros(first_round);
     }
 
     const unsigned second_round = len - first_round;
@@ -1817,7 +1815,7 @@ using namespace ceph;
     if (_carriage != &_buffers.front() || _buffers.size() > 1) {
       rebuild();
     }
-    return _buffers.front().c_str();  // good, we're already contiguous.
+    return _carriage->c_str();  // good, we're already contiguous.
   }
 
   string buffer::list::to_str() const {
