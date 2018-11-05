@@ -311,10 +311,9 @@ int RGWRESTSimpleRequest::forward_request(RGWAccessKey& key, req_info& info, siz
   }
   new_url.append(new_resource + params_str);
 
-  bufferlist::iterator bliter;
-
+  bufferlist::const_iterator bliter;
   if (inbl) {
-    bliter = inbl->begin();
+    bliter = std::cbegin(*inbl);
     send_iter = &bliter;
 
     set_send_length(inbl->length());

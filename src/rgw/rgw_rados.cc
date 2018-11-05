@@ -9617,8 +9617,7 @@ int RGWRados::get_obj_state_impl(RGWObjectCtx *rctx, const RGWBucketInfo& bucket
   iter = s->attrset.find(RGW_ATTR_SHADOW_OBJ);
   if (iter != s->attrset.end()) {
     bufferlist bl = iter->second;
-    bufferlist::iterator it = bl.begin();
-    it.copy(bl.length(), s->shadow_obj);
+    std::cbegin(bl).copy(bl.length(), s->shadow_obj);
     s->shadow_obj[bl.length()] = '\0';
   }
   s->obj_tag = s->attrset[RGW_ATTR_ID_TAG];

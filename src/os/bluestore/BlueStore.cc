@@ -10396,7 +10396,7 @@ void BlueStore::_do_write_small(
     CollectionRef &c,
     OnodeRef o,
     uint64_t offset, uint64_t length,
-    bufferlist::iterator& blp,
+    bufferlist::const_iterator& blp,
     WriteContext *wctx)
 {
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
@@ -10709,7 +10709,7 @@ void BlueStore::_do_write_big(
     CollectionRef &c,
     OnodeRef o,
     uint64_t offset, uint64_t length,
-    bufferlist::iterator& blp,
+    bufferlist::const_iterator& blp,
     WriteContext *wctx)
 {
   dout(10) << __func__ << " 0x" << std::hex << offset << "~" << length
@@ -11133,7 +11133,7 @@ void BlueStore::_do_write_data(
   WriteContext *wctx)
 {
   uint64_t end = offset + length;
-  bufferlist::iterator p = bl.begin();
+  auto p = std::cbegin(bl);
 
   if (offset / min_alloc_size == (end - 1) / min_alloc_size &&
       (length != min_alloc_size)) {

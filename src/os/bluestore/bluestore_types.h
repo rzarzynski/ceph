@@ -705,7 +705,7 @@ public:
       ++p;
       ceph_assert(p != extents.end());
     }
-    bufferlist::iterator it = bl.begin();
+    auto it = std::cbegin(bl);
     uint64_t x_len = bl.length();
     while (x_len > 0) {
       ceph_assert(p != extents.end());

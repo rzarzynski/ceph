@@ -9564,7 +9564,7 @@ int OSD::init_op_flags(OpRequestRef& op)
     switch (iter->op.op) {
     case CEPH_OSD_OP_CALL:
       {
-	bufferlist::iterator bp = const_cast<bufferlist&>(iter->indata).begin();
+	auto bp = const_cast<bufferlist&>(iter->indata).begin();
 	int is_write, is_read;
 	string cname, mname;
 	bp.copy(iter->op.cls.class_len, cname);

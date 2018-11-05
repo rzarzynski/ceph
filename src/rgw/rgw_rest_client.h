@@ -19,7 +19,7 @@ protected:
   map<string, string> out_headers;
   param_vec_t params;
 
-  bufferlist::iterator *send_iter;
+  bufferlist::const_iterator* send_iter;
 
   size_t max_response; /* we need this as we don't stream out response */
   bufferlist response;
@@ -31,7 +31,7 @@ public:
   RGWHTTPSimpleRequest(CephContext *_cct, const string& _method, const string& _url,
                        param_vec_t *_headers, param_vec_t *_params) : RGWHTTPClient(_cct, _method, _url),
                 http_status(0), status(0),
-                send_iter(NULL),
+                send_iter(nullptr),
                 max_response(0) {
     set_headers(_headers);
     set_params(_params);

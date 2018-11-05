@@ -2146,7 +2146,7 @@ int Pipe::read_message(Message **pm, AuthSessionHandler* auth_handler)
     unsigned left = data_len;
 
     bufferlist newbuf, rxbuf;
-    bufferlist::iterator blp;
+    bufferlist::const_iterator blp;
     int rxbuf_version = 0;
 	
     while (left > 0) {

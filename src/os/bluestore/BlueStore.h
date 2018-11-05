@@ -2657,14 +2657,14 @@ private:
     CollectionRef &c,
     OnodeRef o,
     uint64_t offset, uint64_t length,
-    bufferlist::iterator& blp,
+    bufferlist::const_iterator& blp,
     WriteContext *wctx);
   void _do_write_big(
     TransContext *txc,
     CollectionRef &c,
     OnodeRef o,
     uint64_t offset, uint64_t length,
-    bufferlist::iterator& blp,
+    bufferlist::const_iterator& blp,
     WriteContext *wctx);
   int _do_alloc_write(
     TransContext *txc,

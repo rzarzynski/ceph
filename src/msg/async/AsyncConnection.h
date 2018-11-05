@@ -346,7 +346,7 @@ class AsyncConnection : public Connection {
   uint64_t cur_msg_size;
   ceph_msg_header current_header;
   bufferlist data_buf;
-  bufferlist::iterator data_blp;
+  bufferlist::const_iterator data_blp;
   bufferlist front, middle, data;
   ceph_msg_connect connect_msg;
   // Connecting state

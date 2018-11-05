@@ -338,12 +338,9 @@ int RGWCache<T>::get_system_obj(RGWObjectCtx& obj_ctx, RGWRados::SystemObject::R
       return info.status;
 
     bufferlist& bl = info.data;
-
-    bufferlist::iterator i = bl.begin();
-
     obl.clear();
 
-    i.copy_all(obl);
+    std::cbegin(bl).copy_all(obl);
     if (objv_tracker)
       objv_tracker->read_version = info.version;
     if (attrs)
@@ -367,8 +364,7 @@ int RGWCache<T>::get_system_obj(RGWObjectCtx& obj_ctx, RGWRados::SystemObject::R
   bufferptr p(r);
   bufferlist& bl = info.data;
   bl.clear();
-  bufferlist::iterator o = obl.begin();
-  o.copy_all(bl);
+  std::cbegin(obl).copy_all(bl);
   info.status = 0;
   info.flags = flags;
   if (objv_tracker) {

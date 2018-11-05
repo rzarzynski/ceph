@@ -281,12 +281,12 @@ void dump_services(Formatter* f, const map<string, list<string> >& services, con
 // base64 encoded string indicating whether it did.
 string cleanbin(bufferlist &bl, bool &base64)
 {
-  bufferlist::iterator it;
-  for (it = bl.begin(); it != bl.end(); ++it) {
+  bufferlist::const_iterator it;
+  for (it = std::cbegin(bl); it != std::cend(bl); ++it) {
     if (iscntrl(*it))
       break;
   }
-  if (it == bl.end()) {
+  if (it == std::cend(bl)) {
     base64 = false;
     string result(bl.c_str(), bl.length());
     return result;
