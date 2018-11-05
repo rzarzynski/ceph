@@ -92,7 +92,7 @@ public:
       memcpy(c->data, data, len);
       return std::unique_ptr<raw>(c);
     }
-    virtual bool is_shareable() {
+    virtual bool is_shareable() const {
       // true if safe to reference/share the existing buffer copy
       // false if it is not safe to share the buffer, e.g., due to special
       // and/or registered memory that is scarce

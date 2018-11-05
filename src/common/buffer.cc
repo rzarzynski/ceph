@@ -378,7 +378,7 @@ using namespace ceph;
     raw* clone_empty() override {
       return new raw_char(len);
     }
-    bool is_shareable() override {
+    bool is_shareable() const override {
       return false; // !shareable, will force make_shareable()
     }
     ~raw_unshareable() override {
@@ -417,7 +417,7 @@ using namespace ceph;
 	unsigned l) :
       raw((char*)d, l), m_hook(_m_hook->get()) {}
 
-    bool is_shareable() { return false; }
+    bool is_shareable() const override { return false; }
     static void operator delete(void *p)
     {
       xio_msg_buffer *buf = static_cast<xio_msg_buffer*>(p);

@@ -953,10 +953,13 @@ namespace buffer CEPH_BUFFER_API {
       _buffers.push_back(bp);
       _carriage = &bp;
     }
-    void push_back(raw *r) {
+    void push_back(raw* r) {
       _buffers.push_back(hangable_ptr::create(r));
       _carriage = &_buffers.back();
       _len += _buffers.back().length();
+    }
+    void push_back(std::unique_ptr<raw> r) {
+      push_back(r.release());
     }
 
     void zero();
