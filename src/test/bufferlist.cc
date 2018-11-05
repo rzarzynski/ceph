@@ -2619,55 +2619,6 @@ TEST(BufferList, zero) {
     bl.zero();
     EXPECT_EQ('\0', bl[0]);
   }
-  //
-  // void zero(unsigned o, unsigned l)
-  //
-  const char *s[] = {
-    "ABC",
-    "DEF",
-    "GHI",
-    "KLM"
-  };
-  {
-    bufferlist bl;
-    bufferptr ptr(s[0], strlen(s[0]));
-    bl.push_back(ptr);
-    bl.zero((unsigned)0, (unsigned)1);
-    EXPECT_EQ(0, ::memcmp("\0BC", bl.c_str(), 3));
-  }
-  {
-    bufferlist bl;
-    for (unsigned i = 0; i < 4; i++) {
-      bufferptr ptr(s[i], strlen(s[i]));
-      bl.push_back(ptr);
-    }
-    {
-      PrCtl unset_dumpable;
-      EXPECT_DEATH(bl.zero((unsigned)0, (unsigned)2000), "");
-    }
-    bl.zero((unsigned)2, (unsigned)5);
-    EXPECT_EQ(0, ::memcmp("AB\0\0\0\0\0HIKLM", bl.c_str(), 9));
-  }
-  {
-    bufferlist bl;
-    for (unsigned i = 0; i < 4; i++) {
-      bufferptr ptr(s[i], strlen(s[i]));
-      bl.push_back(ptr);
-    }
-    bl.zero((unsigned)3, (unsigned)3);
-    EXPECT_EQ(0, ::memcmp("ABC\0\0\0GHIKLM", bl.c_str(), 9));
-  }
-  {
-    bufferlist bl;
-    bufferptr ptr1(4);
-    bufferptr ptr2(4);
-    memset(ptr1.c_str(), 'a', 4);
-    memset(ptr2.c_str(), 'b', 4);
-    bl.append(ptr1);
-    bl.append(ptr2);
-    bl.zero((unsigned)2, (unsigned)4);
-    EXPECT_EQ(0, ::memcmp("aa\0\0\0\0bb", bl.c_str(), 8));
-  }
 }
 
 TEST(BufferList, EmptyAppend) {

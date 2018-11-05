@@ -1263,37 +1263,6 @@ using namespace ceph;
     append_zero(len_snap);
   }
 
-  void buffer::list::zero(const unsigned o, const unsigned l)
-  {
-    ceph_assert(o+l <= _len);
-    unsigned p = 0;
-    for (auto& node : _buffers) {
-      if (p + node.length() > o) {
-        if (p >= o && p+node.length() <= o+l) {
-          // 'o'------------- l -----------|
-          //      'p'-- node.length() --|
-	  node.zero();
-        } else if (p >= o) {
-          // 'o'------------- l -----------|
-          //    'p'------- node.length() -------|
-	  node.zero(0, o+l-p);
-        } else if (p + node.length() <= o+l) {
-          //     'o'------------- l -----------|
-          // 'p'------- node.length() -------|
-	  node.zero(o-p, node.length()-(o-p));
-        } else {
-          //       'o'----------- l -----------|
-          // 'p'---------- node.length() ----------|
-          node.zero(o-p, l);
-        }
-      }
-      p += node.length();
-      if (o+l <= p) {
-	break;  // done
-      }
-    }
-  }
-
   bool buffer::list::is_contiguous() const
   {
     return _buffers.size() <= 1;

@@ -1013,7 +1013,6 @@ namespace buffer CEPH_BUFFER_API {
     }
 
     void zero();
-    void zero(unsigned o, unsigned l);
 
     bool is_contiguous() const;
     void rebuild();

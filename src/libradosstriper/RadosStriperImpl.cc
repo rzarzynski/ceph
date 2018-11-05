@@ -658,15 +658,10 @@ static void rados_req_read_complete(rados_completion_t c, void *arg)
     // only partial data were present in the object (or the object did not
     // even exist if we've gone through previous case).
     // This is typical of sparse file and we need to complete with 0s.
-    unsigned int lenOfZeros = data->m_expectedBytes-rc;
-    unsigned int existingDataToZero = min(data->m_bl->length()-rc, lenOfZeros);
-    if (existingDataToZero > 0) {
-      data->m_bl->zero(rc, existingDataToZero);
-    }
-    if (lenOfZeros > existingDataToZero) {
-      ceph::bufferptr zeros(ceph::buffer::create(lenOfZeros-existingDataToZero));
-      zeros.zero();
-      data->m_bl->push_back(zeros);
+    const unsigned int lenOfZeros = \
+      std::min<unsigned int>(data->m_bl->length(), data->m_expectedBytes) - rc;
+    if (lenOfZeros > 0) {
+      data->m_bl->append_zero(lenOfZeros);
     }
     rc = data->m_expectedBytes;
   }
