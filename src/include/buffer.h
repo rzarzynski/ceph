@@ -448,9 +448,12 @@ namespace buffer CEPH_BUFFER_API {
       using base_t::iterator;
 
       using base_t::base_t;
+      using base_t::iterator_to;
 
+      using base_t::push_front;
       using base_t::push_back;
-      using base_t::clear_and_dispose;
+      using base_t::erase;
+      using base_t::insert;
       using base_t::size;
       using base_t::empty;
 
@@ -459,6 +462,12 @@ namespace buffer CEPH_BUFFER_API {
       }
       const_iterator end() const {
 	return base_t::cend();
+      }
+      iterator begin_dangergous() {
+	return base_t::begin();
+      }
+      iterator end_dangergous() {
+	return base_t::end();
       }
 
       const_reference front() const {
@@ -470,6 +479,16 @@ namespace buffer CEPH_BUFFER_API {
 
       void clone_from(const buffers_t& other) {
 	base_t::clone_from(other, hangable_ptr::cloner(), hangable_ptr::disposer());
+      }
+      void clear_and_dispose() {
+	base_t::clear_and_dispose(hangable_ptr::disposer());
+      }
+      auto erase_and_dispose(const_iterator it) {
+	return base_t::erase_and_dispose(it, hangable_ptr::disposer());
+      }
+
+      auto splice(const_iterator it, buffers_t& other) {
+	return base_t::splice(it, other);
       }
 
       void swap(buffers_t& other) {
@@ -497,7 +516,7 @@ namespace buffer CEPH_BUFFER_API {
 					buffers_t >::type list_t;
       typedef typename std::conditional<is_const,
 					typename buffers_t::const_iterator,
-					typename buffers_t::iterator>::type list_iter_t;
+					typename buffers_t::const_iterator>::type list_iter_t;
       bl_t* bl;
       list_t* ls;  // meh.. just here to avoid an extra pointer dereference..
       unsigned off; // in bl
@@ -892,7 +911,7 @@ namespace buffer CEPH_BUFFER_API {
     list(list&& other) noexcept;
 
     ~list() {
-      _buffers.clear_and_dispose(hangable_ptr::disposer());
+      _buffers.clear_and_dispose();
     }
 
     list& operator= (const list& other) {
@@ -961,7 +980,7 @@ namespace buffer CEPH_BUFFER_API {
     // modifiers
     void clear() noexcept {
       _carriage = &always_empty_bptr;
-      _buffers.clear_and_dispose(hangable_ptr::disposer());
+      _buffers.clear_and_dispose();
       _len = 0;
       _memcopy_count = 0;
     }

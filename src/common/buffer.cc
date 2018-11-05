@@ -1258,9 +1258,9 @@ using namespace ceph;
 
   void buffer::list::zero()
   {
-    for (auto& node : _buffers) {
-      node.zero();
-    }
+    const auto len_snap = _len;
+    _buffers.clear_and_dispose();
+    append_zero(len_snap);
   }
 
   void buffer::list::zero(const unsigned o, const unsigned l)
@@ -1296,7 +1296,7 @@ using namespace ceph;
 
   bool buffer::list::is_contiguous() const
   {
-    return &(*_buffers.begin()) == &(*_buffers.rbegin());
+    return _buffers.size() <= 1;
   }
 
   bool buffer::list::is_n_page_sized() const
@@ -1335,7 +1335,7 @@ using namespace ceph;
   {
     if (_len == 0) {
       _carriage = &always_empty_bptr;
-      _buffers.clear_and_dispose(hangable_ptr::disposer());
+      _buffers.clear_and_dispose();
       return;
     }
     if ((_len & ~CEPH_PAGE_MASK) == 0)
@@ -1346,14 +1346,13 @@ using namespace ceph;
 
   void buffer::list::rebuild(hangable_ptr& nb)
   {
-    unsigned pos = 0;
+    nb.set_length(0);
     for (auto& node : _buffers) {
-      //nb.copy_in(pos, node.length(), node.c_str(), false);
-      pos += node.length();
+      nb.append(node.c_str(), node.length());
     }
-    _memcopy_count += pos;
+    _memcopy_count += length();
     _carriage = &always_empty_bptr;
-    _buffers.clear_and_dispose(hangable_ptr::disposer());
+    _buffers.clear_and_dispose();
     if (nb.length()) {
       _buffers.push_back(nb);
       _carriage = &nb;
@@ -1376,7 +1375,7 @@ using namespace ceph;
 	&& _len > (max_buffers * align_size)) {
       align_size = round_up_to(round_up_to(_len, max_buffers) / max_buffers, align_size);
     }
-    auto p = std::begin(_buffers);
+    auto p = _buffers.begin_dangergous();
     while (p != std::end(_buffers)) {
       // keep anything that's already align and sized aligned
       if (p->is_aligned(align_memory) && p->is_n_align_sized(align_size)) {
@@ -1454,7 +1453,7 @@ using namespace ceph;
 	if (unlikely(raw && !raw->is_shareable())) {
 	  auto& clone = hangable_ptr::copy_hypercombined(node);
 	  bl._buffers.insert(
-	    bl._buffers.erase_and_dispose(node, hangable_ptr::disposer()),
+	    bl._buffers.erase_and_dispose(_buffers.iterator_to(node)),
 	    clone);
 	}
       }
@@ -1882,9 +1881,9 @@ using namespace ceph;
     //cout << "splice off " << off << " len " << len << " ... mylen = " << length() << std::endl;
       
     // skip off
-    auto curbuf = std::begin(_buffers);
+    auto curbuf = _buffers.begin_dangergous();
     while (off > 0) {
-      ceph_assert(curbuf != std::end(_buffers));
+      ceph_assert(curbuf != _buffers.end_dangergous());
       if (off >= (*curbuf).length()) {
 	// skip this buffer
 	//cout << "off = " << off << " skipping over " << *curbuf << std::endl;
@@ -1926,7 +1925,7 @@ using namespace ceph;
       if (claim_by) 
 	claim_by->append( *curbuf, off, howmuch );
       _len -= (*curbuf).length();
-      curbuf = _buffers.erase_and_dispose( curbuf, hangable_ptr::disposer() );
+      curbuf = _buffers.erase_and_dispose(curbuf);
       len -= howmuch;
       off = 0;
     }
