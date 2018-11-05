@@ -613,22 +613,6 @@ using namespace ceph;
     return _raw->clone();
   }
 
-  buffer::ptr& buffer::ptr::make_shareable() {
-    if (_raw && !_raw->is_shareable()) {
-      buffer::raw *tr = _raw;
-      _raw = tr->clone();
-      _raw->nref = 1;
-      if (unlikely(--tr->nref == 0)) {
-        ANNOTATE_HAPPENS_AFTER(&tr->nref);
-        ANNOTATE_HAPPENS_BEFORE_FORGET_ALL(&tr->nref);
-        delete tr;
-      } else {
-        ANNOTATE_HAPPENS_BEFORE(&tr->nref);
-      }
-    }
-    return *this;
-  }
-
   void buffer::ptr::swap(ptr& other) noexcept
   {
     raw *r = _raw;
@@ -1497,11 +1481,19 @@ using namespace ceph;
   {
     // steal the other guy's buffers
     _len += bl._len;
-    if (!(flags & CLAIM_ALLOW_NONSHAREABLE))
-      bl.make_shareable();
+    if (!(flags & CLAIM_ALLOW_NONSHAREABLE)) {
+      for (const auto& node : bl._buffers) {
+	const auto* const raw = node.get_raw();
+	if (unlikely(raw && !raw->is_shareable())) {
+	  auto& clone = hangable_ptr::copy_hypercombined(node);
+	  bl._buffers.insert(
+	    bl._buffers.erase_and_dispose(node, hangable_ptr::disposer()),
+	    clone);
+	}
+      }
+    }
     _buffers.splice(std::end(_buffers), bl._buffers);
     bl._carriage = &always_empty_bptr;
-    bl._buffers.clear_and_dispose(hangable_ptr::disposer());
     bl._len = 0;
   }
 

@@ -283,7 +283,6 @@ namespace buffer CEPH_BUFFER_API {
 
     std::unique_ptr<raw> clone();
     void swap(ptr& other) noexcept;
-    ptr& make_shareable();
 
     iterator begin(size_t offset=0) {
       return iterator(this, offset, false);
@@ -984,14 +983,6 @@ namespace buffer CEPH_BUFFER_API {
     void claim_append(list& bl, unsigned int flags = CLAIM_DEFAULT);
     // only for bl is bufferlist::page_aligned_appender
     void claim_append_piecewise(list& bl);
-
-    // clone non-shareable buffers (make shareable)
-    void make_shareable() {
-      decltype(_buffers)::iterator pb;
-      for (pb = _buffers.begin(); pb != _buffers.end(); ++pb) {
-        (void) pb->make_shareable();
-      }
-    }
 
     // copy with explicit volatile-sharing semantics
     void share(const list& bl)
