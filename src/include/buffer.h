@@ -263,15 +263,16 @@ namespace buffer CEPH_BUFFER_API {
     using const_iterator = iterator_impl<true>;
     using iterator = iterator_impl<false>;
 
-    ptr() : _raw(0), _off(0), _len(0) {}
+    ptr() : _raw(nullptr), _off(0), _len(0) {}
     // cppcheck-suppress noExplicitConstructor
-    ptr(raw *r);
+    ptr(raw* r);
     // cppcheck-suppress noExplicitConstructor
     ptr(unsigned l);
     ptr(const char *d, unsigned l);
     ptr(const ptr& p);
     ptr(ptr&& p) noexcept;
     ptr(const ptr& p, unsigned o, unsigned l);
+    ptr(const ptr& p, std::unique_ptr<raw> r);
     ptr& operator= (const ptr& p);
     ptr& operator= (ptr&& p) noexcept;
     ~ptr() {
@@ -280,7 +281,7 @@ namespace buffer CEPH_BUFFER_API {
 
     bool have_raw() const { return _raw ? true:false; }
 
-    raw *clone();
+    std::unique_ptr<raw> clone();
     void swap(ptr& other) noexcept;
     ptr& make_shareable();
 
@@ -419,10 +420,10 @@ namespace buffer CEPH_BUFFER_API {
       return *new hangable_ptr(std::forward<Args>(args)...);
     }
 
+    static hangable_ptr& copy_hypercombined(const hangable_ptr& copy_this);
+
     struct cloner {
-      hangable_ptr* operator()(const hangable_ptr& clone_this) {
-	return new hangable_ptr(clone_this);
-      }
+      hangable_ptr* operator()(const hangable_ptr& clone_this);
     };
     struct disposer {
       void operator()(hangable_ptr* const delete_this) {
@@ -857,7 +858,6 @@ namespace buffer CEPH_BUFFER_API {
 			      _memcopy_count(other._memcopy_count) {
       _buffers.clone_from(other._buffers,
 			  hangable_ptr::cloner(), hangable_ptr::disposer());
-      make_shareable();
     }
     list(list&& other) noexcept;
 
@@ -871,7 +871,6 @@ namespace buffer CEPH_BUFFER_API {
         _buffers.clone_from(other._buffers,
 			    hangable_ptr::cloner(), hangable_ptr::disposer());
         _len = other._len;
-	make_shareable();
       }
       return *this;
     }

@@ -530,7 +530,7 @@ using namespace ceph;
     return new raw_unshareable(len);
   }
 
-  buffer::ptr::ptr(raw *r) : _raw(r), _off(0), _len(r->len)   // no lock needed; this is an unref raw.
+  buffer::ptr::ptr(raw* r) : _raw(r), _off(0), _len(r->len)   // no lock needed; this is an unref raw.
   {
     r->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
@@ -567,6 +567,14 @@ using namespace ceph;
     _raw->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
+  buffer::ptr::ptr(const ptr& p, std::unique_ptr<raw> r)
+    : _raw(r.release()),
+      _off(p._off),
+      _len(p._len)
+  {
+    _raw->nref.store(1, std::memory_order_release);
+    bdout << "ptr " << this << " get " << _raw << bendl;
+  }
   buffer::ptr& buffer::ptr::operator= (const ptr& p)
   {
     if (p._raw) {
@@ -600,7 +608,7 @@ using namespace ceph;
     return *this;
   }
 
-  buffer::raw *buffer::ptr::clone()
+  std::unique_ptr<buffer::raw> buffer::ptr::clone()
   {
     return _raw->clone();
   }
@@ -2409,6 +2417,26 @@ buffer::hangable_ptr& buffer::hangable_ptr::create_hypercombined(
 {
   ceph_assert(r->nref == 0);
   return *new (&r->bptr_storage) hangable_ptr(r);
+}
+
+buffer::hangable_ptr& buffer::hangable_ptr::copy_hypercombined(
+  const buffer::hangable_ptr& copy_this)
+{
+  auto raw_new = copy_this.get_raw()->clone();
+  return *new (&raw_new->bptr_storage)
+    hangable_ptr(copy_this, std::move(raw_new));
+}
+
+buffer::hangable_ptr* buffer::hangable_ptr::cloner::operator()(
+  const buffer::hangable_ptr& clone_this)
+{
+  const raw* const raw_this = clone_this.get_raw();
+  if (likely(!raw_this || raw_this->is_shareable())) {
+    return new hangable_ptr(clone_this);
+  } else {
+    // clone non-shareable buffers (make shareable)
+   return &copy_hypercombined(clone_this);
+  }
 }
 
 std::ostream& buffer::operator<<(std::ostream& out, const buffer::raw &r) {

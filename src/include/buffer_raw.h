@@ -87,10 +87,10 @@ public:
       return data;
     }
     virtual raw* clone_empty() = 0;
-    raw *clone() {
-      raw *c = clone_empty();
+    std::unique_ptr<raw> clone() {
+      raw* const c = clone_empty();
       memcpy(c->data, data, len);
-      return c;
+      return std::unique_ptr<raw>(c);
     }
     virtual bool is_shareable() {
       // true if safe to reference/share the existing buffer copy
