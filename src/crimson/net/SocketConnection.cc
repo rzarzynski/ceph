@@ -55,7 +55,7 @@ SocketConnection::SocketConnection(SocketMessenger& messenger,
 
 SocketConnection::~SocketConnection()
 {
-  ceph_assert(pending_dispatch.is_closed());
+  ceph_assert(dispatch_gate.is_closed());
   // errors were reported to callers of send()
   ceph_assert(send_ready.available());
   send_ready.ignore_ready_future();
@@ -90,10 +90,14 @@ void SocketConnection::read_tags_until_next_message()
             break;
           case CEPH_MSGR_TAG_KEEPALIVE2:
             return handle_keepalive2()
-              .then([this] { return stop_t::no; });
+              .then([this] {
+                  return seastar::make_ready_future<stop_t>(stop_t::no);
+                });
           case CEPH_MSGR_TAG_KEEPALIVE2_ACK:
             return handle_keepalive2_ack()
-              .then([this] { return stop_t::no; });
+              .then([this] {
+                  return seastar::make_ready_future<stop_t>(stop_t::no);
+                });
           case CEPH_MSGR_TAG_CLOSE:
             std::cout << "close" << std::endl;
             break;
@@ -117,7 +121,7 @@ seastar::future<seastar::stop_iteration> SocketConnection::handle_ack()
     .then([this] (auto buf) {
       auto seq = reinterpret_cast<const ceph_le64*>(buf.get());
       discard_up_to(&sent, *seq);
-      return stop_t::no;
+      return seastar::make_ready_future<stop_t>(stop_t::no);
     });
 }
 
@@ -316,11 +320,11 @@ seastar::future<> SocketConnection::close()
   if (socket) {
     close_ready = socket->close()
       .then([this] {
-        return pending_dispatch.close();
+        return dispatch_gate.close();
       }).finally(std::move(cleanup));
   } else {
     ceph_assert(state == state_t::connecting);
-    close_ready = pending_dispatch.close().finally(std::move(cleanup));
+    close_ready = dispatch_gate.close().finally(std::move(cleanup));
   }
   state = state_t::closing;
   return close_ready.get_future();
@@ -495,7 +499,7 @@ SocketConnection::send_connect_reply(msgr_tag_t tag,
     .then([this, reply=std::move(authorizer_reply)]() mutable {
       return socket->write_flush(std::move(reply));
     }).then([] {
-      return stop_t::no;
+      return seastar::make_ready_future<stop_t>(stop_t::no);
     });
 }
 
@@ -533,7 +537,7 @@ SocketConnection::send_connect_reply_ready(msgr_tag_t tag,
         return socket->flush();
       }
     }).then([this] {
-      return stop_t::yes;
+      return seastar::make_ready_future<stop_t>(stop_t::yes);
     });
 }
 
@@ -645,7 +649,7 @@ SocketConnection::handle_connect_reply(msgr_tag_t tag)
     return dispatcher.ms_get_authorizer(peer_type, true)
       .then([this](auto&& auth) {
         h.authorizer = std::move(auth);
-        return stop_t::no;
+        return seastar::make_ready_future<stop_t>(stop_t::no);
       });
   case CEPH_MSGR_TAG_RESETSESSION:
     reset_session();
@@ -662,22 +666,19 @@ SocketConnection::handle_connect_reply(msgr_tag_t tag)
     throw std::system_error(make_error_code(error::negotiation_failure));
   case CEPH_MSGR_TAG_SEQ:
   case CEPH_MSGR_TAG_READY:
-    if (auto missing = (policy.features_required & ~(uint64_t)h.reply.features);
-        missing) {
-      logger().error("{} missing required features", __func__);
-      throw std::system_error(make_error_code(error::negotiation_failure));
-    }
-    return seastar::futurize_apply([this, tag] {
-        if (tag == CEPH_MSGR_TAG_SEQ) {
-          return socket->read_exactly(sizeof(seq_num_t))
-            .then([this] (auto buf) {
-              auto acked_seq = reinterpret_cast<const seq_num_t*>(buf.get());
-              discard_up_to(&out_q, *acked_seq);
-              return socket->write_flush(make_static_packet(in_seq));
-            });
-        }
-        // tag CEPH_MSGR_TAG_READY
-        return seastar::now();
+    break;
+  }
+  if (auto missing = (policy.features_required & ~(uint64_t)h.reply.features);
+      missing) {
+    logger().error("{} missing required features", __func__);
+    throw std::system_error(make_error_code(error::negotiation_failure));
+  }
+  if (tag == CEPH_MSGR_TAG_SEQ) {
+    return socket->read_exactly(sizeof(seq_num_t))
+      .then([this] (auto buf) {
+        auto acked_seq = reinterpret_cast<const seq_num_t*>(buf.get());
+        discard_up_to(&out_q, *acked_seq);
+        return socket->write_flush(make_static_packet(in_seq));
       }).then([this] {
         // hooray!
         h.peer_global_seq = h.reply.global_seq;
@@ -695,8 +696,25 @@ SocketConnection::handle_connect_reply(msgr_tag_t tag)
         h.authorizer.reset();
         return seastar::make_ready_future<stop_t>(stop_t::yes);
       });
-    break;
-  default:
+  }
+  if (tag == CEPH_MSGR_TAG_READY) {
+    // hooray!
+    h.peer_global_seq = h.reply.global_seq;
+    policy.lossy = h.reply.flags & CEPH_MSG_CONNECT_LOSSY;
+    state = state_t::open;
+    h.connect_seq++;
+    h.backoff = 0ms;
+    set_features(h.reply.features & h.connect.features);
+    if (h.authorizer) {
+      session_security.reset(
+          get_auth_session_handler(nullptr,
+                                   h.authorizer->protocol,
+                                   h.authorizer->session_key,
+                                   features));
+    }
+    h.authorizer.reset();
+    return seastar::make_ready_future<stop_t>(stop_t::yes);
+  } else {
     // unknown tag
     logger().error("{} got unknown tag", __func__, int(tag));
     throw std::system_error(make_error_code(error::negotiation_failure));
@@ -769,9 +787,8 @@ SocketConnection::repeat_connect()
     });
 }
 
-void
-SocketConnection::start_connect(const entity_addr_t& _peer_addr,
-                                const entity_type_t& _peer_type)
+void SocketConnection::start_connect(const entity_addr_t& _peer_addr,
+                                     const entity_type_t& _peer_type)
 {
   ceph_assert(state == state_t::none);
   ceph_assert(!socket);
@@ -779,7 +796,7 @@ SocketConnection::start_connect(const entity_addr_t& _peer_addr,
   peer_type = _peer_type;
   messenger.register_conn(this);
   state = state_t::connecting;
-  seastar::with_gate(pending_dispatch, [this] {
+  seastar::with_gate(dispatch_gate, [this] {
       return seastar::connect(peer_addr.in4_addr())
         .then([this](seastar::connected_socket fd) {
           if (state == state_t::closing) {
@@ -810,7 +827,7 @@ SocketConnection::start_connect(const entity_addr_t& _peer_addr,
           ::encode(my_addr, bl, 0);
           h.global_seq = messenger.get_global_seq();
           return socket->write_flush(std::move(bl));
-        }).then([=] {
+        }).then([this] {
           return seastar::repeat([this] {
             return repeat_connect();
           });
@@ -819,21 +836,25 @@ SocketConnection::start_connect(const entity_addr_t& _peer_addr,
           //       and let the reconnect happen transparently inside connection
           // satisfy the handshake's promise
           fut.forward_to(std::move(h.promise));
+          // trigger open state
+          execute_open();
         }).then([this] {
           // notify the dispatcher and allow them to reject the connection
-          return dispatcher.ms_handle_connect(this);
+          return seastar::with_gate(messenger.pending_dispatch, [this] {
+            return dispatcher.ms_handle_connect(this);
         }).then([this] {
           execute_open();
         }).handle_exception([this] (std::exception_ptr eptr) {
-          // TODO: handle fault in the connecting state
-          close();
+          // connecting fault
+          // TODO: if not policy.lossy and not marked close
+          //         close the socket and reconnect
+          return close();
         });
     });
 }
 
-void
-SocketConnection::start_accept(seastar::connected_socket&& fd,
-                               const entity_addr_t& _peer_addr)
+void SocketConnection::start_accept(seastar::connected_socket&& fd,
+                                    const entity_addr_t& _peer_addr)
 {
   ceph_assert(state == state_t::none);
   ceph_assert(!socket);
@@ -841,7 +862,7 @@ SocketConnection::start_accept(seastar::connected_socket&& fd,
   socket.emplace(std::move(fd));
   messenger.accept_conn(this);
   state = state_t::accepting;
-  seastar::with_gate(pending_dispatch, [this] {
+  seastar::with_gate(dispatch_gate, [this] {
       // encode/send server's handshake header
       bufferlist bl;
       bl.append(buffer::create_static(banner_size, banner));
@@ -871,30 +892,35 @@ SocketConnection::start_accept(seastar::connected_socket&& fd,
           fut.forward_to(std::move(h.promise));
         }).then([this] {
           // notify the dispatcher and allow them to reject the connection
-          return dispatcher.ms_handle_accept(this);
+          return seastar::with_gate(messenger.pending_dispatch, [this] {
+              return dispatcher.ms_handle_accept(this);
+            });
         }).then([this] {
+          fut.forward_to(std::move(h.promise));
+          // trigger open state
           messenger.register_conn(this);
           messenger.unaccept_conn(this);
           execute_open();
         }).handle_exception([this] (std::exception_ptr eptr) {
           // TODO: handle fault in the accepting state
-          close();
+          return close();
         });
     });
 }
 
-void
-SocketConnection::execute_open()
+void SocketConnection::execute_open()
 {
   state = state_t::open;
-  seastar::with_gate(pending_dispatch, [this] {
+  seastar::with_gate(dispatch_gate, [this] {
       // start background processing of tags
       read_tags_until_next_message();
+      // dispatch messages until the connection closes or the dispatch
+      // queue shuts down
       return seastar::keep_doing([this] {
           return read_message()
             .then([this] (MessageRef msg) {
               // start dispatch, ignoring exceptions from the application layer
-              seastar::with_gate(pending_dispatch, [this, msg = std::move(msg)] {
+              seastar::with_gate(messenger.pending_dispatch, [this, msg = std::move(msg)] {
                   return dispatcher.ms_dispatch(this, std::move(msg))
                     .handle_exception([] (std::exception_ptr eptr) {});
                 });
@@ -904,9 +930,13 @@ SocketConnection::execute_open()
         }).handle_exception_type([this] (const std::system_error& e) {
           if (e.code() == error::connection_aborted ||
               e.code() == error::connection_reset) {
-            return dispatcher.ms_handle_reset(this);
+            return seastar::with_gate(messenger.pending_dispatch, [this] {
+                return dispatcher.ms_handle_reset(this);
+              });
           } else if (e.code() == error::read_eof) {
-            return dispatcher.ms_handle_remote_reset(this);
+            return seastar::with_gate(messenger.pending_dispatch, [this] {
+                return dispatcher.ms_handle_remote_reset(this);
+              });
           } else {
             throw e;
           }

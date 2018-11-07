@@ -36,6 +36,7 @@ using SocketConnectionRef = boost::intrusive_ptr<SocketConnection>;
 
 class SocketConnection : public Connection {
   SocketMessenger& messenger;
+  Dispatcher& dispatcher;
   std::optional<Socket> socket;
   Dispatcher& dispatcher;
   seastar::gate pending_dispatch;
@@ -153,6 +154,8 @@ class SocketConnection : public Connection {
 
   seastar::future<> fault();
 
+  /// read a message from a connection that has completed its handshake
+  seastar::future<MessageRef> read_message();
   void execute_open();
 
  public:
@@ -184,9 +187,6 @@ class SocketConnection : public Connection {
   /// only call when SocketConnection first construct
   void start_accept(seastar::connected_socket&& socket,
                     const entity_addr_t& peer_addr);
-
-  /// read a message from a connection that has completed its handshake
-  seastar::future<MessageRef> read_message();
 
   /// the number of connections initiated in this session, increment when a
   /// new connection is established
