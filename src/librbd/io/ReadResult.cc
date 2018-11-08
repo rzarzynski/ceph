@@ -57,7 +57,7 @@ struct ReadResult::AssembleResultVisitor : public boost::static_visitor<void> {
     ldout(cct, 20) << "copying resulting " << bl.length() << " bytes to iovec "
                    << reinterpret_cast<const void*>(vector.iov) << dendl;
 
-    bufferlist::iterator it = bl.begin();
+    auto it = std::cbegin(bl);
     size_t length = bl.length();
     size_t offset = 0;
     int idx = 0;
