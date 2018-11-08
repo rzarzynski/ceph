@@ -770,7 +770,7 @@ TEST(BufferListIterator, constructors) {
   // iterator()
   //
   {
-    buffer::list::iterator i;
+    buffer::list::const_iterator i;
     EXPECT_EQ((unsigned)0, i.get_off());
   }
 
@@ -782,19 +782,19 @@ TEST(BufferListIterator, constructors) {
     bl.append("ABC", 3);
 
     {
-      bufferlist::iterator i(&bl);
+      bufferlist::const_iterator i(&bl);
       EXPECT_EQ((unsigned)0, i.get_off());
       EXPECT_EQ('A', *i);
     }
     {
-      bufferlist::iterator i(&bl, 1);
+      bufferlist::const_iterator i(&bl, 1);
       EXPECT_EQ('B', *i);
       EXPECT_EQ((unsigned)2, i.get_remaining());
     }
   }
 
   //
-  // iterator(list *l, unsigned o, std::list<ptr>::iterator ip, unsigned po)
+  // iterator(list *l, unsigned o, std::list<ptr>::const_iterator ip, unsigned po)
   // not tested because of http://tracker.ceph.com/issues/4101
 
   //
@@ -803,8 +803,8 @@ TEST(BufferListIterator, constructors) {
   {
     bufferlist bl;
     bl.append("ABC", 3);
-    bufferlist::iterator i(&bl, 1);
-    bufferlist::iterator j(i);
+    bufferlist::const_iterator i(&bl, 1);
+    bufferlist::const_iterator j(i);
     EXPECT_EQ(*i, *j);
     ++j;
     EXPECT_NE(*i, *j);
@@ -819,7 +819,7 @@ TEST(BufferListIterator, constructors) {
   {
     bufferlist bl;
     bl.append("ABC", 3);
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     bufferlist::const_iterator ci(i);
     EXPECT_EQ(0u, ci.get_off());
     EXPECT_EQ('A', *ci);
@@ -840,11 +840,11 @@ TEST(BufferListIterator, empty_create_append_copy) {
 TEST(BufferListIterator, operator_assign) {
   bufferlist bl;
   bl.append("ABC", 3);
-  bufferlist::iterator i(&bl, 1);
+  bufferlist::const_iterator i(&bl, 1);
 
   i = i;
   EXPECT_EQ('B', *i);
-  bufferlist::iterator j;
+  bufferlist::const_iterator j;
   j = i;
   EXPECT_EQ('B', *j);
 }
@@ -852,26 +852,26 @@ TEST(BufferListIterator, operator_assign) {
 TEST(BufferListIterator, get_off) {
   bufferlist bl;
   bl.append("ABC", 3);
-  bufferlist::iterator i(&bl, 1);
+  bufferlist::const_iterator i(&bl, 1);
   EXPECT_EQ((unsigned)1, i.get_off());
 }
 
 TEST(BufferListIterator, get_remaining) {
   bufferlist bl;
   bl.append("ABC", 3);
-  bufferlist::iterator i(&bl, 1);
+  bufferlist::const_iterator i(&bl, 1);
   EXPECT_EQ((unsigned)2, i.get_remaining());
 }
 
 TEST(BufferListIterator, end) {
   bufferlist bl;
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_TRUE(i.end());
   }
   bl.append("ABC", 3);
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_FALSE(i.end());
   }
 }
@@ -884,11 +884,11 @@ TEST(BufferListIterator, advance) {
   bl.append(bufferptr(two.c_str(), two.size()));
 
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_THROW(i.advance(200u), buffer::end_of_buffer);
   }
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_EQ('A', *i);
     i.advance(1u);
     EXPECT_EQ('B', *i);
@@ -954,7 +954,7 @@ TEST(BufferListIterator, get_ptr_and_advance)
   bl.append(b);
   bl.append(c);
   const char *ptr;
-  bufferlist::iterator p = bl.begin();
+  bufferlist::const_iterator p = bl.begin();
   ASSERT_EQ(3u, p.get_ptr_and_advance(11u, &ptr));
   ASSERT_EQ(bl.length() - 3u, p.get_remaining());
   ASSERT_EQ(0, memcmp(ptr, "one", 3));
@@ -982,7 +982,7 @@ TEST(BufferListIterator, iterator_crc32c) {
   s = s1 + s2 + s3;
   bl2.append(s);
 
-  bufferlist::iterator it = bl2.begin();
+  bufferlist::const_iterator it = bl2.begin();
   ASSERT_EQ(bl1.crc32c(0), it.crc32c(it.get_remaining(), 0));
   ASSERT_EQ(0u, it.get_remaining());
 
@@ -1006,7 +1006,7 @@ TEST(BufferListIterator, iterator_crc32c) {
 TEST(BufferListIterator, seek) {
   bufferlist bl;
   bl.append("ABC", 3);
-  bufferlist::iterator i(&bl, 1);
+  bufferlist::const_iterator i(&bl, 1);
   EXPECT_EQ('B', *i);
   i.seek(2);
   EXPECT_EQ('C', *i);
@@ -1015,12 +1015,12 @@ TEST(BufferListIterator, seek) {
 TEST(BufferListIterator, operator_star) {
   bufferlist bl;
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_THROW(*i, buffer::end_of_buffer);
   }
   bl.append("ABC", 3);
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_EQ('A', *i);
     EXPECT_THROW(i.advance(200u), buffer::end_of_buffer);
     EXPECT_THROW(*i, buffer::end_of_buffer);
@@ -1031,13 +1031,13 @@ TEST(BufferListIterator, operator_equal) {
   bufferlist bl;
   bl.append("ABC", 3);
   {
-    bufferlist::iterator i(&bl);
-    bufferlist::iterator j(&bl);
+    bufferlist::const_iterator i(&bl);
+    bufferlist::const_iterator j(&bl);
     EXPECT_EQ(i, j);
   }
   {
     bufferlist::const_iterator ci = bl.begin();
-    bufferlist::iterator i = bl.begin();
+    bufferlist::const_iterator i = bl.begin();
     EXPECT_EQ(i, ci);
     EXPECT_EQ(ci, i);
   }
@@ -1047,8 +1047,8 @@ TEST(BufferListIterator, operator_nequal) {
   bufferlist bl;
   bl.append("ABC", 3);
   {
-    bufferlist::iterator i(&bl);
-    bufferlist::iterator j(&bl);
+    bufferlist::const_iterator i(&bl);
+    bufferlist::const_iterator j(&bl);
     EXPECT_NE(++i, j);
   }
   {
@@ -1056,7 +1056,7 @@ TEST(BufferListIterator, operator_nequal) {
     bufferlist::const_iterator cj = bl.begin();
     ++ci;
     EXPECT_NE(ci, cj);
-    bufferlist::iterator i = bl.begin();
+    bufferlist::const_iterator i = bl.begin();
     EXPECT_NE(i, ci);
     EXPECT_NE(ci, i);
   }
@@ -1073,12 +1073,12 @@ TEST(BufferListIterator, operator_nequal) {
 TEST(BufferListIterator, operator_plus_plus) {
   bufferlist bl;
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_THROW(++i, buffer::end_of_buffer);
   }
   bl.append("ABC", 3);
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     ++i;
     EXPECT_EQ('B', *i);
   }
@@ -1087,12 +1087,12 @@ TEST(BufferListIterator, operator_plus_plus) {
 TEST(BufferListIterator, get_current_ptr) {
   bufferlist bl;
   {
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     EXPECT_THROW(++i, buffer::end_of_buffer);
   }
   bl.append("ABC", 3);
   {
-    bufferlist::iterator i(&bl, 1);
+    bufferlist::const_iterator i(&bl, 1);
     const buffer::ptr ptr = i.get_current_ptr();
     EXPECT_EQ('B', ptr[0]);
     EXPECT_EQ((unsigned)1, ptr.offset());
@@ -1110,7 +1110,7 @@ TEST(BufferListIterator, copy) {
   {
     char* copy = (char*)malloc(3);
     ::memset(copy, 'X', 3);
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     //
     // demonstrates that it seeks back to offset if p == ls->end()
     //
@@ -1124,33 +1124,33 @@ TEST(BufferListIterator, copy) {
     free(copy);
   }
   //
-  // void buffer::list::iterator::copy_deep(unsigned len, ptr &dest)
+  // void buffer::list::const_iterator::copy_deep(unsigned len, ptr &dest)
   //
   {
     bufferptr ptr;
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     i.copy_deep(2, ptr);
     EXPECT_EQ((unsigned)2, ptr.length());
     EXPECT_EQ('A', ptr[0]);
     EXPECT_EQ('B', ptr[1]);
   }
   //
-  // void buffer::list::iterator::copy_shallow(unsigned len, ptr &dest)
+  // void buffer::list::const_iterator::copy_shallow(unsigned len, ptr &dest)
   //
   {
     bufferptr ptr;
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     i.copy_shallow(2, ptr);
     EXPECT_EQ((unsigned)2, ptr.length());
     EXPECT_EQ('A', ptr[0]);
     EXPECT_EQ('B', ptr[1]);
   }
   //
-  // void buffer::list::iterator::copy(unsigned len, list &dest)
+  // void buffer::list::const_iterator::copy(unsigned len, list &dest)
   //
   {
     bufferlist copy;
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     //
     // demonstrates that it seeks back to offset if p == ls->end()
     //
@@ -1167,11 +1167,11 @@ TEST(BufferListIterator, copy) {
     EXPECT_EQ((unsigned)(2 + 3), copy.length());
   }
   //
-  // void buffer::list::iterator::copy_all(list &dest)
+  // void buffer::list::const_iterator::copy_all(list &dest)
   //
   {
     bufferlist copy;
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     //
     // demonstrates that it seeks back to offset if p == ls->end()
     //
@@ -1187,7 +1187,7 @@ TEST(BufferListIterator, copy) {
   //
   {
     std::string copy;
-    bufferlist::iterator i(&bl);
+    bufferlist::const_iterator i(&bl);
     //
     // demonstrates that it seeks back to offset if p == ls->end()
     //
@@ -1737,7 +1737,7 @@ TEST(BufferList, rebuild) {
     bl.rebuild();
     bl.append(a2);
     EXPECT_EQ((unsigned)1, bl.length());
-    bufferlist::iterator p = bl.begin();
+    bufferlist::const_iterator p = bl.begin();
     char dst[1];
     p.copy(1, dst);
     EXPECT_EQ(0, memcmp(dst, "X", 1));
@@ -1884,14 +1884,14 @@ TEST(BufferList, claim_append_piecewise) {
 TEST(BufferList, begin) {
   bufferlist bl;
   bl.append("ABC");
-  bufferlist::iterator i = bl.begin();
+  bufferlist::const_iterator i = bl.begin();
   EXPECT_EQ('A', *i);
 }
 
 TEST(BufferList, end) {
   bufferlist bl;
   bl.append("AB");
-  bufferlist::iterator i = bl.end();
+  bufferlist::const_iterator i = bl.end();
   bl.append("C");
   EXPECT_EQ('C', bl[i.get_off()]);
 }
@@ -2783,20 +2783,20 @@ TEST(BufferList, TestCloneNonShareable) {
   bufferlist bl_copied_noshare = bl_noshare;
 
   // assert shared bufferlist has same buffers
-  bufferlist::iterator iter_bl = bl.begin();
-  bufferlist::iterator iter_bl_share = bl_share.begin();
+  bufferlist::const_iterator iter_bl = bl.begin();
+  bufferlist::const_iterator iter_bl_share = bl_share.begin();
   // ok, this considers ptr::off, but it's still a true assertion (and below)
   ASSERT_TRUE(iter_bl.get_current_ptr().c_str() ==
 	      iter_bl_share.get_current_ptr().c_str());
 
   // assert copy of shareable bufferlist has same buffers
   iter_bl = bl.begin();
-  bufferlist::iterator iter_bl_copied_share = bl_copied_share.begin();
+  bufferlist::const_iterator iter_bl_copied_share = bl_copied_share.begin();
   ASSERT_TRUE(iter_bl.get_current_ptr().c_str() ==
 	      iter_bl_copied_share.get_current_ptr().c_str());
 
   // assert copy of non-shareable bufferlist has different buffers
-  bufferlist::iterator iter_bl_copied_noshare = bl_copied_noshare.begin();
+  bufferlist::const_iterator iter_bl_copied_noshare = bl_copied_noshare.begin();
   ASSERT_FALSE(iter_bl.get_current_ptr().c_str() ==
 	       iter_bl_copied_noshare.get_current_ptr().c_str());
 
@@ -2805,7 +2805,7 @@ TEST(BufferList, TestCloneNonShareable) {
   void* addr = bl_noshare.begin().get_current_ptr().c_str();
   bl_claim_noshare_override.claim(bl_noshare,
 				  buffer::list::CLAIM_ALLOW_NONSHAREABLE);
-  bufferlist::iterator iter_bl_noshare_override =
+  bufferlist::const_iterator iter_bl_noshare_override =
     bl_claim_noshare_override.begin();
   ASSERT_TRUE(addr /* the original first segment of bl_noshare() */ ==
 	      iter_bl_noshare_override.get_current_ptr().c_str());
@@ -2821,7 +2821,7 @@ TEST(BufferList, TestCopyAll) {
   }
   bufferlist bl;
   bl.append((const char*)big.get(), BIG_SZ);
-  bufferlist::iterator i = bl.begin();
+  bufferlist::const_iterator i = bl.begin();
   bufferlist bl2;
   i.copy_all(bl2);
   ASSERT_EQ(bl2.length(), BIG_SZ);
