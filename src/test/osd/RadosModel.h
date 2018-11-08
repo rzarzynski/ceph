@@ -1492,8 +1492,8 @@ public:
 	  map<string, bufferlist>::iterator omap_iter = omap.find(iter->first);
 	  ceph_assert(omap_iter != omap.end());
 	  ceph_assert(bl.length() == omap_iter->second.length());
-	  bufferlist::iterator k = bl.begin();
-	  for(bufferlist::iterator l = omap_iter->second.begin();
+	  auto k = std::cbegin(bl);
+	  for(auto l = std::cbegin(omap_iter->second);
 	      !k.end() && !l.end();
 	      ++k, ++l) {
 	    ceph_assert(*l == *k);
@@ -1502,8 +1502,8 @@ public:
 	map<string, bufferlist>::iterator xattr_iter = xattrs.find(iter->first);
 	ceph_assert(xattr_iter != xattrs.end());
 	ceph_assert(bl.length() == xattr_iter->second.length());
-	bufferlist::iterator k = bl.begin();
-	for (bufferlist::iterator j = xattr_iter->second.begin();
+	auto k = std::cbegin(bl);
+	for (auto j = std::cbegin(xattr_iter->second);
 	     !k.end() && !j.end();
 	     ++j, ++k) {
 	  ceph_assert(*j == *k);

@@ -66,7 +66,7 @@ TEST_F(TestEntry, IsReadableBadPreamble) {
   encode(entry, full_bl);
 
   uint32_t bytes_needed;
-  bufferlist::iterator it = full_bl.begin();
+  auto it = std::cbegin(full_bl);
   ASSERT_FALSE(journal::Entry::is_readable(it, &bytes_needed));
   ASSERT_EQ(0U, bytes_needed);
 

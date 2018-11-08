@@ -308,7 +308,7 @@ void FileStoreTracker::verify(const coll_t &coll, const string &obj,
       continue;
     }
 
-    bufferlist::iterator bp = contents.begin();
+    auto bp = std::cbegin(contents);
     ObjectContents::Iterator iter = old_contents.get_iterator();
     iter.seek_to_first();
     bool matches = true;

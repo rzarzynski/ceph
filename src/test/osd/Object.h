@@ -80,9 +80,7 @@ public:
     }
     virtual bool check_bl_advance(bufferlist &bl, uint64_t *off = nullptr) {
       uint64_t _off = 0;
-      for (bufferlist::iterator i = bl.begin();
-	   !i.end();
-	   ++i, ++_off, ++(*this)) {
+      for (auto i = std::cbegin(bl); !i.end(); ++i, ++_off, ++(*this)) {
 	if (*i != **this) {
 	  if (off)
 	    *off = _off;

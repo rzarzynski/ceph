@@ -249,8 +249,8 @@ protected:
 public:
   void assert_bl_eq(bufferlist &bl1, bufferlist &bl2) {
     ASSERT_EQ(bl1.length(), bl2.length());
-    bufferlist::iterator j = bl2.begin();
-    for (bufferlist::iterator i = bl1.begin();
+    auto j = std::cbegin(bl2);
+    for (auto i = std::cbegin(bl1);
 	 !i.end();
 	 ++i, ++j) {
       ASSERT_TRUE(!j.end());
