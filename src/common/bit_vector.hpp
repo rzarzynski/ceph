@@ -51,32 +51,25 @@ private:
 
 public:
 
-  class ConstReference : public ReferenceImpl<bufferlist::const_iterator> {
+  class ConstReference : public ReferenceImpl<const char*> {
   private:
     friend class BitVector;
 
-    ConstReference(const bufferlist::const_iterator& data_iterator,
+    ConstReference(const char* data_iterator,
                    uint64_t shift)
-      : ReferenceImpl<bufferlist::const_iterator>(data_iterator, shift) {
-    }
-    ConstReference(bufferlist::const_iterator&& data_iterator, uint64_t shift)
-      : ReferenceImpl<bufferlist::const_iterator>(std::move(data_iterator),
-                                                  shift) {
+      : ReferenceImpl<const char*>(data_iterator, shift) {
     }
   };
 
-  class Reference : public ReferenceImpl<bufferlist::iterator> {
+  class Reference : public ReferenceImpl<char*> {
   public:
     Reference& operator=(uint8_t v);
 
   private:
     friend class BitVector;
 
-    Reference(const bufferlist::iterator& data_iterator, uint64_t shift)
-      : ReferenceImpl<bufferlist::iterator>(data_iterator, shift) {
-    }
-    Reference(bufferlist::iterator&& data_iterator, uint64_t shift)
-      : ReferenceImpl<bufferlist::iterator>(std::move(data_iterator), shift) {
+    Reference(char* data_iterator, uint64_t shift)
+      : ReferenceImpl<char*>(data_iterator, shift) {
     }
   };
 
@@ -92,11 +85,13 @@ public:
     // cached derived values
     uint64_t m_index = 0;
     uint64_t m_shift = 0;
+    DataIterator m_data_begin;
     DataIterator m_data_iterator;
 
     IteratorImpl(BitVectorT *bit_vector, uint64_t offset)
       : m_bit_vector(bit_vector),
-        m_data_iterator(bit_vector->m_data.begin()) {
+        m_data_begin(bit_vector->m_data.data()),
+        m_data_iterator(m_data_begin) {
       *this += offset;
     }
 
@@ -118,9 +113,9 @@ public:
       m_offset += offset;
       compute_index(m_offset, &m_index, &m_shift);
       if (m_offset < m_bit_vector->size()) {
-        m_data_iterator.seek(m_index);
+        m_data_iterator = m_data_begin + m_index;
       } else {
-        m_data_iterator = m_bit_vector->m_data.end();
+        m_data_iterator = m_data_begin + m_bit_vector->m_data.length();
       }
       return *this;
     }
@@ -151,9 +146,8 @@ public:
     }
   };
 
-  typedef IteratorImpl<const BitVector,
-                       bufferlist::const_iterator> ConstIterator;
-  typedef IteratorImpl<BitVector, bufferlist::iterator> Iterator;
+  typedef IteratorImpl<const BitVector, const char*> ConstIterator;
+  typedef IteratorImpl<BitVector, char*> Iterator;
 
   static const uint32_t BLOCK_SIZE;
   static const uint8_t BIT_COUNT = _bit_count;
@@ -209,7 +203,7 @@ public:
   static void generate_test_instances(std::list<BitVector *> &o);
 private:
 
-  bufferlist m_data;
+  mutable bufferlist m_data;
   uint64_t m_size;
   bool m_crc_enabled;
 
@@ -466,10 +460,7 @@ typename BitVector<_b>::Reference BitVector<_b>::operator[](uint64_t offset) {
   uint64_t index;
   uint64_t shift;
   compute_index(offset, &index, &shift);
-
-  bufferlist::iterator data_iterator(m_data.begin());
-  data_iterator.seek(index);
-  return Reference(std::move(data_iterator), shift);
+  return Reference(m_data.data() + index, shift);
 }
 
 template <uint8_t _b>
@@ -477,10 +468,7 @@ typename BitVector<_b>::ConstReference BitVector<_b>::operator[](uint64_t offset
   uint64_t index;
   uint64_t shift;
   compute_index(offset, &index, &shift);
-
-  bufferlist::const_iterator data_iterator(m_data.begin());
-  data_iterator.seek(index);
-  return ConstReference(std::move(data_iterator), shift);
+  return ConstReference(m_data.c_str() + index, shift);
 }
 
 template <uint8_t _b>
@@ -488,8 +476,7 @@ typename BitVector<_b>::Reference& BitVector<_b>::Reference::operator=(uint8_t v
   uint8_t mask = MASK << this->m_shift;
   char packed_value = (*this->m_data_iterator & ~mask) |
                       ((v << this->m_shift) & mask);
-  bufferlist::iterator it(this->m_data_iterator);
-  it.copy_in(1, &packed_value, true);
+  *this->m_data_iterator = packed_value;
   return *this;
 }
 
