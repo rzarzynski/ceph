@@ -266,6 +266,7 @@ namespace buffer CEPH_BUFFER_API {
     ptr() : _raw(nullptr), _off(0), _len(0) {}
     // cppcheck-suppress noExplicitConstructor
     ptr(raw* r);
+    ptr(std::unique_ptr<raw> r);
     // cppcheck-suppress noExplicitConstructor
     ptr(unsigned l);
     ptr(const char *d, unsigned l);

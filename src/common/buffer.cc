@@ -535,6 +535,14 @@ using namespace ceph;
     r->nref++;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
+  buffer::ptr::ptr(std::unique_ptr<raw> r)
+    : _raw(r.release()),
+      _off(0),
+      _len(_raw->len)
+  {
+    _raw->nref.store(1, std::memory_order_release);
+    bdout << "ptr " << this << " get " << _raw << bendl;
+  }
   buffer::ptr::ptr(unsigned l) : _off(0), _len(l)
   {
     _raw = create(l);
