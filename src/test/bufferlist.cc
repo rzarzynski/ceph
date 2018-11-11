@@ -1876,6 +1876,7 @@ TEST(BufferList, claim_append_piecewise) {
 
   EXPECT_FALSE(t.is_aligned_size_and_memory(CEPH_PAGE_SIZE, CEPH_PAGE_SIZE));
   dst.claim_append_piecewise(t);
+  std::cout << dst << std::endl;
   EXPECT_TRUE(dst.is_aligned_size_and_memory(CEPH_PAGE_SIZE, CEPH_PAGE_SIZE));
   const char *p1 = dst.c_str();
   EXPECT_TRUE(p == p1);
