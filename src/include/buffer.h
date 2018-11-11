@@ -1043,6 +1043,9 @@ namespace buffer CEPH_BUFFER_API {
     void copy(unsigned off, unsigned len, list &dest, constiter_hint_t& p_last) const;
     void copy(unsigned off, unsigned len, std::string& dest, constiter_hint_t& p_last) const;
 
+    // copy data in
+    void copy_in(unsigned off, unsigned len, const list& src);
+
     void append(char c);
     void append(const char *data, unsigned len);
     void append(std::string s) {

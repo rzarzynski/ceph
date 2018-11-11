@@ -3091,11 +3091,10 @@ struct C_ProxyChunkRead : public Context {
 	} else {
 	  copy_offset = 0;
 	}
-      } 	
-//      prdop->ops[op_index].outdata.copy_in(copy_offset, obj_op->ops[0].outdata.length(),
-//                                           obj_op->ops[0].outdata.c_str());
+	prdop->ops[op_index].outdata.copy_in(copy_offset, obj_op->ops[0].outdata.length(),
+					     obj_op->ops[0].outdata);
+      }
 
-      
       pg->finish_proxy_read(oid, tid, r);
       pg->osd->logger->tinc(l_osd_tier_r_lat, ceph_clock_now() - start);
       if (obj_op) {

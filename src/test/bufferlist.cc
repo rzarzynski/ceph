@@ -1977,6 +1977,21 @@ TEST(BufferList, copy) {
   }
 }
 
+TEST(BufferList, copy_in) {
+  //
+  // void copy_in(unsigned off, unsigned len, const list& src);
+  //
+  {
+    bufferlist bl;
+    bl.append("XXX");
+    bufferlist src;
+    src.append("ABC");
+    EXPECT_THROW(bl.copy_in((unsigned)100, (unsigned)100, src), buffer::end_of_buffer);
+    bl.copy_in(1, 2, src);
+    EXPECT_EQ(0, ::memcmp("XAB", bl.c_str(), 3));
+  }
+}
+
 TEST(BufferList, append) {
   //
   // void append(char c);

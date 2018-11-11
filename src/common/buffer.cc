@@ -1566,6 +1566,22 @@ using namespace ceph;
     copy(off, len, dest, last_p);
   }
 
+  void buffer::list::copy_in(unsigned off, unsigned len, const buffer::list& src)
+  {
+    if (off > _len) {
+      throw end_of_buffer();
+    }
+
+    char* const pdata = data();
+    for (const auto& node : src.buffers()) {
+      const auto round_len = std::min(len, node.length());
+      ::memcpy(pdata + off, node.c_str(), round_len);
+      len -= round_len;
+      off += round_len;
+    }
+    invalidate_crc();
+  }
+
   void buffer::list::append(char c)
   {
     // put what we can into the existing append_buffer.
