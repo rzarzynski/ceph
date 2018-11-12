@@ -639,14 +639,18 @@ using namespace ceph;
     if (_raw) {
       bdout << "ptr " << this << " release " << _raw << bendl;
       if (--_raw->nref == 0) {
+        // BE CAREFUL: this is called also for hypercombined ptr_node. After
+        // freeing underlying raw, `*this` can become inaccessible as well!
+        const auto* delete_raw = _raw;
+        _raw = nullptr;
 	//cout << "hosing raw " << (void*)_raw << " len " << _raw->len << std::endl;
         ANNOTATE_HAPPENS_AFTER(&_raw->nref);
         ANNOTATE_HAPPENS_BEFORE_FORGET_ALL(&_raw->nref);
-	delete _raw;  // dealloc old (if any)
+	delete delete_raw;  // dealloc old (if any)
       } else {
         ANNOTATE_HAPPENS_BEFORE(&_raw->nref);
+        _raw = nullptr;
       }
-      _raw = 0;
     }
   }
 
