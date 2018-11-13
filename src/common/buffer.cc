@@ -1720,24 +1720,16 @@ using namespace ceph;
   
   void buffer::list::append_zero(unsigned len)
   {
+    static std::array<char, 4 * CEPH_BUFFER_ALLOC_UNIT> zeros = { 0, };
+
     _len += len;
-
-    const unsigned free_in_last = get_append_buffer_unused_tail_length();
-    const unsigned first_round = std::min(len, free_in_last);
-    if (first_round) {
-      if (unlikely(_carriage != &_buffers.back())) {
-        auto& bptr = hangable_ptr::create(*_carriage, _carriage->length(), 0);
-	_carriage = &bptr;
-	_buffers.push_back(bptr);
-      }
-      _carriage->append_zeros(first_round);
-    }
-
-    const unsigned second_round = len - first_round;
-    if (second_round) {
-      auto& new_back = refill_append_space(second_round);
-      new_back.set_length(second_round);
-      new_back.zero(false);
+    // don't set _carriage! This one can't be altered.
+    while (len) {
+      const auto round_len = std::min<unsigned>(len, zeros.size());
+      _buffers.push_back(
+	hangable_ptr::create(
+	  create_static(round_len, zeros.data())));
+      len -= round_len;
     }
   }
 
