@@ -101,8 +101,8 @@ class LZ4Compressor : public Compressor {
     LZ4_streamDecode_t lz4_stream_decode;
     LZ4_setStreamDecode(&lz4_stream_decode, nullptr, 0);
 
-    bufferptr cur_ptr = p.get_current_ptr();
-    bufferptr *ptr = &cur_ptr;
+    const bufferptr cur_ptr = p.get_current_ptr();
+    const bufferptr *ptr = &cur_ptr;
     Tub<bufferptr> data_holder;
     if (compressed_len != cur_ptr.length()) {
       data_holder.construct(compressed_len);
@@ -110,7 +110,7 @@ class LZ4Compressor : public Compressor {
       ptr = data_holder.get();
     }
 
-    char *c_in = ptr->c_str();
+    const char *c_in = ptr->c_str();
     char *c_out = dstptr.c_str();
     for (unsigned i = 0; i < count; ++i) {
       int r = LZ4_decompress_safe_continue(

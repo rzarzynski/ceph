@@ -3280,6 +3280,7 @@ void Objecter::_send_op(Op *op)
     ldout(cct, 20) << " posting rx buffer for " << op->tid << " on " << con
 		   << dendl;
     op->con = con;
+    // TODO: clear_and_extract_owned(), pass owned
     op->con->post_rx_buffer(op->tid, *op->outbl);
   }
 

@@ -549,6 +549,7 @@ namespace buffer CEPH_BUFFER_API {
       void seek(unsigned o);
       char operator*() const;
       iterator_impl& operator++();
+      // TODO: this is w-leaky
       ptr get_current_ptr() const;
 
       bl_t& get_bl() const { return *bl; }

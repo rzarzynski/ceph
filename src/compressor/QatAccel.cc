@@ -95,7 +95,7 @@ int QatAccel::decompress(bufferlist::const_iterator &p,
       return -1;
     }
 
-    bufferptr cur_ptr = p.get_current_ptr();
+    const bufferptr cur_ptr = p.get_current_ptr();
     unsigned int len = cur_ptr.length();
     if (joint) {
       if (read_more)
