@@ -849,10 +849,6 @@ using namespace ceph;
   }
 
   template<bool is_const>
-  buffer::list::iterator_impl<is_const>::iterator_impl(const buffer::list::iterator& i)
-    : iterator_impl<is_const>(i.bl, i.off, i.p, i.p_off) {}
-
-  template<bool is_const>
   void buffer::list::iterator_impl<is_const>::advance(unsigned o)
   {
     //cout << this << " advance " << o << " from " << off
@@ -1062,82 +1058,6 @@ using namespace ceph;
   // details in this compilation unit without introducing unnecessary link time
   // dependencies.
   template class buffer::list::iterator_impl<true>;
-  template class buffer::list::iterator_impl<false>;
-
-  buffer::list::iterator::iterator(bl_t *l, unsigned o)
-    : iterator_impl(l, o)
-  {}
-
-  buffer::list::iterator::iterator(bl_t *l, unsigned o, list_iter_t ip, unsigned po)
-    : iterator_impl(l, o, ip, po)
-  {}
-
-  void buffer::list::iterator::advance(unsigned o)
-  {
-    buffer::list::iterator_impl<false>::advance(o);
-  }
-
-  void buffer::list::iterator::seek(unsigned o)
-  {
-    buffer::list::iterator_impl<false>::seek(o);
-  }
-
-  char buffer::list::iterator::operator*()
-  {
-    if (p == ls->end()) {
-      throw end_of_buffer();
-    }
-    return (*p)[p_off];
-  }
-
-  buffer::list::iterator& buffer::list::iterator::operator++()
-  {
-    buffer::list::iterator_impl<false>::operator++();
-    return *this;
-  }
-
-  buffer::ptr buffer::list::iterator::get_current_ptr()
-  {
-    if (p == ls->end()) {
-      throw end_of_buffer();
-    }
-    return ptr(*p, p_off, p->length() - p_off);
-  }
-
-  void buffer::list::iterator::copy(unsigned len, char *dest)
-  {
-    return buffer::list::iterator_impl<false>::copy(len, dest);
-  }
-
-  void buffer::list::iterator::copy(unsigned len, ptr &dest)
-  {
-    return buffer::list::iterator_impl<false>::copy_deep(len, dest);
-  }
-
-  void buffer::list::iterator::copy_deep(unsigned len, ptr &dest)
-  {
-    buffer::list::iterator_impl<false>::copy_deep(len, dest);
-  }
-
-  void buffer::list::iterator::copy_shallow(unsigned len, ptr &dest)
-  {
-    buffer::list::iterator_impl<false>::copy_shallow(len, dest);
-  }
-
-  void buffer::list::iterator::copy(unsigned len, list &dest)
-  {
-    buffer::list::iterator_impl<false>::copy(len, dest);
-  }
-
-  void buffer::list::iterator::copy(unsigned len, std::string &dest)
-  {
-    buffer::list::iterator_impl<false>::copy(len, dest);
-  }
-
-  void buffer::list::iterator::copy_all(list &dest)
-  {
-    buffer::list::iterator_impl<false>::copy_all(dest);
-  }
 
 
   // -- buffer::list --

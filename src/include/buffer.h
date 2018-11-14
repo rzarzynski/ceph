@@ -495,7 +495,6 @@ namespace buffer CEPH_BUFFER_API {
 	base_t::swap(other);
       }
     };
-    class iterator;
 
   private:
     // my private bits
@@ -531,7 +530,6 @@ namespace buffer CEPH_BUFFER_API {
       iterator_impl(bl_t *l, unsigned o=0);
       iterator_impl(bl_t *l, unsigned o, list_iter_t ip, unsigned po)
 	: bl(l), ls(&bl->_buffers), off(o), p(ip), p_off(po) {}
-      iterator_impl(const list::iterator& i);
 
       /// get current iterator offset in buffer::list
       unsigned get_off() const { return off; }
@@ -586,40 +584,7 @@ namespace buffer CEPH_BUFFER_API {
 
   public:
     typedef iterator_impl<true> const_iterator;
-
-    class CEPH_BUFFER_API iterator : public iterator_impl<false> {
-    public:
-      iterator() = default;
-      iterator(bl_t *l, unsigned o=0);
-      iterator(bl_t *l, unsigned o, list_iter_t ip, unsigned po);
-
-      void advance(int o) = delete;
-      void advance(unsigned o);
-      void advance(size_t o) { advance(static_cast<unsigned>(o)); }
-
-      void seek(unsigned o);
-      using iterator_impl<false>::operator*;
-      char operator*();
-      iterator& operator++();
-      ptr get_current_ptr();
-
-      // copy data out
-      void copy(unsigned len, char *dest);
-      // deprecated, use copy_deep()
-      void copy(unsigned len, ptr &dest) __attribute__((deprecated));
-      void copy_deep(unsigned len, ptr &dest);
-      void copy_shallow(unsigned len, ptr &dest);
-      void copy(unsigned len, list &dest);
-      void copy(unsigned len, std::string &dest);
-      void copy_all(list &dest);
-
-      bool operator==(const iterator& rhs) const {
-	return bl == rhs.bl && off == rhs.off;
-      }
-      bool operator!=(const iterator& rhs) const {
-	return bl != rhs.bl || off != rhs.off;
-      }
-    };
+    typedef iterator_impl<true> iterator;
 
     struct reserve_t {
       char* bp_data;
@@ -1077,12 +1042,7 @@ namespace buffer CEPH_BUFFER_API {
     void copy(unsigned off, unsigned len, list &dest) const;
     void copy(unsigned off, unsigned len, std::string& dest) const;
 
-    typedef iterator iter_hint_t;
     typedef const_iterator constiter_hint_t;
-
-    iter_hint_t create_iter_hint(unsigned off = 0) {
-      return iter_hint_t(this, 0);
-    }
     constiter_hint_t create_iter_hint(unsigned off = 0) const {
       return constiter_hint_t(this, 0);
     }
