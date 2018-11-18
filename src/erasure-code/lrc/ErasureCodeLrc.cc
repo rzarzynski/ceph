@@ -754,14 +754,9 @@ int ErasureCodeLrc::encode_chunks(const set<int> &want_to_encode,
     set<int> layer_want_to_encode;
     map<int, bufferlist> layer_encoded;
     int j = 0;
-    for (vector<int>::const_iterator c = layer.chunks.begin();
-	 c != layer.chunks.end();
-	 ++c) {
-      // TODO: this needs rework as we're relying on cross-talk between two
-      // bufferlist instances. Changes made to layer_encoded[x].c_str() are
-      // supposed to be visible also by correspnding encoded[y].
-      layer_encoded[j] = (*encoded)[*c];
-      if (want_to_encode.find(*c) != want_to_encode.end())
+    for (const auto& c : layer.chunks) {
+      std::swap(layer_encoded[j], (*encoded)[c]);
+      if (want_to_encode.find(c) != want_to_encode.end())
 	layer_want_to_encode.insert(j);
       j++;
     }
@@ -772,6 +767,10 @@ int ErasureCodeLrc::encode_chunks(const set<int> &want_to_encode,
 	   << " failed with " << err << " trying to encode "
 	   << layer_want_to_encode << dendl;
       return err;
+    }
+    j = 0;
+    for (const auto& c : layer.chunks) {
+      std::swap(layer_encoded[j++], (*encoded)[c]);
     }
   }
   return 0;
