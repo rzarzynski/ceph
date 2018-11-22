@@ -220,6 +220,10 @@ class SocketConnection : public Connection {
   std::tuple<seq_num_t, std::queue<MessageRef>> get_out_queue() {
     return {out_seq, std::move(out_q)};
   }
+
+  friend ostream& operator<<(ostream& out, const SocketConnection& conn);
 };
+
+ostream& operator<<(ostream& out, const SocketConnection& conn);
 
 } // namespace ceph::net

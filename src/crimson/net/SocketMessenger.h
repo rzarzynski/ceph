@@ -36,12 +36,14 @@ class SocketMessenger final : public Messenger {
   std::set<SocketConnectionRef> accepting_conns;
   using Throttle = ceph::thread::Throttle;
   ceph::net::PolicySet<Throttle> policy_set;
+  const std::string logic_name;
 
   seastar::future<> accept(seastar::connected_socket socket,
                            seastar::socket_address paddr);
 
  public:
-  SocketMessenger(const entity_name_t& myname);
+  SocketMessenger(const entity_name_t& myname,
+                  const std::string& logic_name);
 
   void bind(const entity_addr_t& addr) override;
 
@@ -62,6 +64,13 @@ class SocketMessenger final : public Messenger {
   void unaccept_conn(SocketConnectionRef);
   void register_conn(SocketConnectionRef);
   void unregister_conn(SocketConnectionRef);
+
+  friend ostream& operator<<(ostream& out, const SocketMessenger& msgr) {
+    return out << msgr.get_myname()
+               << "(" << msgr.logic_name
+               << ")[" << msgr.get_myaddr()
+               << "]";
+  }
 };
 
 } // namespace ceph::net
