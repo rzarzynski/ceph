@@ -213,6 +213,8 @@ class p2_t {
   }
 
 public:
+  p2_t() = default;
+
   explicit p2_t(const value_type value)
     : exponent(ctz(value)) {
     static_assert(std::is_unsigned_v<value_type>);

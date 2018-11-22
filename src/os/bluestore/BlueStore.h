@@ -2663,13 +2663,6 @@ private:
     };
     vector<write_item> writes;                 ///< blobs we're writing
 
-    /// partial clone of the context
-    void fork(const WriteContext& other) {
-      buffered = other.buffered;
-      compress = other.compress;
-      target_blob_size = other.target_blob_size;
-      csum_chunk_size = other.csum_chunk_size;
-    }
     void write(
       uint64_t loffs,
       BlobRef b,
@@ -2696,6 +2689,16 @@ private:
       uint64_t loffs,
       uint64_t loffs_end,
       ceph::math::p2_uint64_t min_alloc_size);
+
+    /// partial clone of the context
+    static WriteContext fork(const WriteContext& other) {
+      WriteContext new_wctx;
+      new_wctx.buffered = other.buffered;
+      new_wctx.compress = other.compress;
+      new_wctx.target_blob_size = other.target_blob_size;
+      new_wctx.csum_chunk_size = other.csum_chunk_size;
+      return new_wctx;
+    }
   };
 
   void _do_write_small(

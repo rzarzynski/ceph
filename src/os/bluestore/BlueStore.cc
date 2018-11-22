@@ -11792,8 +11792,8 @@ int BlueStore::_do_gc(
   auto& extents_to_collect = gc.get_extents_to_collect();
 
   bool dirty_range_updated = false;
-  WriteContext wctx_gc;
-  wctx_gc.fork(wctx); // make a clone for garbage collection
+  // make a clone for garbage collection
+  WriteContext wctx_gc = WriteContext::fork(wctx);
 
   for (auto it = extents_to_collect.begin();
        it != extents_to_collect.end();
