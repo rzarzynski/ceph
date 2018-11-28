@@ -69,10 +69,11 @@ class Client : public ceph::net::ForeignDispatcher<Client> {
   MonSub sub;
 
 public:
-  Client(const EntityName& name,
-	 ceph::net::Messenger& messenger);
+  Client(ceph::net::Messenger& messenger);
   Client(Client&&);
   ~Client();
+  void set_name(const EntityName& name);
+
   seastar::future<> load_keyring();
   seastar::future<> build_initial_map();
   seastar::future<> authenticate();
