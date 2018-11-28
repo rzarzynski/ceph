@@ -30,7 +30,7 @@ seastar::future<std::reference_wrapper<T>> create_sharded(Args... args) {
 
 static seastar::future<> test_monc()
 {
-  return ceph::common::sharded_conf().start().then([] {
+  return ceph::common::sharded_conf().start(EntityName{}, string_view{"ceph"}).then([] {
     std::vector<const char*> args;
     std::string cluster;
     std::string conf_file_list;
