@@ -11561,17 +11561,17 @@ int BlueStore::_do_alloc_write(
   return 0;
 }
 
-void BlueStore::_wctx_finish(
+void BlueStore::_old_extents_finish(
   TransContext *txc,
   CollectionRef& c,
   OnodeRef o,
-  WriteContext *wctx,
+  old_extent_map_t& old_extents,
   set<SharedBlob*> *maybe_unshared_blobs)
 {
-  auto oep = wctx->old_extents.begin();
-  while (oep != wctx->old_extents.end()) {
+  auto oep = old_extents.begin();
+  while (oep != old_extents.end()) {
     auto &lo = *oep;
-    oep = wctx->old_extents.erase(oep);
+    oep = old_extents.erase(oep);
     dout(20) << __func__ << " lex_old " << lo.e << dendl;
     BlobRef b = lo.e.blob;
     const bluestore_blob_t& blob = b->get_blob();
@@ -11675,12 +11675,13 @@ void BlueStore::_do_write_data(
   }
 }
 
-void BlueStore::_choose_write_options(
+BlueStore::WriteContext BlueStore::_choose_write_options(
    CollectionRef& c,
    OnodeRef o,
-   uint32_t fadvise_flags,
-   WriteContext *wctx)
+   uint32_t fadvise_flags)
 {
+  WriteContext wctx_obj;
+  WriteContext* const wctx = &wctx_obj;
   if (fadvise_flags & CEPH_OSD_OP_FLAG_FADVISE_WILLNEED) {
     dout(20) << __func__ << " will do buffered write" << dendl;
     wctx->buffered = true;
@@ -11778,6 +11779,7 @@ void BlueStore::_choose_write_options(
 	   << " compress=" << (int)wctx->compress
 	   << " buffered=" << (int)wctx->buffered
            << std::dec << dendl;
+  return std::move(*wctx);
 }
 
 int BlueStore::_do_gc(
@@ -11863,8 +11865,7 @@ int BlueStore::_do_write(
   auto dirty_start = offset;
   auto dirty_end = end;
 
-  WriteContext wctx;
-  _choose_write_options(c, o, fadvise_flags, &wctx);
+  WriteContext wctx = _choose_write_options(c, o, fadvise_flags);
   o->extent_map.fault_range(db, offset, length);
   _do_write_data(txc, c, o, offset, length, bl, &wctx);
   r = _do_alloc_write(txc, c, o, &wctx);
@@ -11969,11 +11970,11 @@ int BlueStore::_do_zero(TransContext *txc,
 
   _dump_onode(o);
 
-  WriteContext wctx;
+  old_extent_map_t old_extents;
   o->extent_map.fault_range(db, offset, length);
-  o->extent_map.punch_hole(c, offset, length, &wctx.old_extents);
+  o->extent_map.punch_hole(c, offset, length, &old_extents);
   o->extent_map.dirty_range(offset, length);
-  _wctx_finish(txc, c, o, &wctx);
+  _old_extents_finish(txc, c, o, old_extents);
 
   if (length > 0 && offset + length > o->onode.size) {
     o->onode.size = offset + length;
@@ -12001,12 +12002,12 @@ void BlueStore::_do_truncate(
     return;
 
   if (offset < o->onode.size) {
-    WriteContext wctx;
+    old_extent_map_t old_extents;
     uint64_t length = o->onode.size - offset;
     o->extent_map.fault_range(db, offset, length);
-    o->extent_map.punch_hole(c, offset, length, &wctx.old_extents);
+    o->extent_map.punch_hole(c, offset, length, &old_extents);
     o->extent_map.dirty_range(offset, length);
-    _wctx_finish(txc, c, o, &wctx, maybe_unshared_blobs);
+    _old_extents_finish(txc, c, o, old_extents, maybe_unshared_blobs);
 
     // if we have shards past EOF, ask for a reshard
     if (!o->onode.extent_map_shards.empty() &&

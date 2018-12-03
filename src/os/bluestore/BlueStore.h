@@ -2720,12 +2720,21 @@ private:
     CollectionRef c,
     OnodeRef o,
     WriteContext *wctx);
+  void _old_extents_finish(
+    TransContext *txc,
+    CollectionRef& c,
+    OnodeRef o,
+    old_extent_map_t& old_extents,
+    set<SharedBlob*> *maybe_unshared_blobs=nullptr);
   void _wctx_finish(
     TransContext *txc,
     CollectionRef& c,
     OnodeRef o,
     WriteContext *wctx,
-    set<SharedBlob*> *maybe_unshared_blobs=0);
+    set<SharedBlob*> *maybe_unshared_blobs=nullptr)
+  {
+    _old_extents_finish(txc, c, std::move(o), wctx->old_extents, maybe_unshared_blobs);
+  }
 
   int _write(TransContext *txc,
 	     CollectionRef& c,
@@ -2736,10 +2745,9 @@ private:
   void _pad_zeros(bufferlist *bl, uint64_t *offset,
 		  uint64_t chunk_size);
 
-  void _choose_write_options(CollectionRef& c,
-                             OnodeRef o,
-                             uint32_t fadvise_flags,
-                             WriteContext *wctx);
+  WriteContext _choose_write_options(CollectionRef& c,
+                                     OnodeRef o,
+                                     uint32_t fadvise_flags);
 
   int _do_gc(TransContext *txc,
              CollectionRef& c,
