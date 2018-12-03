@@ -1245,6 +1245,8 @@ using namespace ceph;
     if (nb.length()) {
       _buffers.push_back(nb);
       _carriage = &nb;
+    } else {
+      hangable_ptr::disposer()(&nb);
     }
     invalidate_crc();
   }
