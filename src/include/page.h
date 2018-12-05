@@ -1,18 +1,19 @@
 #ifndef CEPH_PAGE_H
 #define CEPH_PAGE_H
 
+#include "include/intarith.h"
+
 namespace ceph {
   // these are in common/page.cc
-  extern unsigned _page_size;
-  extern unsigned long _page_mask;
-  extern unsigned _page_shift;
+  extern ceph::math::p2_uint32_t _page_size;
+  extern unsigned _page_mask;
 }
 
 #endif
 
 
-#define CEPH_PAGE_SIZE ceph::_page_size
-#define CEPH_PAGE_MASK ceph::_page_mask
-#define CEPH_PAGE_SHIFT ceph::_page_shift
+#define CEPH_PAGE_SIZE (ceph::_page_size.get_value())
+#define CEPH_PAGE_MASK (ceph::_page_mask)
+#define CEPH_PAGE_SHIFT (ceph::_page_size.get_exponent())
 
 
