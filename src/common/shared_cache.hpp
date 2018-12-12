@@ -17,6 +17,7 @@
 
 #include <map>
 #include <list>
+#include <functional>
 #ifdef WITH_SEASTAR
 #include <boost/smart_ptr/local_shared_ptr.hpp>
 #include <boost/smart_ptr/make_local_shared.hpp>
@@ -120,7 +121,9 @@ public:
 #endif
 private:
   using H = std::hash<K>;
-  ceph::unordered_map<K, typename std::list<std::pair<K, VPtr> >::iterator, H> contents;
+  ceph::unordered_map<
+    std::reference_wrapper<const K>,
+    typename std::list<std::pair<K, VPtr> >::iterator, H> contents;
   std::list<std::pair<K, VPtr> > lru;
 
   // it seems that PrimaryLogPG::object_contexts doesn't really have
@@ -144,22 +147,21 @@ private:
   }
 
   void lru_remove(const K& key) {
-    auto i = contents.find(key);
-    if (i == contents.end())
-      return;
-    lru.erase(i->second);
-    --size;
-    contents.erase(i);
+    if (const auto i = contents.find(key); i != contents.end()) {
+      lru.erase(i->second);
+      --size;
+      contents.erase(i);
+    }
   }
 
   void lru_add(const K& key, const VPtr& val, std::list<VPtr> *to_release) {
-    auto i = contents.find(key);
+    const auto i = contents.find(key);
     if (i != contents.end()) {
       lru.splice(lru.begin(), lru, i->second);
     } else {
       ++size;
-      lru.push_front(make_pair(key, val));
-      contents[key] = lru.begin();
+      lru.push_front(std::make_pair(key, val));
+      contents[std::cref(lru.front().first)] = lru.begin();
       trim_cache(to_release);
     }
   }
