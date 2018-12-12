@@ -120,11 +120,15 @@ public:
   int waiting;
 #endif
 private:
-  using H = std::hash<K>;
+  using lru_list_t = \
+    std::list<std::pair<std::reference_wrapper<const K>, VPtr>>;
+
   ceph::unordered_map<
     std::reference_wrapper<const K>,
-    typename std::list<std::pair<K, VPtr> >::iterator, H> contents;
-  std::list<std::pair<K, VPtr> > lru;
+    typename lru_list_t::iterator,
+    std::hash<K>,
+    std::equal_to<K>> contents;
+  lru_list_t lru;
 
   // it seems that PrimaryLogPG::object_contexts doesn't really have
   // strict ordering requirements. Useful info as find() on std::map
@@ -154,14 +158,14 @@ private:
     }
   }
 
-  void lru_add(const K& key, const VPtr& val, std::list<VPtr> *to_release) {
-    const auto i = contents.find(key);
+  void lru_add(typename weak_refs_t::iterator itkey, const VPtr& val, std::list<VPtr> *to_release) {
+    const auto i = contents.find(itkey->first);
     if (i != contents.end()) {
       lru.splice(lru.begin(), lru, i->second);
     } else {
       ++size;
-      lru.push_front(std::make_pair(key, val));
-      contents[std::cref(lru.front().first)] = lru.begin();
+      lru.push_front(std::make_pair(std::cref(itkey->first), val));
+      contents[std::cref(itkey->first)] = lru.begin();
       trim_cache(to_release);
     }
   }
@@ -307,7 +311,7 @@ public:
           --i;
         }
         if (val = i->second.ptr.lock(); val) {
-          lru_add(i->first, val, &to_release);
+          lru_add(i, val, &to_release);
           return true;
         } else {
           return false;
@@ -369,7 +373,7 @@ public:
 	  if (unlikely(i->second.invalid)) {
 	    return true;
 	  } else if (val = i->second.ptr.lock(); val) {
-            lru_add(key, val, &to_release);
+            lru_add(i, val, &to_release);
             return true;
           } else {
             return false;
@@ -394,11 +398,12 @@ public:
       if (val) {
 	return val;
       }
-      cond.wait(l, [this, &key, &val] {
+      cond.wait(l, [this, &key, &val, &to_release] {
         if (auto i = weak_refs.find(key); i != std::end(weak_refs)) {
 	  if (unlikely(i->second.invalid)) {
 	    return true;
 	  } else if (val = i->second.ptr.lock(); val) {
+	    lru_add(i, val, &to_release);
             return true;
           } else {
             return false;
@@ -424,8 +429,8 @@ public:
 	  val = std::allocate_shared<V>(VCleaningAlloc<V>{this, std::end(weak_refs)});
 #endif
 	}
+	lru_add(iter, val, &to_release);
       }
-      lru_add(key, val, &to_release);
     }
     return val;
   }
@@ -492,7 +497,7 @@ public:
 	// FIXME: no need for cleaning weak_refs up
 	val = VPtr(value, Cleanup(this, std::end(weak_refs)));
       }
-      lru_add(key, val, &to_release);
+      lru_add(iter, val, &to_release);
     }
     return val;
   }
