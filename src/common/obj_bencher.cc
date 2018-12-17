@@ -488,8 +488,6 @@ int ObjBencher::write_bench(int secondsToRun,
     newName = generate_object_name_fast(data.started / writes_per_object);
     newContents = contents[slot];
     snprintf(newContents->c_str(), data.op_size, "I'm the %16dth op!", data.started);
-    // we wrote to buffer, going around internal crc cache, so invalidate it now.
-    newContents->invalidate_crc();
 
     completion_wait(slot);
     lock.lock();
@@ -748,9 +746,6 @@ int ObjBencher::seq_read_bench(int seconds_to_run, int num_objects, int concurre
     cur_contents = contents[slot];
     int current_index = index[slot];
     
-    // invalidate internal crc cache
-    cur_contents->invalidate_crc();
-  
     if (!no_verify) {
       snprintf(data.object_contents, data.op_size, "I'm the %16dth op!", current_index);
       if ( (cur_contents->length() != data.op_size) || 
@@ -1019,9 +1014,6 @@ int ObjBencher::rand_read_bench(int seconds_to_run, int num_objects, int concurr
     newName = generate_object_name_fast(rand_id / writes_per_object, pid);
     index[slot] = rand_id;
     release_completion(slot);
-
-    // invalidate internal crc cache
-    cur_contents->invalidate_crc();
 
     //start new read and check data if requested
     start_times[slot] = mono_clock::now();

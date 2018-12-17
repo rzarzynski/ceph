@@ -786,29 +786,23 @@ using namespace ceph;
     return _len + _off;
   }
 
-  void buffer::ptr::copy_in(unsigned o, unsigned l, const char *src, bool crc_reset)
+  void buffer::ptr::copy_in(unsigned o, unsigned l, const char *src)
   {
     ceph_assert(_raw);
     ceph_assert(o <= _len);
     ceph_assert(o+l <= _len);
     char* dest = _raw->data + _off + o;
-    if (crc_reset)
-        _raw->invalidate_crc();
     maybe_inline_memcpy(dest, src, l, 64);
   }
 
-  void buffer::ptr::zero(bool crc_reset)
+  void buffer::ptr::zero()
   {
-    if (crc_reset)
-        _raw->invalidate_crc();
     memset(c_str(), 0, _len);
   }
 
-  void buffer::ptr::zero(unsigned o, unsigned l, bool crc_reset)
+  void buffer::ptr::zero(unsigned o, unsigned l)
   {
     ceph_assert(o+l <= _len);
-    if (crc_reset)
-        _raw->invalidate_crc();
     memset(c_str()+o, 0, l);
   }
 
@@ -1064,7 +1058,7 @@ using namespace ceph;
   {}
 
   // copy data in
-  void buffer::list::iterator::copy_in(unsigned len, const char *src, bool crc_reset)
+  void buffer::list::iterator::copy_in(unsigned len, const char *src)
   {
     // copy
     if (p == ls->end())
@@ -1076,7 +1070,7 @@ using namespace ceph;
       unsigned howmuch = p->length() - p_off;
       if (len < howmuch)
 	howmuch = len;
-      p->copy_in(p_off, howmuch, src, crc_reset);
+      p->copy_in(p_off, howmuch, src);
 	
       src += howmuch;
       len -= howmuch;
@@ -1340,7 +1334,7 @@ using namespace ceph;
   {
     unsigned pos = 0;
     for (auto& node : _buffers) {
-      nb->copy_in(pos, node.length(), node.c_str(), false);
+      nb->copy_in(pos, node.length(), node.c_str());
       pos += node.length();
     }
     _memcopy_count += pos;
@@ -1348,7 +1342,6 @@ using namespace ceph;
     if (likely(nb->length())) {
       _buffers.push_back(*nb.release());
     }
-    invalidate_crc();
     last_p = begin();
   }
 
@@ -1481,14 +1474,14 @@ using namespace ceph;
     return last_p.copy(len, dest);
   }
     
-  void buffer::list::copy_in(unsigned off, unsigned len, const char *src, bool crc_reset)
+  void buffer::list::copy_in(unsigned off, unsigned len, const char *src)
   {
     if (off + len > length())
       throw end_of_buffer();
     
     if (last_p.get_off() != off) 
       last_p.seek(off);
-    last_p.copy_in(len, src, crc_reset);
+    last_p.copy_in(len, src);
   }
 
   void buffer::list::copy_in(unsigned off, unsigned len, const list& src)
@@ -1607,7 +1600,7 @@ using namespace ceph;
   void buffer::list::prepend_zero(unsigned len)
   {
     auto bp = ptr_node::create(len);
-    bp->zero(false);
+    bp->zero();
     _len += len;
     _buffers.push_front(*bp.release());
   }
@@ -1622,7 +1615,7 @@ using namespace ceph;
     }
     if (len) {
       auto bp = ptr_node::create(buffer::create_page_aligned(len));
-      bp->zero(false);
+      bp->zero();
       push_back(std::move(bp));
     }
   }
@@ -2016,62 +2009,12 @@ int buffer::list::write_fd(int fd, uint64_t offset) const
 
 __u32 buffer::list::crc32c(__u32 crc) const
 {
-  int cache_misses = 0;
-  int cache_hits = 0;
-  int cache_adjusts = 0;
-
   for (const auto& node : _buffers) {
-    if (node.length()) {
-      raw* const r = node.get_raw();
-      pair<size_t, size_t> ofs(node.offset(), node.offset() + node.length());
-      pair<uint32_t, uint32_t> ccrc;
-      if (r->get_crc(ofs, &ccrc)) {
-	if (ccrc.first == crc) {
-	  // got it already
-	  crc = ccrc.second;
-	  cache_hits++;
-	} else {
-	  /* If we have cached crc32c(buf, v) for initial value v,
-	   * we can convert this to a different initial value v' by:
-	   * crc32c(buf, v') = crc32c(buf, v) ^ adjustment
-	   * where adjustment = crc32c(0*len(buf), v ^ v')
-	   *
-	   * http://crcutil.googlecode.com/files/crc-doc.1.0.pdf
-	   * note, u for our crc32c implementation is 0
-	   */
-	  crc = ccrc.second ^ ceph_crc32c(ccrc.first ^ crc, NULL, node.length());
-	  cache_adjusts++;
-	}
-      } else {
-	cache_misses++;
-	uint32_t base = crc;
-	crc = ceph_crc32c(crc, (unsigned char*)node.c_str(), node.length());
-	r->set_crc(ofs, make_pair(base, crc));
-      }
-    }
+    crc = ceph_crc32c(crc, (unsigned char*)node.c_str(), node.length());
   }
-
-  if (buffer_track_crc) {
-    if (cache_adjusts)
-      buffer_cached_crc_adjusted += cache_adjusts;
-    if (cache_hits)
-      buffer_cached_crc += cache_hits;
-    if (cache_misses)
-      buffer_missed_crc += cache_misses;
-  }
-
   return crc;
 }
 
-void buffer::list::invalidate_crc()
-{
-  for (const auto& node : _buffers) {
-    raw* const r = node.get_raw();
-    if (r) {
-      r->invalidate_crc();
-    }
-  }
-}
 
 #include "common/ceph_crypto.h"
 using ceph::crypto::SHA1;

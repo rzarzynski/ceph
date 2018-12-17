@@ -489,7 +489,7 @@ typename BitVector<_b>::Reference& BitVector<_b>::Reference::operator=(uint8_t v
   char packed_value = (*this->m_data_iterator & ~mask) |
                       ((v << this->m_shift) & mask);
   bufferlist::iterator it(this->m_data_iterator);
-  it.copy_in(1, &packed_value, true);
+  it.copy_in(1, &packed_value);
   return *this;
 }
 

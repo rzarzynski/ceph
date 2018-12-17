@@ -654,7 +654,7 @@ TEST(BufferPtr, copy_in_bench) {
     for (int i=0; i<count; ++i) {
       bufferptr bp(buflen);
       for (int64_t j=0; j<buflen; j += s) {
-	bp.copy_in(j, s, (char *)&j, false);
+	bp.copy_in(j, s, (char *)&j);
       }
     }
     utime_t end = ceph_clock_now();
@@ -2814,46 +2814,6 @@ TEST(BufferList, TestCopyAll) {
       (unsigned char*)malloc(BIG_SZ), free);
   bl2.copy(0, BIG_SZ, (char*)big2.get());
   ASSERT_EQ(memcmp(big.get(), big2.get(), BIG_SZ), 0);
-}
-
-TEST(BufferList, InvalidateCrc) {
-  const static size_t buffer_size = 262144;
-  std::shared_ptr <unsigned char> big(
-      (unsigned char*)malloc(buffer_size), free);
-  unsigned char c = 0;
-  char* ptr = (char*) big.get();
-  char* inptr;
-  for (size_t i = 0; i < buffer_size; ++i) {
-    ptr[i] = c++;
-  }
-  bufferlist bl;
-  
-  // test for crashes (shouldn't crash)
-  bl.invalidate_crc();
-  
-  // put data into bufferlist
-  bl.append((const char*)big.get(), buffer_size);
-  
-  // get its crc
-  __u32 crc = bl.crc32c(0);
-  
-  // modify data in bl without its knowledge
-  inptr = (char*) bl.c_str();
-  c = 0;
-  for (size_t i = 0; i < buffer_size; ++i) {
-    inptr[i] = c--;
-  }
-  
-  // make sure data in bl are now different than in big
-  EXPECT_NE(memcmp((void*) ptr, (void*) inptr, buffer_size), 0);
-  
-  // crc should remain the same
-  __u32 new_crc = bl.crc32c(0);
-  EXPECT_EQ(crc, new_crc);
-  
-  // force crc invalidate, check if it is updated
-  bl.invalidate_crc();
-  EXPECT_NE(crc, bl.crc32c(0));
 }
 
 TEST(BufferList, TestIsProvidedBuffer) {

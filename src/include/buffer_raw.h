@@ -35,11 +35,6 @@ namespace ceph::buffer {
     std::atomic<unsigned> nref { 0 };
     int mempool;
 
-    std::pair<size_t, size_t> last_crc_offset {std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max()};
-    std::pair<uint32_t, uint32_t> last_crc_val;
-
-    mutable ceph::spinlock crc_spinlock;
-
     explicit raw(unsigned l, int mempool=mempool::mempool_buffer_anon)
       : data(nullptr), len(l), nref(0), mempool(mempool) {
       mempool::get_pool(mempool::pool_index_t(mempool)).adjust_count(1, len);
@@ -96,26 +91,6 @@ public:
       // false if it is not safe to share the buffer, e.g., due to special
       // and/or registered memory that is scarce
       return true;
-    }
-    bool get_crc(const std::pair<size_t, size_t> &fromto,
-		 std::pair<uint32_t, uint32_t> *crc) const {
-      std::lock_guard lg(crc_spinlock);
-      if (last_crc_offset == fromto) {
-        *crc = last_crc_val;
-        return true;
-      }
-      return false;
-    }
-    void set_crc(const std::pair<size_t, size_t> &fromto,
-		 const std::pair<uint32_t, uint32_t> &crc) {
-      std::lock_guard lg(crc_spinlock);
-      last_crc_offset = fromto;
-      last_crc_val = crc;
-    }
-    void invalidate_crc() {
-      std::lock_guard lg(crc_spinlock);
-      last_crc_offset.first = std::numeric_limits<size_t>::max();
-      last_crc_offset.second = std::numeric_limits<size_t>::max();
     }
   };
 } // namespace ceph::buffer

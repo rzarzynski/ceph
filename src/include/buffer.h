@@ -366,9 +366,9 @@ namespace buffer CEPH_BUFFER_API {
       return append(s.data(), s.length());
     }
 #endif // __cplusplus >= 201703L
-    void copy_in(unsigned o, unsigned l, const char *src, bool crc_reset = true);
-    void zero(bool crc_reset = true);
-    void zero(unsigned o, unsigned l, bool crc_reset = true);
+    void copy_in(unsigned o, unsigned l, const char *src);
+    void zero();
+    void zero(unsigned o, unsigned l);
     unsigned append_zeros(unsigned l);
 
 #ifdef HAVE_SEASTAR
@@ -769,7 +769,7 @@ namespace buffer CEPH_BUFFER_API {
       iterator(bl_t *l, unsigned o=0);
       iterator(bl_t *l, unsigned o, list_iter_t ip, unsigned po);
       // copy data in
-      void copy_in(unsigned len, const char *src, bool crc_reset = true);
+      void copy_in(unsigned len, const char *src);
       void copy_in(unsigned len, const list& otherl);
     };
 
@@ -1163,7 +1163,7 @@ namespace buffer CEPH_BUFFER_API {
     void copy(unsigned off, unsigned len, char *dest) const;
     void copy(unsigned off, unsigned len, list &dest) const;
     void copy(unsigned off, unsigned len, std::string& dest) const;
-    void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset = true);
+    void copy_in(unsigned off, unsigned len, const char *src);
     void copy_in(unsigned off, unsigned len, const list& src);
 
     void append(char c);
@@ -1233,7 +1233,6 @@ namespace buffer CEPH_BUFFER_API {
       }
     }
     uint32_t crc32c(uint32_t crc) const;
-    void invalidate_crc();
     sha1_digest_t sha1(); 
 
     // These functions return a bufferlist with a pointer to a single

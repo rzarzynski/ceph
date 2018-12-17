@@ -10864,12 +10864,12 @@ void BlueStore::_pad_zeros(
   if (front_pad) {
     size_t front_copy = std::min<uint64_t>(chunk_size - front_pad, length);
     bufferptr z = buffer::create_small_page_aligned(chunk_size);
-    z.zero(0, front_pad, false);
+    z.zero(0, front_pad);
     pad_count += front_pad;
     bl->copy(0, front_copy, z.c_str() + front_pad);
     if (front_copy + front_pad < chunk_size) {
       back_pad = chunk_size - (length + front_pad);
-      z.zero(front_pad + length, back_pad, false);
+      z.zero(front_pad + length, back_pad);
       pad_count += back_pad;
     }
     bufferlist old, t;
@@ -10890,7 +10890,7 @@ void BlueStore::_pad_zeros(
     ceph_assert(back_copy <= length);
     bufferptr tail(chunk_size);
     bl->copy(length - back_copy, back_copy, tail.c_str());
-    tail.zero(back_copy, back_pad, false);
+    tail.zero(back_copy, back_pad);
     bufferlist old;
     old.swap(*bl);
     bl->substr_of(old, 0, length - back_copy);
