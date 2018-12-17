@@ -40,6 +40,11 @@ class SocketConnection : public Connection {
   Dispatcher& dispatcher;
   seastar::gate pending_dispatch;
 
+  // my_socket_port can be different from my_addr.get_port() if is connector.
+  uint16_t my_socket_port = 0;
+  // peer_socket_port can be different from peer_addr.get_port() if is acceptor.
+  uint16_t peer_socket_port = 0;
+
   enum class state_t {
     none,
     accepting,
@@ -157,7 +162,6 @@ class SocketConnection : public Connection {
 
  public:
   SocketConnection(SocketMessenger& messenger,
-                   const entity_addr_t& my_addr,
                    Dispatcher& dispatcher);
   ~SocketConnection();
 
