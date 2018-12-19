@@ -126,11 +126,11 @@ namespace buffer CEPH_BUFFER_API {
   void track_alloc(bool b);
 
   /// count of cached crc hits (matching input)
-  int get_cached_crc();
+  size_t get_cached_crc();
   /// count of cached crc hits (mismatching input, required adjustment)
-  int get_cached_crc_adjusted();
+  size_t get_cached_crc_adjusted();
   /// count of crc cache misses
-  int get_missed_crc();
+  size_t get_missed_crc();
   /// enable/disable tracking of cached crcs
   void track_cached_crc(bool b);
 

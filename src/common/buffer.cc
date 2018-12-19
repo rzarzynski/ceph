@@ -87,23 +87,23 @@ using namespace ceph;
     return buffer_history_alloc_num;
   }
 
-  static std::atomic<unsigned> buffer_cached_crc { 0 };
-  static std::atomic<unsigned> buffer_cached_crc_adjusted { 0 };
-  static std::atomic<unsigned> buffer_missed_crc { 0 };
+  static std::atomic<size_t> buffer_cached_crc { 0 };
+  static std::atomic<size_t> buffer_cached_crc_adjusted { 0 };
+  static std::atomic<size_t> buffer_missed_crc { 0 };
 
   static bool buffer_track_crc = get_env_bool("CEPH_BUFFER_TRACK");
 
   void buffer::track_cached_crc(bool b) {
     buffer_track_crc = b;
   }
-  int buffer::get_cached_crc() {
+  size_t buffer::get_cached_crc() {
     return buffer_cached_crc;
   }
-  int buffer::get_cached_crc_adjusted() {
+  size_t buffer::get_cached_crc_adjusted() {
     return buffer_cached_crc_adjusted;
   }
 
-  int buffer::get_missed_crc() {
+  size_t buffer::get_missed_crc() {
     return buffer_missed_crc;
   }
 
@@ -2016,9 +2016,9 @@ int buffer::list::write_fd(int fd, uint64_t offset) const
 
 __u32 buffer::list::crc32c(__u32 crc) const
 {
-  int cache_misses = 0;
-  int cache_hits = 0;
-  int cache_adjusts = 0;
+  size_t cache_misses = 0;
+  size_t cache_hits = 0;
+  size_t cache_adjusts = 0;
 
   for (const auto& node : _buffers) {
     if (node.length()) {
@@ -2029,7 +2029,7 @@ __u32 buffer::list::crc32c(__u32 crc) const
 	if (ccrc.first == crc) {
 	  // got it already
 	  crc = ccrc.second;
-	  cache_hits++;
+	  cache_hits += node.length();
 	} else {
 	  /* If we have cached crc32c(buf, v) for initial value v,
 	   * we can convert this to a different initial value v' by:
@@ -2040,10 +2040,10 @@ __u32 buffer::list::crc32c(__u32 crc) const
 	   * note, u for our crc32c implementation is 0
 	   */
 	  crc = ccrc.second ^ ceph_crc32c(ccrc.first ^ crc, NULL, node.length());
-	  cache_adjusts++;
+	  cache_adjusts += node.length();
 	}
       } else {
-	cache_misses++;
+	cache_misses += node.length();
 	uint32_t base = crc;
 	crc = ceph_crc32c(crc, (unsigned char*)node.c_str(), node.length());
 	r->set_crc(ofs, make_pair(base, crc));
