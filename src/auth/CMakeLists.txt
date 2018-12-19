@@ -1,3 +1,11 @@
+if(WITH_GSSAPI)
+  set(krb_srcs
+    krb/KrbAuthorizeHandler.cpp
+    krb/KrbClientHandler.cpp
+    krb/KrbProtocol.cpp
+    krb/KrbSessionHandler.hpp)
+endif()
+
 set(auth_srcs
   AuthAuthorizeHandler.cc
   AuthClientHandler.cc
@@ -10,10 +18,7 @@ set(auth_srcs
   cephx/CephxClientHandler.cc
   cephx/CephxProtocol.cc
   cephx/CephxSessionHandler.cc
-  krb/KrbAuthorizeHandler.cpp
-  krb/KrbClientHandler.cpp
-  krb/KrbProtocol.cpp
-  krb/KrbSessionHandler.hpp
+  ${krb_srcs}
   none/AuthNoneAuthorizeHandler.cc
   unknown/AuthUnknownAuthorizeHandler.cc)
 

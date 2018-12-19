@@ -348,4 +348,7 @@
 /* Define if seastar is available. */
 #cmakedefine HAVE_SEASTAR
 
+/* Define if GSSAPI is available. */
+#cmakedefine HAVE_GSSAPI
+
 #endif /* CONFIG_H */
