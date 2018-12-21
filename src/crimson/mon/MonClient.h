@@ -9,7 +9,6 @@
 #include <seastar/core/lowres_clock.hh>
 #include <seastar/core/timer.hh>
 
-#include "auth/AuthMethodList.h"
 #include "auth/KeyRing.h"
 
 #include "crimson/net/Dispatcher.h"
@@ -24,6 +23,7 @@ namespace ceph::net {
   class Messenger;
 }
 
+class AuthMethodList;
 class MAuthReply;
 struct MMonMap;
 struct MMonSubscribeAck;
@@ -43,7 +43,7 @@ class Client : public ceph::net::ForeignDispatcher<Client> {
   friend ceph::net::ForeignDispatcher<Client>;
   const EntityName entity_name;
   KeyRing keyring;
-  AuthMethodList auth_methods;
+  std::unique_ptr<AuthMethodList> auth_methods;
   const uint32_t want_keys;
 
   MonMap monmap;
@@ -72,12 +72,9 @@ public:
   Client(ceph::net::Messenger& messenger);
   Client(Client&&);
   ~Client();
-  void set_name(const EntityName& name);
-
-  seastar::future<> load_keyring();
-  seastar::future<> build_initial_map();
-  seastar::future<> authenticate();
+  seastar::future<> start();
   seastar::future<> stop();
+
   get_version_t get_version(const std::string& map);
   command_result_t run_command(const std::vector<std::string>& cmd,
 			       const bufferlist& bl);
@@ -100,6 +97,10 @@ private:
   seastar::future<> handle_config(Ref<MConfig> m);
 
 private:
+  seastar::future<> build_initial_map();
+  seastar::future<> load_keyring();
+  seastar::future<> authenticate();
+
   bool is_hunting() const;
   seastar::future<> reopen_session(int rank);
   std::vector<unsigned> get_random_mons(unsigned n) const;

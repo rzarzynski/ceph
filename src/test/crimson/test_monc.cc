@@ -61,15 +61,10 @@ static seastar::future<> test_monc()
       }
       return seastar::do_with(MonClient{msgr},
                               [&msgr](auto& monc) {
-        monc.set_name(ceph::common::local_conf()->name);
-        return monc.build_initial_map().then([&monc] {
-          return monc.load_keyring();
-        }).then([&msgr, &monc] {
-          return msgr.start(&monc);
-        }).then([&monc] {
+        return msgr.start(&monc).then([&monc] {
           return seastar::with_timeout(
             seastar::lowres_clock::now() + std::chrono::seconds{5},
-            monc.authenticate());
+            monc.start());
         }).finally([&monc] {
           logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
           return monc.stop();

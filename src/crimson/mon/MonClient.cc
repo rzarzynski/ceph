@@ -7,6 +7,7 @@
 #include <seastar/util/log.hh>
 
 #include "auth/AuthClientHandler.h"
+#include "auth/AuthMethodList.h"
 #include "auth/RotatingKeyRing.h"
 
 #include "crimson/auth/KeyRing.h"
@@ -244,8 +245,9 @@ const seastar::foreign_ptr<ceph::net::ConnectionRef>&
 Connection::get_conn() const {
   return *conn;
 }
+
 namespace {
-AuthMethodList create_auth_methods(uint32_t entity_type)
+auto create_auth_methods(uint32_t entity_type)
 {
   auto& conf = ceph::common::local_conf();
   std::string method;
@@ -260,7 +262,7 @@ AuthMethodList create_auth_methods(uint32_t entity_type)
   } else {
     method = conf.get_val<std::string>("auth_client_required");
   }
-  return AuthMethodList(nullptr, method);
+  return std::make_unique<AuthMethodList>(nullptr, method);
 }
 }
 
@@ -269,7 +271,6 @@ Client::Client(const EntityName& name,
   : ForeignDispatcher(seastar::engine().cpu_id()),
     entity_name{name},
     // currently, crimson is OSD-only
-    auth_methods{create_auth_methods(entity_name.get_type())},
     want_keys{CEPH_ENTITY_TYPE_MON |
               CEPH_ENTITY_TYPE_OSD |
               CEPH_ENTITY_TYPE_MGR},
@@ -282,16 +283,20 @@ Client::~Client() {
   logger().info("{}:{} destroying everything", __func__, __LINE__);
 }
 
-void Client::set_name(const EntityName& name)
-{
-  entity_name = name;
+seastar::future<> Client::start() {
+  entity_name = ceph::common::local_conf()->name;
   // should always be OSD, though
-  auth_methods = create_auth_methods(name.get_type());
+  auth_methods = create_auth_methods(entity_name.get_type());
+  return load_keyring().then([this] {
+    return monmap.build_initial(ceph::common::local_conf());
+  }).then([this] {
+    return authenticate();
+  });
 }
 
 seastar::future<> Client::load_keyring()
 {
-  if (!auth_methods.is_supported_auth(CEPH_AUTH_CEPHX)) {
+  if (!auth_methods->is_supported_auth(CEPH_AUTH_CEPHX)) {
     return seastar::now();
   } else {
     return ceph::auth::load_from_keyring(&keyring).then([](KeyRing* keyring) {
@@ -501,11 +506,6 @@ std::vector<unsigned> Client::get_random_mons(unsigned n) const
   }
 }
 
-seastar::future<> Client::build_initial_map()
-{
-  return monmap.build_initial(ceph::common::local_conf());
-}
-
 seastar::future<> Client::authenticate()
 {
   logger().info("{}:{}", __PRETTY_FUNCTION__, __LINE__);
@@ -515,9 +515,7 @@ seastar::future<> Client::authenticate()
 seastar::future<> Client::stop()
 {
   logger().info("{}:{}", __func__, __LINE__);
-  return tick_gate.close().finally([this] {
-    return timer.cancel();
-  }).then([this] {
+  return tick_gate.close().then([this] {
     if (active_con) {
       logger().info("{}:{}", __func__, __LINE__);
       return active_con->close();
@@ -550,7 +548,7 @@ seastar::future<> Client::reopen_session(int rank)
       return mc.authenticate(
         monmap.get_epoch(),
         entity_name,
-        auth_methods,
+        *auth_methods,
         want_keys).handle_exception([conn](auto ep) {
           return (*conn)->close().then([ep = std::move(ep)] {
             std::rethrow_exception(ep);
