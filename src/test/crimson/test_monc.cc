@@ -74,7 +74,9 @@ static seastar::future<> test_monc()
       });
     });
   }).finally([] {
-    return ceph::common::sharded_conf().stop();
+    return ceph::common::sharded_perf_coll().stop().then([] {
+      return ceph::common::sharded_conf().stop();
+    });
   });
 }
 
