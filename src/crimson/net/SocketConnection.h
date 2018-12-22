@@ -21,6 +21,7 @@
 
 #include "msg/Policy.h"
 #include "Connection.h"
+#include "Dispatcher.h"
 #include "Socket.h"
 #include "crimson/thread/Throttle.h"
 
@@ -37,10 +38,9 @@ using SocketConnectionRef = seastar::shared_ptr<SocketConnection>;
 
 class SocketConnection : public Connection {
   SocketMessenger& messenger;
-  Dispatcher& dispatcher;
   std::optional<Socket> socket;
   Dispatcher& dispatcher;
-  seastar::gate pending_dispatch;
+  seastar::gate dispatch_gate;
 
   enum class state_t {
     none,
