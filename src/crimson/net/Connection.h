@@ -53,6 +53,13 @@ class Connection : public boost::intrusive_ref_counter<Connection,
 
   /// close the connection and cancel any any pending futures from read/send
   virtual seastar::future<> close() = 0;
+
+  virtual void print(ostream& out) const = 0;
 };
+
+inline ostream& operator<<(ostream& out, const Connection& conn) {
+  conn.print(out);
+  return out;
+}
 
 } // namespace ceph::net
