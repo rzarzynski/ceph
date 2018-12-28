@@ -30,10 +30,9 @@ add_executable(unittest_seastar_config
   test_config.cc)
 target_link_libraries(unittest_seastar_config crimson)
 
-# TODO: fix unittest_seastar_monc with the new design
-#add_executable(unittest_seastar_monc
-#  test_monc.cc)
-#target_link_libraries(unittest_seastar_monc crimson)
+add_executable(unittest_seastar_monc
+  test_monc.cc)
+target_link_libraries(unittest_seastar_monc crimson)
 
 add_executable(unittest_seastar_perfcounters
   test_perfcounters.cc)
