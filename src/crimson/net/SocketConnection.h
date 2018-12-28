@@ -103,13 +103,9 @@ class SocketConnection : public Connection {
     bufferlist data;
   } m;
 
-  /// satisfied when a CEPH_MSGR_TAG_MSG is read, indicating that a message
-  /// header will follow
-  seastar::promise<> on_message;
-
   seastar::future<> maybe_throttle();
-  void read_tags_until_next_message();
-  seastar::future<stop_t> handle_ack();
+  seastar::future<> handle_tags();
+  seastar::future<> handle_ack();
 
   /// becomes available when handshake completes, and when all previous messages
   /// have been sent to the output stream. send() chains new messages as
@@ -134,7 +130,7 @@ class SocketConnection : public Connection {
   ///          false otherwise.
   bool update_rx_seq(seq_num_t seq);
 
-  seastar::future<MessageRef> do_read_message();
+  seastar::future<> read_message();
 
   std::unique_ptr<AuthSessionHandler> session_security;
 
@@ -193,9 +189,6 @@ class SocketConnection : public Connection {
   /// only call when SocketConnection first construct
   void start_accept(seastar::connected_socket&& socket,
                     const entity_addr_t& peer_addr);
-
-  /// read a message from a connection that has completed its handshake
-  seastar::future<MessageRef> read_message();
 
   /// the number of connections initiated in this session, increment when a
   /// new connection is established
