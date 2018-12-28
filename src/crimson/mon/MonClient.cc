@@ -16,6 +16,7 @@
 #include "crimson/common/log.h"
 #include "crimson/net/Connection.h"
 #include "crimson/net/Errors.h"
+#include "crimson/net/Fwd.h"
 #include "crimson/net/Messenger.h"
 
 #include "messages/MAuth.h"
@@ -47,7 +48,7 @@ namespace ceph::mon {
 
 class Connection {
 public:
-  Connection(ceph::net::ConnectionRef conn,
+  Connection(ceph::net::ConnectionXRef conn,
 	     KeyRing* keyring);
   seastar::future<> handle_auth_reply(Ref<MAuthReply> m);
   seastar::future<> authenticate(epoch_t epoch,
@@ -58,7 +59,8 @@ public:
   bool is_my_peer(const entity_addr_t& addr) const;
 
   seastar::future<> renew_tickets();
-  ceph::net::ConnectionRef get_conn();
+  seastar::foreign_ptr<ceph::net::ConnectionRef>& get_conn();
+  const seastar::foreign_ptr<ceph::net::ConnectionRef>& get_conn() const;
 
 private:
   seastar::future<> setup_session(epoch_t epoch,
@@ -72,15 +74,15 @@ private:
 private:
   bool closed = false;
   seastar::promise<Ref<MAuthReply>> reply;
-  ceph::net::ConnectionRef conn;
+  ceph::net::ConnectionXRef conn;
   std::unique_ptr<AuthClientHandler> auth;
   RotatingKeyRing rotating_keyring;
   uint64_t global_id;
 };
 
-Connection::Connection(ceph::net::ConnectionRef conn,
+Connection::Connection(ceph::net::ConnectionXRef conn,
                        KeyRing* keyring)
-  : conn{conn},
+  : conn{std::move(conn)},
     rotating_keyring{nullptr, CEPH_ENTITY_TYPE_OSD, keyring}
 {}
 
@@ -143,7 +145,7 @@ Connection::setup_session(epoch_t epoch,
   encode(auth_methods.get_supported_set(), m->auth_payload);
   encode(name, m->auth_payload);
   encode(global_id, m->auth_payload);
-  return conn->send(m);
+  return get_conn()->send(m);
 }
 
 seastar::future<bool> Connection::do_auth()
@@ -158,13 +160,13 @@ seastar::future<bool> Connection::do_auth()
       ceph::net::error::negotiation_failure));
   }
   logger().info("sending {}", *m);
-  return conn->send(m).then([this] {
+  return get_conn()->send(m).then([this] {
     logger().info("waiting");
     return reply.get_future();
   }).then([this] (Ref<MAuthReply> m) {
     logger().info("mon {} => {} returns {}: {}",
-                   conn->get_messenger()->get_myaddr(),
-                   conn->get_peer_addr(), *m, m->result);
+                   get_conn()->get_messenger()->get_myaddr(),
+                   get_conn()->get_peer_addr(), *m, m->result);
     reply = decltype(reply){};
     auto p = m->result_bl.cbegin();
     auto ret = auth->handle_response(m->result, p);
@@ -182,7 +184,7 @@ Connection::authenticate(epoch_t epoch,
                          const AuthMethodList& auth_methods,
                          uint32_t want_keys)
 {
-  return conn->keepalive().then([epoch, auth_methods, name, this] {
+  return get_conn()->keepalive().then([epoch, auth_methods, name, this] {
     return setup_session(epoch, auth_methods, name);
   }).then([this] {
     return reply.get_future();
@@ -213,8 +215,8 @@ Connection::authenticate(epoch_t epoch,
 
 seastar::future<> Connection::close()
 {
-  if (conn && !std::exchange(closed, true)) {
-    return conn->close();
+  if (get_conn() && !std::exchange(closed, true)) {
+    return get_conn()->close();
   } else {
     return seastar::now();
   }
@@ -222,11 +224,16 @@ seastar::future<> Connection::close()
 
 bool Connection::is_my_peer(const entity_addr_t& addr) const
 {
-  return conn->get_peer_addr() == addr;
+  return get_conn()->get_peer_addr() == addr;
 }
 
-ceph::net::ConnectionRef Connection::get_conn() {
-  return conn;
+seastar::foreign_ptr<ceph::net::ConnectionRef>& Connection::get_conn() {
+  return *conn;
+}
+
+const seastar::foreign_ptr<ceph::net::ConnectionRef>&
+Connection::get_conn() const {
+  return *conn;
 }
 namespace {
 AuthMethodList create_auth_methods(uint32_t entity_type)
@@ -498,13 +505,18 @@ seastar::future<> Client::reopen_session(int rank)
   return seastar::parallel_for_each(mons, [this](auto rank) {
     auto peer = monmap.get_addr(rank);
     logger().info("connecting to mon.{}", rank);
-    auto conn = msgr.connect(peer, CEPH_ENTITY_TYPE_MON);
-    auto& mc = pending_conns.emplace_back(conn, &keyring);
-    return mc.authenticate(
-      monmap.get_epoch(), entity_name,
-      auth_methods, want_keys).handle_exception([conn](auto ep) {
-      return conn->close().then([ep = std::move(ep)] {
-        std::rethrow_exception(ep);
+    auto&& conn_fut = msgr.connect(peer, CEPH_ENTITY_TYPE_MON);
+
+    return conn_fut.then([peer, this](ceph::net::ConnectionXRef conn) {
+      auto& mc = pending_conns.emplace_back(conn, &keyring);
+      return mc.authenticate(
+        monmap.get_epoch(),
+        entity_name,
+        auth_methods,
+        want_keys).handle_exception([conn](auto ep) {
+          return (*conn)->close().then([ep = std::move(ep)] {
+            std::rethrow_exception(ep);
+          });
       });
     }).then([peer, this] {
       if (!is_hunting()) {
