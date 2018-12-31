@@ -75,6 +75,9 @@ class SocketMessenger final : public Messenger, public seastar::peering_sharded_
 
   seastar::future<> shutdown() override;
 
+  seastar::future<> set_crc_data() override;
+  seastar::future<> set_crc_header() override;
+
   Messenger* get_local_shard() override {
     return &container().local();
   }
