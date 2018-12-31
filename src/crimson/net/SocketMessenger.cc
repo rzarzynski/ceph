@@ -81,6 +81,20 @@ seastar::future<> SocketMessenger::shutdown()
     });
 }
 
+seastar::future<> SocketMessenger::set_crc_data()
+{
+  return container().invoke_on_all([](auto& msgr) {
+      return msgr.Messenger::set_crc_data();
+    });
+}
+
+seastar::future<> SocketMessenger::set_crc_header()
+{
+  return container().invoke_on_all([](auto& msgr) {
+      return msgr.Messenger::set_crc_header();
+    });
+}
+
 void SocketMessenger::do_bind(const entity_addr_t& addr)
 {
   ceph_assert(addr.get_family() == AF_INET);

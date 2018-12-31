@@ -67,11 +67,13 @@ class Messenger {
   uint32_t get_crc_flags() const {
     return crc_flags;
   }
-  void set_crc_data() {
+  virtual seastar::future<> set_crc_data() {
     crc_flags |= MSG_CRC_DATA;
+    return seastar::now();
   }
-  void set_crc_header() {
+  virtual seastar::future<> set_crc_header() {
     crc_flags |= MSG_CRC_HEADER;
+    return seastar::now();
   }
 
   // get the local dispatcher shard if it is accessed by another core
