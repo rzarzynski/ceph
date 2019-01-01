@@ -257,7 +257,8 @@ AuthMethodList create_auth_methods(uint32_t entity_type)
 
 Client::Client(const EntityName& name,
                ceph::net::Messenger& messenger)
-  : entity_name{name},
+  : ForeignDispatcher(seastar::engine().cpu_id()),
+    entity_name{name},
     auth_methods{create_auth_methods(entity_name.get_type())},
     want_keys{CEPH_ENTITY_TYPE_MON |
               CEPH_ENTITY_TYPE_OSD |
@@ -296,9 +297,11 @@ bool Client::is_hunting() const {
 }
 
 seastar::future<>
-Client::ms_dispatch(ceph::net::ConnectionRef conn, MessageRef m)
+Client::fms_dispatch(ceph::net::ConnectionFRef conn, Client::MessageFRef m)
 {
   logger().info("ms_dispatch {}", *m);
+#if 0
+  // TODO: need move to MessageFRef or MessengerXRef.
   // we only care about these message types
   switch (m->get_type()) {
   case CEPH_MSG_MON_MAP:
@@ -324,9 +327,12 @@ Client::ms_dispatch(ceph::net::ConnectionRef conn, MessageRef m)
   default:
     return seastar::now();
   }
+#else
+    return seastar::now();
+#endif
 }
 
-seastar::future<> Client::ms_handle_reset(ceph::net::ConnectionRef conn)
+seastar::future<> Client::fms_handle_reset(ceph::net::ConnectionFRef conn)
 {
   auto found = std::find_if(pending_conns.begin(), pending_conns.end(),
                             [peer_addr = conn->get_peer_addr()](auto& mc) {

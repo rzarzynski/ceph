@@ -36,7 +36,11 @@ namespace ceph::mon {
 
 class Connection;
 
-class Client : public ceph::net::Dispatcher {
+// Suppose we don't want to shard MonClient to save resources -- one
+// instance is fine. Let's see how much effort is necessary to interact
+// with sharded world.
+class Client : public ceph::net::ForeignDispatcher<Client> {
+  friend ceph::net::ForeignDispatcher<Client>;
   const EntityName entity_name;
   KeyRing keyring;
   AuthMethodList auth_methods;
@@ -80,9 +84,9 @@ public:
 private:
   void tick();
 
-  seastar::future<> ms_dispatch(ceph::net::ConnectionRef conn,
-				MessageRef m) override;
-  seastar::future<> ms_handle_reset(ceph::net::ConnectionRef conn) override;
+  seastar::future<> fms_dispatch(ceph::net::ConnectionFRef conn,
+				 MessageFRef m) override;
+  seastar::future<> fms_handle_reset(ceph::net::ConnectionFRef conn) override;
 
   seastar::future<> handle_monmap(ceph::net::ConnectionRef conn,
 				  Ref<MMonMap> m);
