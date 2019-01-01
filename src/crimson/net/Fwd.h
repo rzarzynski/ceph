@@ -29,9 +29,10 @@ using msgr_tag_t = uint8_t;
 
 class Connection;
 using ConnectionRef = seastar::shared_ptr<Connection>;
+using ConnectionFRef = seastar::foreign_ptr<ConnectionRef>;
 // NOTE: ConnectionXRef should only be used in seastar world, because
 // lw_shared_ptr<> is not safe to be accessed by unpinned alien threads.
-using ConnectionXRef = seastar::lw_shared_ptr<seastar::foreign_ptr<ConnectionRef>>;
+using ConnectionXRef = seastar::lw_shared_ptr<ConnectionFRef>;
 
 class Dispatcher;
 
