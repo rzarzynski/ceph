@@ -266,10 +266,8 @@ auto create_auth_methods(uint32_t entity_type)
 }
 }
 
-Client::Client(const EntityName& name,
-               ceph::net::Messenger& messenger)
+Client::Client(ceph::net::Messenger& messenger)
   : ForeignDispatcher(seastar::engine().cpu_id()),
-    entity_name{name},
     // currently, crimson is OSD-only
     want_keys{CEPH_ENTITY_TYPE_MON |
               CEPH_ENTITY_TYPE_OSD |

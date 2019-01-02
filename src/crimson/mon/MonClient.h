@@ -41,7 +41,7 @@ class Connection;
 // with sharded world.
 class Client : public ceph::net::ForeignDispatcher<Client> {
   friend ceph::net::ForeignDispatcher<Client>;
-  const EntityName entity_name;
+  EntityName entity_name;
   KeyRing keyring;
   std::unique_ptr<AuthMethodList> auth_methods;
   const uint32_t want_keys;
