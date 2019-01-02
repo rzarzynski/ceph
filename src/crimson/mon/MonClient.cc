@@ -88,13 +88,16 @@ Connection::Connection(ceph::net::ConnectionXRef conn,
 
 seastar::future<> Connection::handle_auth_reply(Ref<MAuthReply> m)
 {
+  logger().info("{}:{} !!!!!!!!!", __func__, __LINE__);
   reply.set_value(m);
   return seastar::now();
 }
 
 seastar::future<> Connection::renew_tickets()
 {
+  logger().info("{}:{}", __func__, __LINE__);
   if (auth->need_tickets()) {
+    logger().info("{}:{}", __func__, __LINE__);
     return do_auth().then([](bool success) {
       if (!success)  {
         throw std::system_error(make_error_code(
@@ -162,11 +165,13 @@ seastar::future<bool> Connection::do_auth()
   logger().info("sending {}", *m);
   return get_conn()->send(m).then([this] {
     logger().info("waiting");
+    logger().info("{}:{} !!!!!!!!!", __func__, __LINE__);
     return reply.get_future();
   }).then([this] (Ref<MAuthReply> m) {
     logger().info("mon {} => {} returns {}: {}",
                    get_conn()->get_messenger()->get_myaddr(),
                    get_conn()->get_peer_addr(), *m, m->result);
+    logger().info("{}:{} !!!!!!!!!", __func__, __LINE__);
     reply = decltype(reply){};
     auto p = m->result_bl.cbegin();
     auto ret = auth->handle_response(m->result, p);
@@ -184,11 +189,16 @@ Connection::authenticate(epoch_t epoch,
                          const AuthMethodList& auth_methods,
                          uint32_t want_keys)
 {
+  logger().info("{}:{}", __func__, __LINE__);
   return get_conn()->keepalive().then([epoch, auth_methods, name, this] {
+    logger().info("{}:{}", __func__, __LINE__);
     return setup_session(epoch, auth_methods, name);
   }).then([this] {
+    logger().info("{}:{}: ", __func__, __LINE__, "auth payload sent");
+    logger().info("{}:{} !!!!!!!!!", __func__, __LINE__);
     return reply.get_future();
   }).then([name, want_keys, this](Ref<MAuthReply> m) {
+    logger().info("{}:{} - GOT auth msg", __func__, __LINE__);
     reply = decltype(reply){};
     auth = create_auth(m, name, want_keys);
     global_id = m->global_id;
@@ -211,6 +221,7 @@ Connection::authenticate(epoch_t epoch,
       ceph_assert_always(0);
     }
   });
+  logger().info("{}:{}", __func__, __LINE__);
 }
 
 seastar::future<> Connection::close()
@@ -268,7 +279,9 @@ Client::Client(const EntityName& name,
 {}
 
 Client::Client(Client&&) = default;
-Client::~Client() = default;
+Client::~Client() {
+  logger().info("{}:{} destroying everything", __func__, __LINE__);
+}
 
 seastar::future<> Client::load_keyring()
 {
@@ -287,6 +300,7 @@ seastar::future<> Client::load_keyring()
 
 void Client::tick()
 {
+  logger().info("{}:{}", __func__, __LINE__);
   seastar::with_gate(tick_gate, [this] {
     return active_con->renew_tickets();
   });
@@ -296,10 +310,16 @@ bool Client::is_hunting() const {
   return !active_con;
 }
 
+#if 0
+2018-12-31 16:42:50.478 7fa9da77f700  1 -- 127.0.0.1:40112/0 >> - conn(0x4674000 legacy :40112 s=ACCEPTING pgs=0 cs=0 l=0).send_server_banner sd=34 127.0.0.1:55106/0
+2018-12-31 16:42:50.482 7fa9da77f700  0 -- 127.0.0.1:40112/0 >> 127.0.0.1:0/0 conn(0x4674000 legacy :40112 s=OPENED pgs=1 cs=1 l=1).handle_message_header got bad header crc 2531610696 != 0
+2018-12-31 16:42:50.482 7fa9da77f700  1 -- 127.0.0.1:40112/0 >> 127.0.0.1:0/0 conn(0x4674000 legacy :40112 s=OPENED pgs=1 cs=1 l=1).fault on lossy channel, failing
+2018-12-31 16:42:50.482 7fa9dcf84700 10 mon.a@0(leader) e1 ms_handle_reset 0x4674000 127.0.0.1:0/0
+#endif
+
 seastar::future<>
 Client::fms_dispatch(ceph::net::ConnectionFRef conn, Client::MessageFRef m)
 {
-  logger().info("ms_dispatch {}", *m);
 #if 0
   // TODO: need move to MessageFRef or MessengerXRef.
   // we only care about these message types
@@ -334,6 +354,7 @@ Client::fms_dispatch(ceph::net::ConnectionFRef conn, Client::MessageFRef m)
 
 seastar::future<> Client::fms_handle_reset(ceph::net::ConnectionFRef conn)
 {
+  logger().info("{}:{}", __func__, __LINE__);
   auto found = std::find_if(pending_conns.begin(), pending_conns.end(),
                             [peer_addr = conn->get_peer_addr()](auto& mc) {
                               return mc.is_my_peer(peer_addr);
@@ -372,7 +393,7 @@ seastar::future<> Client::handle_monmap(ceph::net::ConnectionRef conn,
 seastar::future<> Client::handle_auth_reply(ceph::net::ConnectionRef conn,
                                                Ref<MAuthReply> m)
 {
-  logger().info("mon {} => {} returns {}: {}",
+  logger().info("++++++ mon {} => {} returns {}: {}",
                 conn->get_messenger()->get_myaddr(),
                 conn->get_peer_addr(), *m, m->result);
   auto found = std::find_if(pending_conns.begin(), pending_conns.end(),
@@ -481,15 +502,18 @@ seastar::future<> Client::build_initial_map()
 
 seastar::future<> Client::authenticate()
 {
+  logger().info("{}:{}", __PRETTY_FUNCTION__, __LINE__);
   return reopen_session(-1);
 }
 
 seastar::future<> Client::stop()
 {
+  logger().info("{}:{}", __func__, __LINE__);
   return tick_gate.close().finally([this] {
     return timer.cancel();
   }).then([this] {
     if (active_con) {
+      logger().info("{}:{}", __func__, __LINE__);
       return active_con->close();
     } else {
       return seastar::now();
@@ -514,7 +538,9 @@ seastar::future<> Client::reopen_session(int rank)
     auto&& conn_fut = msgr.connect(peer, CEPH_ENTITY_TYPE_MON);
 
     return conn_fut.then([peer, this](ceph::net::ConnectionXRef conn) {
+      logger().info("{}:{} conn_fut resolved", __func__, __LINE__);
       auto& mc = pending_conns.emplace_back(conn, &keyring);
+      logger().info("{}:{} conn_fut resolved - emplace_back done", __func__, __LINE__);
       return mc.authenticate(
         monmap.get_epoch(),
         entity_name,
@@ -525,6 +551,7 @@ seastar::future<> Client::reopen_session(int rank)
           });
       });
     }).then([peer, this] {
+      logger().info("{}:{} mc_auth resolved", __func__, __LINE__);
       if (!is_hunting()) {
         return seastar::now();
       }
@@ -539,6 +566,7 @@ seastar::future<> Client::reopen_session(int rank)
       });
     });
   }).then([this] {
+    logger().info("{}:{} all ({}) done", __func__, __LINE__, pending_conns.size());
     pending_conns.clear();
   });
 }

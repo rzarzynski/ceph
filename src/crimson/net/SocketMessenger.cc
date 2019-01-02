@@ -23,6 +23,13 @@
 
 using namespace ceph::net;
 
+namespace {
+  seastar::logger& logger()
+  {
+    return ceph::get_logger(ceph_subsys_monc);
+  }
+}
+
 SocketMessenger::SocketMessenger(const entity_name_t& myname,
                                  const std::string& logic_name,
                                  uint32_t nonce)
@@ -35,6 +42,12 @@ SocketMessenger::SocketMessenger(const entity_name_t& myname,
   my_addr.set_type(entity_addr_t::TYPE_DEFAULT);
   my_addr.nonce = nonce;
   Messenger::set_myaddr(my_addr);
+  logger().info("{}:{}", __func__, __LINE__);
+}
+
+SocketMessenger::~SocketMessenger()
+{
+  logger().info("{}:{}", __func__, __LINE__);
 }
 
 seastar::future<> SocketMessenger::set_myaddr(const entity_addr_t& addr)

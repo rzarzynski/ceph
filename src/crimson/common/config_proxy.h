@@ -71,8 +71,8 @@ class ConfigProxy : public seastar::peering_sharded_service<ConfigProxy>
                                                      const std::string &key) {
                                             rev_obs[obs].insert(key);
                                           }, nullptr);
-            for (auto& [obs, keys] : rev_obs) {
-              obs->handle_conf_change(proxy, keys);
+            for (auto& kv : rev_obs) {
+              kv.first->handle_conf_change(proxy, kv.second);
             }
           });
         }).finally([new_values] {

@@ -61,6 +61,7 @@ class SocketMessenger final : public Messenger, public seastar::peering_sharded_
   SocketMessenger(const entity_name_t& myname,
                   const std::string& logic_name,
                   uint32_t nonce);
+  ~SocketMessenger();
 
   seastar::future<> set_myaddr(const entity_addr_t& addr) override;
 

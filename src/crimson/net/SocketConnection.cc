@@ -104,6 +104,7 @@ seastar::future<> SocketConnection::close()
 
 seastar::future<> SocketConnection::handle_tags()
 {
+  logger().info("{} {}:{}", *this, __PRETTY_FUNCTION__, __LINE__);
   return seastar::keep_doing([this] {
       // read the next tag
       return socket->read_exactly(1)
@@ -171,6 +172,7 @@ seastar::future<> SocketConnection::maybe_throttle()
 
 seastar::future<> SocketConnection::read_message()
 {
+  logger().info("{} {}:{}", *this, __PRETTY_FUNCTION__, __LINE__);
   return socket->read(sizeof(m.header))
     .then([this] (bufferlist bl) {
       // throttle the traffic, maybe
@@ -241,6 +243,7 @@ seastar::future<> SocketConnection::write_message(MessageRef msg)
 {
   msg->set_seq(++out_seq);
   msg->encode(features, messenger.get_crc_flags());
+  logger().info("{} write_message msgr.get_crc_flags={}", *this, messenger.get_crc_flags());
   bufferlist bl;
   bl.append(CEPH_MSGR_TAG_MSG);
   auto& header = msg->get_header();
@@ -838,6 +841,7 @@ SocketConnection::start_connect(const entity_addr_t& _peer_addr,
           // notify the dispatcher and allow them to reject the connection
           return dispatcher.ms_handle_connect(seastar::static_pointer_cast<SocketConnection>(shared_from_this()));
         }).then([this] {
+          logger().warn("{} start_connect() goes to execute_open", *this);
           execute_open();
         }).handle_exception([this] (std::exception_ptr eptr) {
           // TODO: handle fault in the connecting state
@@ -903,7 +907,7 @@ SocketConnection::start_accept(seastar::connected_socket&& fd,
 void
 SocketConnection::execute_open()
 {
-  logger().debug("{} trigger open, was {}", *this, static_cast<int>(state));
+  logger().info("{} trigger open, was {}", *this, static_cast<int>(state));
   state = state_t::open;
   // satisfy the handshake's promise
   seastar::now().forward_to(std::move(h.promise));

@@ -3,12 +3,16 @@
 
 #include "Socket.h"
 
+#include "crimson/common/log.h"
 #include "Errors.h"
 
 namespace ceph::net {
 
 namespace {
 
+  seastar::logger& logger() {
+    return ceph::get_logger(ceph_subsys_ms);
+  }
 // an input_stream consumer that reads buffer segments into a bufferlist up to
 // the given number of remaining bytes
 struct bufferlist_consumer {
@@ -72,6 +76,7 @@ Socket::read_exactly(size_t bytes) {
   return in.read_exactly(bytes)
     .then([this](auto buf) {
       if (buf.empty()) {
+        logger().info("Oops, get an empty buffer. Throwing in read_exactly");
         throw std::system_error(make_error_code(error::read_eof));
       }
       return seastar::make_ready_future<tmp_buf>(std::move(buf));

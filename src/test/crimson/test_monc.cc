@@ -8,9 +8,17 @@
 using Config = ceph::common::ConfigProxy;
 using MonClient = ceph::mon::Client;
 
+namespace {
+  seastar::logger& logger()
+  {
+    return ceph::get_logger(ceph_subsys_monc);
+  }
+}
+
 template <typename T, typename... Args>
 seastar::future<std::reference_wrapper<T>> create_sharded(Args... args) {
   auto sharded_obj = seastar::make_lw_shared<seastar::sharded<T>>();
+  logger().info("{}:{}", __func__, __LINE__);
   return sharded_obj->start(args...).then([sharded_obj]() {
       auto& ret = sharded_obj->local();
       seastar::engine().at_exit([sharded_obj]() {
@@ -59,9 +67,10 @@ static seastar::future<> test_monc()
           return msgr.start(&monc);
         }).then([&monc] {
           return seastar::with_timeout(
-            seastar::lowres_clock::now() + std::chrono::seconds{10},
+            seastar::lowres_clock::now() + std::chrono::seconds{5},
             monc.authenticate());
         }).finally([&monc] {
+          logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
           return monc.stop();
         });
       }).finally([&msgr] {
@@ -77,6 +86,7 @@ int main(int argc, char** argv)
 {
   seastar::app_template app;
   return app.run(argc, argv, [&] {
+
     return test_monc().then([] {
       std::cout << "All tests succeeded" << std::endl;
     }).handle_exception([] (auto eptr) {
