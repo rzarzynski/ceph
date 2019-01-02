@@ -30,7 +30,9 @@ namespace ceph::net {
 
 using SocketPolicy = ceph::net::Policy<ceph::thread::Throttle>;
 
-class SocketMessenger final : public Messenger, public seastar::peering_sharded_service<SocketMessenger> {
+class SocketMessenger final
+  : public Messenger,
+    public seastar::peering_sharded_service<SocketMessenger> {
   const seastar::shard_id sid;
   seastar::promise<> shutdown_promise;
 
@@ -61,7 +63,6 @@ class SocketMessenger final : public Messenger, public seastar::peering_sharded_
   SocketMessenger(const entity_name_t& myname,
                   const std::string& logic_name,
                   uint32_t nonce);
-  SocketMessenger() = default;
   ~SocketMessenger();
 
   seastar::future<> set_myaddr(const entity_addr_t& addr) override;
@@ -115,6 +116,27 @@ class SocketMessenger final : public Messenger, public seastar::peering_sharded_
   seastar::shard_id shard_id() const {
     return sid;
   }
+
+  using msgrptr_t = std::unique_ptr<SocketMessenger, void(*)(SocketMessenger*)>;
+
+  template <class... Args>
+  static seastar::future<msgrptr_t> create(Args&&... args);
 };
+
+template <class... Args>
+seastar::future<SocketMessenger::msgrptr_t> SocketMessenger::create(Args&&... args)
+{
+  auto sharded_msgr = \
+    seastar::make_lw_shared<seastar::sharded<SocketMessenger>>();
+  return sharded_msgr->start(std::forward<Args>(args)...).then(
+    [ sharded_msgr ] {
+      auto& local_msgr = sharded_msgr->local();
+      seastar::engine().at_exit(
+        [ sharded_msgr ] {
+          return sharded_msgr->stop().finally([ sharded_msgr ] {});
+        });
+      return msgrptr_t(&local_msgr, [] (auto) { /* NOP */ });
+    });
+}
 
 } // namespace ceph::net

@@ -15,19 +15,6 @@ namespace {
   }
 }
 
-template <typename T, typename... Args>
-seastar::future<std::reference_wrapper<T>> create_sharded(Args... args) {
-  auto sharded_obj = seastar::make_lw_shared<seastar::sharded<T>>();
-  logger().info("{}:{}", __func__, __LINE__);
-  return sharded_obj->start(args...).then([sharded_obj]() {
-      auto& ret = sharded_obj->local();
-      seastar::engine().at_exit([sharded_obj]() {
-          return sharded_obj->stop().finally([sharded_obj] {});
-        });
-      return std::ref(ret);
-    });
-}
-
 static seastar::future<> test_monc()
 {
   return ceph::common::sharded_conf().start(EntityName{}, string_view{"ceph"}).then([] {
@@ -50,27 +37,27 @@ static seastar::future<> test_monc()
     });
   }).then([] {
     auto&& msgr_fut = \
-      create_sharded<ceph::net::SocketMessenger>(entity_name_t::OSD(0), "monc", 0);
-    return msgr_fut.then([](ceph::net::Messenger& msgr) {
+      ceph::net::SocketMessenger::create(entity_name_t::OSD(0), (const char*)"monc", 0);
+    return msgr_fut.then([](auto local_msgr) {
       auto& conf = ceph::common::local_conf();
       if (conf->ms_crc_data) {
-        msgr.set_crc_data();
+        local_msgr->set_crc_data();
       }
       if (conf->ms_crc_header) {
-        msgr.set_crc_header();
+        local_msgr->set_crc_header();
       }
-      return seastar::do_with(MonClient{msgr},
-                              [&msgr](auto& monc) {
-        return msgr.start(&monc).then([&monc] {
+      return seastar::do_with(MonClient{*local_msgr},
+                              [ &local_msgr ](auto& monc) {
+        return local_msgr->start(&monc).then([&monc] {
           return seastar::with_timeout(
             seastar::lowres_clock::now() + std::chrono::seconds{5},
             monc.start());
         }).finally([&monc] {
           logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
           return monc.stop();
+        }).finally([ &local_msgr ] {
+          return local_msgr->shutdown();
         });
-      }).finally([&msgr] {
-        return msgr.shutdown();
       });
     });
   }).finally([] {
