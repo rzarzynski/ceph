@@ -46,8 +46,8 @@ static seastar::future<> test_monc()
       if (conf->ms_crc_header) {
         local_msgr->set_crc_header();
       }
-      return seastar::do_with(MonClient{*local_msgr},
-                              [ &local_msgr ](auto& monc) {
+      return seastar::do_with(MonClient{*local_msgr}, std::move(local_msgr),
+                              [](auto& monc, auto& local_msgr) {
         return local_msgr->start(&monc).then([&monc] {
           return seastar::with_timeout(
             seastar::lowres_clock::now() + std::chrono::seconds{5},

@@ -65,14 +65,15 @@ seastar::future<> test_echo(unsigned rounds,
                              const entity_addr_t& addr,
                              const std::string& lname,
                              const uint64_t nonce) {
-        return create_sharded<ceph::net::SocketMessenger>(name, lname, nonce)
-          .then([this, addr](auto messenger) {
-            return container().invoke_on_all([messenger](auto& server) {
-                server.msgr = messenger->get_local_shard();
-              }).then([messenger, addr] {
-                return messenger->bind(addr);
-              }).then([this, messenger] {
-                return messenger->start(this);
+        return ceph::net::SocketMessenger::create(name, lname, nonce).then(
+          [ this, addr ](auto messenger) {
+            auto local_msgr = messenger.get();
+            return container().invoke_on_all([ local_msgr ](auto& server) {
+                server.msgr = local_msgr->get_local_shard();
+              }).then([ local_msgr, addr] {
+                return local_msgr->bind(addr);
+              }).then([this, local_msgr] {
+                return local_msgr->start(this);
               });
           });
       }
