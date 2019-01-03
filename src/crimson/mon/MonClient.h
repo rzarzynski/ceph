@@ -79,6 +79,10 @@ public:
   command_result_t run_command(const std::vector<std::string>& cmd,
 			       const bufferlist& bl);
 
+  using clntptr_t = std::unique_ptr<Client>;
+  template <class... Args>
+  static seastar::future<clntptr_t> create(Args&&... args);
+
 private:
   void tick();
 
@@ -106,5 +110,13 @@ private:
   std::vector<unsigned> get_random_mons(unsigned n) const;
   seastar::future<> _add_conn(unsigned rank, uint64_t global_id);
 };
+
+template <class... Args>
+seastar::future<Client::clntptr_t> Client::create(Args&&... args)
+{
+  return seastar::make_ready_future<clntptr_t>(
+    std::make_unique<Client>(
+      std::forward<Args>(args)...));
+}
 
 } // namespace ceph::mon

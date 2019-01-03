@@ -6,7 +6,6 @@
 #include "crimson/net/SocketMessenger.h"
 
 using Config = ceph::common::ConfigProxy;
-using MonClient = ceph::mon::Client;
 
 namespace {
   seastar::logger& logger()
@@ -30,40 +29,41 @@ static seastar::future<> test_monc()
     conf->cluster = cluster;
     return conf.parse_config_files(conf_file_list);
   }).then([] {
-    ceph::common::sharded_perf_coll().start().then([] {
-      seastar::engine().at_exit([] {
+    return ceph::common::sharded_perf_coll().start();
+  }).then([] {
+    seastar::engine().at_exit([] {
         return ceph::common::sharded_perf_coll().stop();
       });
-    });
   }).then([] {
-    auto&& msgr_fut = \
-      ceph::net::SocketMessenger::create(entity_name_t::OSD(0), (const char*)"monc", 0);
-    return msgr_fut.then([](auto local_msgr) {
-      auto& conf = ceph::common::local_conf();
-      if (conf->ms_crc_data) {
-        local_msgr->set_crc_data();
-      }
-      if (conf->ms_crc_header) {
-        local_msgr->set_crc_header();
-      }
-      return seastar::do_with(MonClient{*local_msgr}, std::move(local_msgr),
-                              [](auto& monc, auto& local_msgr) {
-        return local_msgr->start(&monc).then([&monc] {
-          return seastar::with_timeout(
-            seastar::lowres_clock::now() + std::chrono::seconds{5},
-            monc.start());
-        }).finally([&monc] {
-          logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
-          return monc.stop();
-        }).finally([ &local_msgr ] {
-          return local_msgr->shutdown();
+    return ceph::net::SocketMessenger::create(entity_name_t::OSD(0),
+      static_cast<const char*>("monc"), 0);
+  }).then([] (auto local_msgr) mutable {
+    if (ceph::common::local_conf()->ms_crc_data) {
+      local_msgr->set_crc_data();
+    }
+    if (ceph::common::local_conf()->ms_crc_header) {
+      local_msgr->set_crc_header();
+    }
+    return ceph::mon::Client::create(*local_msgr).then(
+      [ local_msgr = std::move(local_msgr) ] (auto monc) mutable {
+      return seastar::do_with(std::move(monc), std::move(local_msgr),
+        [](auto& monc, auto& local_msgr) {
+          return local_msgr->start(&*monc).then([ &monc ] {
+            return seastar::with_timeout(
+              seastar::lowres_clock::now() + std::chrono::seconds{5},
+              monc->start());
+          }).finally([ &monc ] {
+            logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
+            return monc->stop();
+          }).finally([ &local_msgr ] {
+            return local_msgr->shutdown();
+          });
         });
       });
-    });
   }).finally([] {
-    return ceph::common::sharded_perf_coll().stop().then([] {
-      return ceph::common::sharded_conf().stop();
-    });
+    return ceph::common::sharded_perf_coll().stop();
+  }).then([] {
+    return ceph::common::sharded_conf().stop();
   });
 }
 
