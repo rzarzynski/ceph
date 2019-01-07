@@ -68,8 +68,12 @@ class Client : public ceph::net::ForeignDispatcher<Client> {
 
   MonSub sub;
 
+  struct _private_tag_t {
+    explicit _private_tag_t() = default;
+  };
+
 public:
-  Client(ceph::net::Messenger& messenger);
+  Client(_private_tag_t, ceph::net::Messenger& messenger);
   Client(Client&&);
   ~Client();
   seastar::future<> start();
@@ -116,7 +120,7 @@ seastar::future<Client::clntptr_t> Client::create(Args&&... args)
 {
   return seastar::make_ready_future<clntptr_t>(
     std::make_unique<Client>(
-      std::forward<Args>(args)...));
+      Client::_private_tag_t(), std::forward<Args>(args)...));
 }
 
 } // namespace ceph::mon
