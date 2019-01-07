@@ -266,14 +266,14 @@ auto create_auth_methods(uint32_t entity_type)
 }
 }
 
-Client::Client(_private_tag_t, ceph::net::Messenger& messenger)
+Client::Client(_private_tag_t, ceph::net::Messenger::msgrptr_t messenger)
   : ForeignDispatcher(seastar::engine().cpu_id()),
     // currently, crimson is OSD-only
     want_keys{CEPH_ENTITY_TYPE_MON |
               CEPH_ENTITY_TYPE_OSD |
               CEPH_ENTITY_TYPE_MGR},
     timer{[this] { tick(); }},
-    msgr{messenger}
+    msgr{std::move(messenger)}
 {}
 
 Client::Client(Client&&) = default;
@@ -285,7 +285,10 @@ seastar::future<> Client::start() {
   entity_name = ceph::common::local_conf()->name;
   // should always be OSD, though
   auth_methods = create_auth_methods(entity_name.get_type());
-  return load_keyring().then([this] {
+
+  return msgr->start(this).then([this] {
+    return load_keyring();
+  }).then([this] {
     return monmap.build_initial(ceph::common::local_conf());
   }).then([this] {
     return authenticate();
@@ -520,6 +523,8 @@ seastar::future<> Client::stop()
     } else {
       return seastar::now();
     }
+  }).then([this] {
+    return msgr->shutdown();
   });
 }
 
@@ -537,7 +542,7 @@ seastar::future<> Client::reopen_session(int rank)
   return seastar::parallel_for_each(mons, [this](auto rank) {
     auto peer = monmap.get_addr(rank);
     logger().info("connecting to mon.{}", rank);
-    auto&& conn_fut = msgr.connect(peer, CEPH_ENTITY_TYPE_MON);
+    auto&& conn_fut = msgr->connect(peer, CEPH_ENTITY_TYPE_MON);
 
     return conn_fut.then([peer, this](ceph::net::ConnectionXRef conn) {
       logger().info("{}:{} conn_fut resolved", __func__, __LINE__);

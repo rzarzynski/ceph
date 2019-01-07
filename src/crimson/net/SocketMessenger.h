@@ -117,7 +117,7 @@ class SocketMessenger final
     return sid;
   }
 
-  using msgrptr_t = std::unique_ptr<SocketMessenger, void(*)(SocketMessenger*)>;
+  using msgrptr_t = std::unique_ptr<Messenger, void(*)(Messenger*)>;
 
   template <class... Args>
   static seastar::future<msgrptr_t> create(Args&&... args);

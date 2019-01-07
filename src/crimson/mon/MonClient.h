@@ -13,15 +13,13 @@
 
 #include "crimson/net/Dispatcher.h"
 #include "crimson/net/Fwd.h"
+#include "crimson/net/Messenger.h"
 
 #include "mon/MonMap.h"
 
 #include "mon/MonSub.h"
 
 template<typename Message> using Ref = boost::intrusive_ptr<Message>;
-namespace ceph::net {
-  class Messenger;
-}
 
 class AuthMethodList;
 class MAuthReply;
@@ -53,7 +51,7 @@ class Client : public ceph::net::ForeignDispatcher<Client> {
   seastar::timer<seastar::lowres_clock> timer;
   seastar::gate tick_gate;
 
-  ceph::net::Messenger& msgr;
+  ceph::net::Messenger::msgrptr_t msgr;
 
   // commands
   using get_version_t = seastar::future<version_t, version_t>;
@@ -73,7 +71,7 @@ class Client : public ceph::net::ForeignDispatcher<Client> {
   };
 
 public:
-  Client(_private_tag_t, ceph::net::Messenger& messenger);
+  Client(_private_tag_t, ceph::net::Messenger::msgrptr_t messenger);
   Client(Client&&);
   ~Client();
   seastar::future<> start();

@@ -16,6 +16,7 @@ namespace {
 
 static seastar::future<> test_monc()
 {
+  static ceph::mon::Client::clntptr_t monc_srv;
   return ceph::common::sharded_conf().start(EntityName{}, string_view{"ceph"}).then([] {
     std::vector<const char*> args;
     std::string cluster;
@@ -44,22 +45,15 @@ static seastar::future<> test_monc()
     if (ceph::common::local_conf()->ms_crc_header) {
       local_msgr->set_crc_header();
     }
-    return ceph::mon::Client::create(*local_msgr).then(
-      [ local_msgr = std::move(local_msgr) ] (auto monc) mutable {
-      return seastar::do_with(std::move(monc), std::move(local_msgr),
-        [](auto& monc, auto& local_msgr) {
-          return local_msgr->start(&*monc).then([ &monc ] {
-            return seastar::with_timeout(
-              seastar::lowres_clock::now() + std::chrono::seconds{5},
-              monc->start());
-          }).finally([ &monc ] {
-            logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
-            return monc->stop();
-          }).finally([ &local_msgr ] {
-            return local_msgr->shutdown();
-          });
-        });
-      });
+    return ceph::mon::Client::create(std::move(local_msgr));
+  }).then([] (auto monc) mutable {
+    monc_srv = std::move(monc);
+    return seastar::with_timeout(
+      seastar::lowres_clock::now() + std::chrono::seconds{5},
+      monc_srv->start());
+  }).finally([] {
+    logger().info("{}:{} finally - maybe timeout", __func__, __LINE__);
+    return monc_srv->stop();
   }).finally([] {
     return ceph::common::sharded_perf_coll().stop();
   }).then([] {

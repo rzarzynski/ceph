@@ -87,6 +87,8 @@ class Messenger {
   }
 
   virtual void print(ostream& out) const = 0;
+
+  using msgrptr_t = std::unique_ptr<Messenger, void(*)(Messenger*)>;
 };
 
 inline ostream& operator<<(ostream& out, const Messenger& msgr) {
