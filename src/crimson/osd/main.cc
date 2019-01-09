@@ -39,16 +39,16 @@ int main(int argc, char* argv[])
   // TODO: add heartbeat
   seastar::app_template app;
   // talk with osd
-  ceph::net::SocketMessenger cluster_msgr;
+  // ceph::net::SocketMessenger::msgrptr_t cluster_msgrsrv = nullptr;
+
   // talk with mon/mgr
-  ceph::net::SocketMessenger client_msgr;
-  ceph::mon::Client monc{client_msgr};
+  ceph::mon::Client::clntptr_t moncsrv;
   seastar::sharded<OSD> osd;
 
   args.insert(begin(args), argv[0]);
   try {
     return app.run(args.size(), const_cast<char**>(args.data()), [&] {
-        return seastar::async([&cluster_msgr, &client_msgr, &monc, &osd,
+        return seastar::async([&moncsrv, &osd,
                                &init_params, &cluster, &conf_file_list,
                                &return_value] {
         ceph::common::sharded_conf().start(init_params.name, cluster).get();
@@ -62,18 +62,34 @@ int main(int argc, char* argv[])
         auto& conf = ceph::common::local_conf();
         conf.parse_config_files(conf_file_list).get();
         const auto whoami = std::stoi(conf->name.get_id());
-        for (ceph::net::SocketMessenger& msgr : {std::ref(cluster_msgr),
-                                                 std::ref(client_msgr)}) {
-          msgr.set_myname(entity_name_t::OSD(whoami));
-          if (conf->ms_crc_data) {
-            msgr.set_crc_data();
-          }
-          if (conf->ms_crc_header) {
-            msgr.set_crc_header();
-          }
-        }
 
-        client_msgr.start(&monc);
+	ceph::net::SocketMessenger::create(entity_name_t::OSD(whoami),
+          static_cast<const char*>("monc"), 0).then(
+	  [] (auto monc_msgr) mutable {
+            if (ceph::common::local_conf()->ms_crc_data) {
+              monc_msgr->set_crc_data();
+            }
+            if (ceph::common::local_conf()->ms_crc_header) {
+              monc_msgr->set_crc_header();
+            }
+	    return std::move(monc_msgr);
+	  }).then([] (auto monc_msgr) mutable {
+	    return ceph::mon::Client::create(std::move(monc_msgr));
+	  }).then([ &moncsrv ] (auto monc) mutable {
+	    moncsrv = std::move(monc);
+	    return moncsrv->start();
+	  });
+
+	ceph::net::SocketMessenger::create(entity_name_t::OSD(whoami, "osdc", 0).then(
+	  [] (auto msgr) {
+            if (ceph::common::local_conf()->ms_crc_data) {
+              msgr->set_crc_data();
+            }
+            if (ceph::common::local_conf()->ms_crc_header) {
+              msgr->set_crc_header();
+            }
+	  });
+
         seastar::engine().at_exit([&client_msgr] {
           return client_msgr.shutdown();
         });
