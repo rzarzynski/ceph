@@ -75,7 +75,7 @@ private:
   char *temp_buffer;
   State state;
   uint64_t peer_required_features;
-  std::shared_ptr<AuthSessionHandler> session_security;
+  std::shared_ptr<AuthStreamHandler> session_security;
 
   uint64_t cookie;
   uint64_t global_seq;
