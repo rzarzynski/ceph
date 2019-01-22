@@ -238,8 +238,6 @@ private:
   Ct<ProtocolV2> *handle_auth_request(char *payload, uint32_t length);
   Ct<ProtocolV2> *handle_auth_request_more(char *payload, uint32_t length);
   Ct<ProtocolV2> *_handle_auth_request(bufferlist& auth_payload, bool more);
-  Ct<ProtocolV2> *_handle_mon_auth(bufferlist& auth_payload, bool more);
-  Ct<ProtocolV2> *_handle_authorizer(bufferlist& auth_payload, bool more);
   Ct<ProtocolV2> *handle_client_ident(char *payload, uint32_t length);
   Ct<ProtocolV2> *handle_ident_missing_features_write(int r);
   Ct<ProtocolV2> *handle_reconnect(char *payload, uint32_t length);
