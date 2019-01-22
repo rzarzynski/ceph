@@ -27,23 +27,8 @@ class CephContext;
 class Message;
 
 struct AuthSessionHandler {
-protected:
-  CephContext *cct;
-  int protocol;
-  CryptoKey key;                // per mon authentication
-  CryptoKey connection_secret;  // per connection
-
-public:
-  explicit AuthSessionHandler(CephContext *cct_) : cct(cct_), protocol(CEPH_AUTH_UNKNOWN) {}
-
-  AuthSessionHandler(CephContext *cct_, int protocol_,
-		     const CryptoKey& key_,
-		     const CryptoKey& cs_)
-    : cct(cct_),
-      protocol(protocol_),
-      key(key_),
-      connection_secret(cs_) {}
-  virtual ~AuthSessionHandler() { }
+  AuthSessionHandler() = default;
+  virtual ~AuthSessionHandler() = default;
 
   virtual int sign_message(Message *message) = 0;
   virtual int check_message_signature(Message *message) = 0;
