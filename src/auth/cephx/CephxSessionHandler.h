@@ -23,18 +23,15 @@ class CephxSessionHandler  : public AuthSessionHandler {
   CephContext *cct;
   int protocol;
   CryptoKey key;                // per mon authentication
-  CryptoKey connection_secret;  // per connection
   uint64_t features;
 
 public:
   CephxSessionHandler(CephContext *cct,
 		      const CryptoKey& session_key,
-		      const CryptoKey& connection_secret,
 		      const uint64_t features)
     : cct(cct),
       protocol(CEPH_AUTH_CEPHX),
       key(session_key),
-      connection_secret(connection_secret),
       features(features) {
   }
   ~CephxSessionHandler() override = default;
@@ -44,7 +41,7 @@ public:
   int sign_message(Message *m) override;
   int check_message_signature(Message *m) override ;
 
-  int encrypt_bufferlist(bufferlist &in, bufferlist &out) override;
-  int decrypt_bufferlist(bufferlist &in, bufferlist &out) override;
+  int encrypt_bufferlist(bufferlist &in, bufferlist &out);
+  int decrypt_bufferlist(bufferlist &in, bufferlist &out);
 };
 
