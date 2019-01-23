@@ -25,6 +25,8 @@ class CephxSessionHandler  : public AuthSessionHandler {
   CryptoKey key;                // per mon authentication
   uint64_t features;
 
+  int _calc_signature(Message *m, uint64_t *psig);
+
 public:
   CephxSessionHandler(CephContext *cct,
 		      const CryptoKey& session_key,
@@ -35,8 +37,6 @@ public:
       features(features) {
   }
   ~CephxSessionHandler() override = default;
-
-  int _calc_signature(Message *m, uint64_t *psig);
 
   int sign_message(Message *m) override;
   int check_message_signature(Message *m) override ;
