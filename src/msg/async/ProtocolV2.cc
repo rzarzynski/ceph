@@ -992,6 +992,17 @@ bool ProtocolV2::is_queued() {
   return !out_queue.empty() || connection->is_queued();
 }
 
+uint32_t ProtocolV2::calculate_payload_size(
+  AuthStreamHandler *stream_handler,
+  uint32_t length)
+{
+  if (stream_handler) {
+    return stream_handler->calculate_payload_size(length);
+  } else {
+    return length;
+  }
+}
+
 void ProtocolV2::authencrypt_payload(bufferlist &payload) {
   // using tx
   if (session_security.tx) {
@@ -1362,8 +1373,8 @@ CtPtr ProtocolV2::handle_message() {
 #endif
   recv_stamp = ceph_clock_now();
 
-  const uint32_t header_len = \
-    session_security.rx->calculate_payload_size(sizeof(ceph_msg_header2));
+  const uint32_t header_len = calculate_payload_size(
+    session_security.rx.get(), sizeof(ceph_msg_header2));
   return READ(header_len, handle_message_header);
 }
 
@@ -1375,8 +1386,8 @@ CtPtr ProtocolV2::handle_message_header(char *buffer, int r) {
     return _fault();
   }
 
-  const uint32_t header_len = \
-    session_security.rx->calculate_payload_size(sizeof(ceph_msg_header2));
+  const uint32_t header_len = calculate_payload_size(
+    session_security.rx.get(), sizeof(ceph_msg_header2));
 
   MessageHeaderFrame header_frame(this, buffer, header_len);
   ceph_msg_header2 &header = header_frame.header();
