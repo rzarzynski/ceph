@@ -994,12 +994,16 @@ bool ProtocolV2::is_queued() {
 
 void ProtocolV2::authencrypt_payload(bufferlist &payload) {
   // using tx
-  session_security.tx->authenticated_encrypt(payload);
+  if (session_security.tx) {
+    session_security.tx->authenticated_encrypt(payload);
+  }
 }
 
 void ProtocolV2::authdecrypt_payload(char *payload, uint32_t &length) {
   // using rx
-  session_security.rx->authenticated_decrypt(payload, length);
+  if (session_security.rx) {
+    session_security.rx->authenticated_decrypt(payload, length);
+  }
 }
 
 CtPtr ProtocolV2::read(CONTINUATION_PARAM(next, ProtocolV2, char *, int),
@@ -2608,7 +2612,7 @@ CtPtr ProtocolV2::reuse_connection(AsyncConnectionRef existing,
                            << dendl;
   exproto->can_write = false;
   exproto->replacing = true;
-  std::swap(exproto->session_security, session_security);
+  exproto->session_security = session_security;
   exproto->auth_meta.con_mode = auth_meta.con_mode;
   exproto->auth_meta.auth_method = auth_meta.auth_method;
   exproto->auth_meta.session_key = auth_meta.session_key;

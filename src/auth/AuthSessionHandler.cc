@@ -58,6 +58,7 @@ AuthSessionHandler *get_auth_session_handler(
 class AES128CBC_HMACSHA256_StreamHandler : public AuthStreamHandler {
   CephContext* const cct;
   const AuthConnectionMeta& auth_meta;
+  CryptoKey key;
 
   void calc_signature(const char *in, uint32_t length, char *out) {
     auto secret = auth_meta.session_key.get_secret();
@@ -153,11 +154,25 @@ class AES128CBC_HMACSHA256_StreamHandler : public AuthStreamHandler {
     }
   }
 
-  // TODO: kill the dummies
   int encrypt_bufferlist(bufferlist &in, bufferlist &out) {
+    std::string error;
+    try {
+      key.encrypt(cct, in, out, &error);
+    } catch (std::exception &e) {
+      lderr(cct) << __func__ << " failed to encrypt buffer: " << error << dendl;
+      return -1;
+    }
     return 0;
   }
+
   int decrypt_bufferlist(bufferlist &in, bufferlist &out) {
+    std::string error;
+    try {
+      key.decrypt(cct, in, out, &error);
+    } catch (std::exception &e) {
+      lderr(cct) << __func__ << " failed to decrypt buffer: " << error << dendl;
+      return -1;
+    }
     return 0;
   }
 
@@ -202,7 +217,8 @@ public:
   AES128CBC_HMACSHA256_StreamHandler(CephContext* const cct,
 				     const AuthConnectionMeta& auth_meta)
     : cct(cct),
-      auth_meta(auth_meta) {
+      auth_meta(auth_meta),
+      key(auth_meta.connection_secret) {
   }
 
   void authenticated_encrypt(ceph::bufferlist& payload) override {
@@ -222,12 +238,13 @@ public:
   }
 };
 
+
 AuthStreamHandler::rxtx_t AuthStreamHandler::create_stream_handler_pair(
   CephContext* cct,
   const class AuthConnectionMeta& auth_meta)
 {
   return {
-    std::make_unique<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta),
-    std::make_unique<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta)
+    std::make_shared<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta),
+    std::make_shared<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta)
   };
 }
