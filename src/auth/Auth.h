@@ -169,13 +169,13 @@ struct AuthConnectionMeta {
   };
   int con_mode = CON_MODE_INTEGRITY;
 
-  bool is_integrity_mode() {
+  bool is_integrity_mode() const {
     return con_mode == CON_MODE_INTEGRITY;
   }
-  bool is_authenticity_mode() {
+  bool is_authenticity_mode() const {
     return con_mode == CON_MODE_AUTHENTICITY;
   }
-  bool is_secrecy_mode() {
+  bool is_secrecy_mode() const {
     return con_mode == CON_MODE_SECRECY;
   }
 
