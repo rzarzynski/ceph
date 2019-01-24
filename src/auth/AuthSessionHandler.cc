@@ -239,6 +239,118 @@ public:
 };
 
 
+#ifdef USE_OPENSSL
+# include <openssl/evp.h>
+#endif
+
+// http://www.mindspring.com/~dmcgrew/gcm-nist-6.pdf
+// https://www.openssl.org/docs/man1.0.2/crypto/EVP_aes_128_gcm.html#GCM-mode
+// https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
+class AES128GCM_StreamHandler : public AuthStreamHandler {
+  std::unique_ptr<EVP_CIPHER_CTX, decltype(&::EVP_CIPHER_CTX_free)> ectx;
+
+  static constexpr const std::size_t AES_KEY_LEN{16};
+  static constexpr const std::size_t AES_IV_LEN{16};
+  static constexpr const std::size_t STREAM_GCM_TAG_LEN{16};
+  static constexpr const std::size_t AES_BLOCK_LEN{16};
+
+  const ceph::buffer::ptr connection_secret;
+
+  // using GCC's "Tetra Integer" mode here
+  uint128_t nonce;
+  static_assert(sizeof(nonce) == AES_IV_LEN);
+
+public:
+  AES128GCM_StreamHandler(const AuthConnectionMeta& auth_meta)
+    : ectx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free),
+      connection_secret(auth_meta.connection_secret.get_secret()),
+      nonce(0) /* XXX, TODO, FIXME, FIXME, FIXME */ {
+    ceph_assert_always(ectx);
+
+    //EVP_CIPHER_CTX_reset(ectx.get());
+  }
+
+  ~AES128GCM_StreamHandler() override {
+    memset(&nonce, 0, sizeof(nonce));
+    //connection_secret.zero();
+  }
+
+  std::size_t calculate_payload_size(const std::size_t length) override {
+    // we need to take into account the PKCS#7 padding. There *always* will
+    // be at least one byte of padding. This stays even to input aligned to
+    // AES_BLOCK_LEN. Otherwise we would face ambiguities during decryption.
+    // To exemplify:
+    //   length := 10 -> p2align(10, 16) + 16 == 16 (06 bytes for padding),
+    //   length := 16 -> p2align(16, 16) + 16 == 32 (16 bytes for padding).
+    //
+    // Technically padding will be added by OpenSSL but its format and even
+    // presence is a part of the public interface, I believe.
+    const std::size_t encrypted_length = \
+      p2align(length, AES_BLOCK_LEN) + AES_BLOCK_LEN;
+
+    // as we're doing *authenticated encryption* additional space is needed
+    // to store Auth Tag. OpenSSL defaults this to 96 bits (12 bytes).
+    const std::size_t authenticated_and_encrypted_length = \
+      encrypted_length + STREAM_GCM_TAG_LEN;
+
+    return authenticated_and_encrypted_length;
+  }
+
+  void authenticated_encrypt(ceph::bufferlist& payload) override;
+  void authenticated_decrypt(char* payload, uint32_t& length) override;
+};
+
+void AES128GCM_StreamHandler::authenticated_encrypt(ceph::bufferlist& payload)
+{
+  const auto evp_init_ret = EVP_EncryptInit_ex(
+    ectx.get(),
+    EVP_aes_128_gcm(),
+    nullptr, /* use default ENGINE implementation */
+    reinterpret_cast<const unsigned char*>(connection_secret.c_str()),
+    reinterpret_cast<const unsigned char*>(&nonce));
+  if (!evp_init_ret) {
+    throw std::runtime_error("EVP_EncryptInit_ex cannot initialize cipher");
+  }
+
+  //if (!EVP_CIPHER_CTX_ctrl(ectx.get(), EVP_CTRL_GCM_SET_IVLEN, AES_IV_LEN, nullptr))
+  //  throw std::runtime_error("input not aligned to AES_BLOCK_LEN");
+
+  auto out_tmp = \
+    ceph::buffer::ptr_node::create(calculate_payload_size(payload.length()));
+
+  int update_len = 0;
+  if(1 != EVP_EncryptUpdate(ectx.get(),
+	reinterpret_cast<unsigned char*>(out_tmp->c_str()), &update_len,
+	reinterpret_cast<const unsigned char*>(payload.c_str()), payload.length())) {
+    throw std::runtime_error("EVP_EncryptUpdate failed");
+  }
+
+  int final_len = 0;
+  if(1 != EVP_EncryptFinal_ex(ectx.get(),
+	reinterpret_cast<unsigned char*>(out_tmp->c_str() + update_len), &final_len)) {
+    throw std::runtime_error("EVP_EncryptFinal_ex failed");
+  }
+
+  if(1 != EVP_CIPHER_CTX_ctrl(ectx.get(),
+	EVP_CTRL_GCM_GET_TAG, STREAM_GCM_TAG_LEN,
+	out_tmp->c_str() + update_len + final_len)) {
+    throw std::runtime_error("EVP_CIPHER_CTX_ctrl failed");
+  }
+
+  EVP_CIPHER_CTX_cleanup(ectx.get());
+
+  payload.clear();
+  payload.push_back(std::move(out_tmp));
+  nonce++;
+}
+
+void AES128GCM_StreamHandler::authenticated_decrypt(
+  char* payload,
+  uint32_t& length)
+{
+}
+
+
 AuthStreamHandler::rxtx_t AuthStreamHandler::create_stream_handler_pair(
   CephContext* cct,
   const class AuthConnectionMeta& auth_meta)
