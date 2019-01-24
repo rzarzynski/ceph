@@ -356,7 +356,7 @@ AuthStreamHandler::rxtx_t AuthStreamHandler::create_stream_handler_pair(
   const class AuthConnectionMeta& auth_meta)
 {
   return {
-    std::make_shared<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta),
-    std::make_shared<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta)
+    std::make_unique<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta),
+    std::make_unique<AES128CBC_HMACSHA256_StreamHandler>(cct, auth_meta)
   };
 }
