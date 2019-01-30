@@ -244,16 +244,14 @@ struct AuthDoneFrame
 
 template <class T, typename... Args>
 struct SignedEncryptedFrame : public PayloadFrame<T, Args...> {
-  SignedEncryptedFrame(ProtocolV2 *protocol, const Args &... args)
+  SignedEncryptedFrame(ProtocolV2 &protocol, const Args &... args)
       : PayloadFrame<T, Args...>(args...) {
-    ceph_assert(protocol);
-    protocol->authencrypt_payload(this->payload);
+    protocol.authencrypt_payload(this->payload);
   }
 
-  SignedEncryptedFrame(ProtocolV2 *protocol, char *payload, uint32_t length)
+  SignedEncryptedFrame(ProtocolV2 &protocol, char *payload, uint32_t length)
       : PayloadFrame<T, Args...>() {
-    ceph_assert(protocol);
-    protocol->authdecrypt_payload(payload, length);
+    protocol.authdecrypt_payload(payload, length);
     this->decode_frame(payload, length);
   }
 
@@ -359,7 +357,7 @@ struct KeepAliveFrame : public SignedEncryptedFrame<KeepAliveFrame, utime_t> {
   const ProtocolV2::Tag tag = ProtocolV2::Tag::KEEPALIVE2;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
-  KeepAliveFrame(ProtocolV2 *protocol)
+  KeepAliveFrame(ProtocolV2 &protocol)
       : KeepAliveFrame(protocol, ceph_clock_now()) {}
 
   inline utime_t &timestamp() { return get_val<0>(); }
@@ -827,7 +825,7 @@ ssize_t ProtocolV2::write_message(Message *m, bufferlist &bl, bool more) {
     flat_bl.claim_append(bl);
   }
 
-  MessageHeaderFrame message(this, header2);
+  MessageHeaderFrame message(*this, header2);
   authencrypt_payload(flat_bl);
 
   ldout(cct, 5) << __func__ << " sending message m=" << m
@@ -865,12 +863,12 @@ ssize_t ProtocolV2::write_message(Message *m, bufferlist &bl, bool more) {
 
 void ProtocolV2::append_keepalive() {
   ldout(cct, 10) << __func__ << dendl;
-  KeepAliveFrame keepalive_frame(this);
+  KeepAliveFrame keepalive_frame(*this);
   connection->outcoming_bl.claim_append(keepalive_frame.get_buffer());
 }
 
 void ProtocolV2::append_keepalive_ack(utime_t &timestamp) {
-  KeepAliveFrameAck keepalive_ack_frame(this, timestamp);
+  KeepAliveFrameAck keepalive_ack_frame(*this, timestamp);
   connection->outcoming_bl.claim_append(keepalive_ack_frame.get_buffer());
 }
 
@@ -951,7 +949,7 @@ void ProtocolV2::write_event() {
       if (left) {
         ceph_le64 s;
         s = in_seq;
-        AckFrame ack(this, in_seq);
+        AckFrame ack(*this, in_seq);
         connection->outcoming_bl.claim_append(ack.get_buffer());
         ldout(cct, 10) << __func__ << " try send msg ack, acked " << left
                        << " messages" << dendl;
@@ -1418,7 +1416,7 @@ CtPtr ProtocolV2::handle_message_header(char *buffer, int r) {
   const uint32_t header_len = calculate_payload_size(
     session_security.rx.get(), sizeof(ceph_msg_header2));
 
-  MessageHeaderFrame header_frame(this, buffer, header_len);
+  MessageHeaderFrame header_frame(*this, buffer, header_len);
   ceph_msg_header2 &header = header_frame.header();
 
   ldout(cct, 20) << __func__ << " got envelope type=" << header.type << " src "
@@ -1876,7 +1874,7 @@ CtPtr ProtocolV2::handle_message_complete() {
 CtPtr ProtocolV2::handle_keepalive2(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  KeepAliveFrame keepalive_frame(this, payload, length);
+  KeepAliveFrame keepalive_frame(*this, payload, length);
 
   ldout(cct, 30) << __func__ << " got KEEPALIVE2 tag ..." << dendl;
 
@@ -1898,7 +1896,7 @@ CtPtr ProtocolV2::handle_keepalive2(char *payload, uint32_t length) {
 CtPtr ProtocolV2::handle_keepalive2_ack(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  KeepAliveFrameAck keepalive_ack_frame(this, payload, length);
+  KeepAliveFrameAck keepalive_ack_frame(*this, payload, length);
   connection->set_last_keepalive_ack(keepalive_ack_frame.timestamp());
   ldout(cct, 20) << __func__ << " got KEEPALIVE_ACK" << dendl;
 
@@ -1908,7 +1906,7 @@ CtPtr ProtocolV2::handle_keepalive2_ack(char *payload, uint32_t length) {
 CtPtr ProtocolV2::handle_message_ack(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  AckFrame ack(this, payload, length);
+  AckFrame ack(*this, payload, length);
   handle_message_ack(ack.seq());
   return CONTINUE(read_frame);
 }
@@ -2089,7 +2087,7 @@ CtPtr ProtocolV2::send_client_ident() {
     }
   }
 
-  ClientIdentFrame client_ident(this, messenger->get_myaddrs(),
+  ClientIdentFrame client_ident(*this, messenger->get_myaddrs(),
 				connection->target_addr,
                                 messenger->get_myname().num(), global_seq,
                                 connection->policy.features_supported,
@@ -2113,7 +2111,7 @@ CtPtr ProtocolV2::send_client_ident() {
 CtPtr ProtocolV2::send_reconnect() {
   ldout(cct, 20) << __func__ << dendl;
 
-  ReconnectFrame reconnect(this, messenger->get_myaddrs(),
+  ReconnectFrame reconnect(*this, messenger->get_myaddrs(),
 			   connection->target_addr,
 			   cookie,
 			   messenger->get_myname().num(),
@@ -2134,7 +2132,7 @@ CtPtr ProtocolV2::handle_ident_missing_features(char *payload,
                                                 uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  IdentMissingFeaturesFrame ident_missing(this, payload, length);
+  IdentMissingFeaturesFrame ident_missing(*this, payload, length);
   lderr(cct) << __func__
              << " client does not support all server features: " << std::hex
              << ident_missing.features() << std::dec << dendl;
@@ -2154,7 +2152,7 @@ CtPtr ProtocolV2::handle_session_reset() {
 CtPtr ProtocolV2::handle_session_retry(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  RetryFrame retry(this, payload, length);
+  RetryFrame retry(*this, payload, length);
   connect_seq = retry.connect_seq() + 1;
 
   ldout(cct, 1) << __func__
@@ -2167,7 +2165,7 @@ CtPtr ProtocolV2::handle_session_retry(char *payload, uint32_t length) {
 CtPtr ProtocolV2::handle_session_retry_global(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  RetryGlobalFrame retry(this, payload, length);
+  RetryGlobalFrame retry(*this, payload, length);
   global_seq = messenger->get_global_seq(retry.global_seq());
 
   ldout(cct, 1) << __func__ << " received session retry global global_seq="
@@ -2187,7 +2185,7 @@ CtPtr ProtocolV2::handle_wait() {
 CtPtr ProtocolV2::handle_reconnect_ok(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  ReconnectOkFrame reconnect_ok(this, payload, length);
+  ReconnectOkFrame reconnect_ok(*this, payload, length);
   ldout(cct, 5) << __func__
                 << " reconnect accepted: sms=" << reconnect_ok.msg_seq()
                 << dendl;
@@ -2212,7 +2210,7 @@ CtPtr ProtocolV2::handle_reconnect_ok(char *payload, uint32_t length) {
 CtPtr ProtocolV2::handle_server_ident(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << length << dendl;
 
-  ServerIdentFrame server_ident(this, payload, length);
+  ServerIdentFrame server_ident(*this, payload, length);
   ldout(cct, 5) << __func__ << " received server identification:"
                 << " addrs=" << server_ident.addrs()
                 << " gid=" << server_ident.gid()
@@ -2368,7 +2366,7 @@ CtPtr ProtocolV2::handle_auth_request_more(char *payload, uint32_t length)
 CtPtr ProtocolV2::handle_client_ident(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << std::dec << length << dendl;
 
-  ClientIdentFrame client_ident(this, payload, length);
+  ClientIdentFrame client_ident(*this, payload, length);
 
   ldout(cct, 5) << __func__ << " received client identification: "
                 << "addrs=" << client_ident.addrs()
@@ -2403,7 +2401,7 @@ CtPtr ProtocolV2::handle_client_ident(char *payload, uint32_t length) {
   if (feat_missing) {
     ldout(cct, 1) << __func__ << " peer missing required features " << std::hex
                   << feat_missing << std::dec << dendl;
-    IdentMissingFeaturesFrame ident_missing_features(this, feat_missing);
+    IdentMissingFeaturesFrame ident_missing_features(*this, feat_missing);
 
     bufferlist &bl = ident_missing_features.get_buffer();
     return WRITE(bl, "ident missing features", read_frame);
@@ -2452,7 +2450,7 @@ CtPtr ProtocolV2::handle_client_ident(char *payload, uint32_t length) {
 CtPtr ProtocolV2::handle_reconnect(char *payload, uint32_t length) {
   ldout(cct, 20) << __func__ << " payload_len=" << std::dec << length << dendl;
 
-  ReconnectFrame reconnect(this, payload, length);
+  ReconnectFrame reconnect(*this, payload, length);
 
   ldout(cct, 5) << __func__
                 << " received reconnect: cookie=" << reconnect.cookie()
@@ -2545,7 +2543,7 @@ CtPtr ProtocolV2::handle_reconnect(char *payload, uint32_t length) {
     ldout(cct, 1) << __func__
                   << " existing racing replace happened while replacing."
                   << " existing=" << existing << dendl;
-    RetryGlobalFrame retry(this, exproto->peer_global_seq);
+    RetryGlobalFrame retry(*this, exproto->peer_global_seq);
     bufferlist &bl = retry.get_buffer();
     return WRITE(bl, "session retry", read_frame);
   }
@@ -2580,7 +2578,7 @@ CtPtr ProtocolV2::handle_reconnect(char *payload, uint32_t length) {
                   << " stale global_seq: sgs=" << exproto->peer_global_seq
                   << " cgs=" << reconnect.global_seq()
                   << ", ask client to retry global" << dendl;
-    RetryGlobalFrame retry(this, exproto->peer_global_seq);
+    RetryGlobalFrame retry(*this, exproto->peer_global_seq);
     bufferlist &bl = retry.get_buffer();
     return WRITE(bl, "session retry", read_frame);
   }
@@ -2590,7 +2588,7 @@ CtPtr ProtocolV2::handle_reconnect(char *payload, uint32_t length) {
                   << " stale connect_seq scs=" << exproto->connect_seq
                   << " ccs=" << reconnect.connect_seq()
                   << " , ask client to retry" << dendl;
-    RetryFrame retry(this, exproto->connect_seq);
+    RetryFrame retry(*this, exproto->connect_seq);
     bufferlist &bl = retry.get_buffer();
     return WRITE(bl, "session retry", read_frame);
   }
@@ -2831,7 +2829,7 @@ CtPtr ProtocolV2::send_server_ident() {
 
   uint64_t gs = messenger->get_global_seq();
   ServerIdentFrame server_ident(
-      this, messenger->get_myaddrs(), messenger->get_myname().num(), gs,
+      *this, messenger->get_myaddrs(), messenger->get_myname().num(), gs,
       connection->policy.features_supported,
       connection->policy.features_required | msgr2_required,
       flags,
@@ -2899,7 +2897,7 @@ CtPtr ProtocolV2::send_reconnect_ok() {
   out_seq = discard_requeued_up_to(out_seq, message_seq);
 
   uint64_t ms = in_seq;
-  ReconnectOkFrame reconnect_ok(this, ms);
+  ReconnectOkFrame reconnect_ok(*this, ms);
 
   ldout(cct, 5) << __func__ << " sending reconnect_ok: msg_seq=" << ms << dendl;
 
