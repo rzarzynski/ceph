@@ -254,9 +254,6 @@ struct SignedEncryptedFrame : public PayloadFrame<T, Args...> {
     protocol.authdecrypt_payload(payload, length);
     this->decode_frame(payload, length);
   }
-
-  template <class C, typename... A>
-  friend struct PayloadFrame;
 };
 
 struct ClientIdentFrame
