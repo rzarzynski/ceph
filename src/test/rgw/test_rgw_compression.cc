@@ -18,7 +18,7 @@ public:
     {
       ceph_assert(i != bl_buffers.end());
       off_t len = std::min<off_t>(bl_len, i->length());
-      sink.append(*i, 0, len);
+      sink.append(i->as_regular_ptr(), 0, len);
       bl_len -= len;
       i++;
     }
