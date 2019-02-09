@@ -2179,8 +2179,14 @@ bool buffer::ptr_node::dispose_if_hypercombined(
 std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>
 buffer::ptr_node::create_hypercombined(ceph::unique_leakable_ptr<buffer::raw> r)
 {
+  void* hc_storage = &r->bptr_storage;
+  ceph_assert_always(r);
   return std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>(
+#ifdef I_WANT_UD2
     new (&r->bptr_storage) ptr_node(std::move(r)));
+#else
+    new (hc_storage) ptr_node(std::move(r)));
+#endif
 }
 
 buffer::ptr_node* buffer::ptr_node::copy_hypercombined(
