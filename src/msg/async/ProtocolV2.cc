@@ -1871,11 +1871,11 @@ CtPtr ProtocolV2::handle_message_complete() {
     extra.clear();
 
     front.push_back(
-        bufferptr(msg_payload.front(), 0, current_header.front_len));
-    middle.push_back(bufferptr(msg_payload.front(), current_header.front_len,
+        bufferptr(msg_payload.front().as_regular_ptr(), 0, current_header.front_len));
+    middle.push_back(bufferptr(msg_payload.front().as_regular_ptr(), current_header.front_len,
                                current_header.middle_len));
     data.push_back(
-        bufferptr(msg_payload.front(),
+        bufferptr(msg_payload.front().as_regular_ptr(),
                   current_header.front_len + current_header.middle_len,
                   current_header.data_len));
   }

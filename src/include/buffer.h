@@ -405,6 +405,8 @@ namespace buffer CEPH_BUFFER_API {
     using ptr::get_raw;
     using ptr::is_aligned;
     using ptr::is_n_align_sized;
+    using ptr::append;
+    using ptr::append_zeros;
     using ptr::copy_in;
     using ptr::copy_out;
     using ptr::is_zero;
@@ -424,6 +426,7 @@ namespace buffer CEPH_BUFFER_API {
 
     ptr& as_regular_ptr() { return *this; }
     const ptr& as_regular_ptr() const { return *this; }
+    unsigned* lenptr() { return &_len; }
 
     struct cloner {
       ptr_node* operator()(const ptr_node& clone_this);
@@ -715,7 +718,7 @@ namespace buffer CEPH_BUFFER_API {
     // track bufferptr we can modify (especially ::append() to). Not all bptrs
     // bufferlist holds have this trait -- if somebody ::push_back(const ptr&),
     // he expects it won't change.
-    ptr* _carriage;
+    ptr_node* _carriage;
     unsigned _len;
     unsigned _memcopy_count; //the total of memcopy using rebuild().
 
@@ -990,7 +993,7 @@ namespace buffer CEPH_BUFFER_API {
     // always_empty_bptr has no underlying raw but its _len is always 0.
     // This is useful for e.g. get_append_buffer_unused_tail_length() as
     // it allows to avoid conditionals on hot paths.
-    static ptr always_empty_bptr;
+    static ptr_node always_empty_bptr;
     ptr_node& refill_append_space(const unsigned len);
 
   public:
