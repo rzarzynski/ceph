@@ -217,7 +217,7 @@ public:
     virtual ceph::buffer::ptr value_as_ptr() {
       ceph::buffer::list bl = value();
       if (bl.length() == 1) {
-        return *bl.buffers().begin();
+        return bl.front().as_regular_ptr();
       } else if (bl.length() == 0) {
         return ceph::buffer::ptr();
       } else {
@@ -246,7 +246,7 @@ public:
     virtual ceph::buffer::ptr value_as_ptr() {
       ceph::buffer::list bl = value();
       if (bl.length()) {
-        return *bl.buffers().begin();
+        return bl.front().as_regular_ptr();
       } else {
         return ceph::buffer::ptr();
       }

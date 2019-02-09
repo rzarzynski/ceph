@@ -356,8 +356,39 @@ struct error_code;
     }
   };
 
-  class ptr_node : public ptr_hook, public ptr {
+  class ptr_node : public ptr_hook, private ptr {
   public:
+    using ptr::c_str;
+    using ptr::end_c_str;
+    using ptr::raw_c_str;
+    using ptr::length;
+    using ptr::offset;
+    using ptr::get_raw;
+    using ptr::is_aligned;
+    using ptr::is_n_align_sized;
+    using ptr::append;
+    using ptr::append_zeros;
+    using ptr::copy_in;
+    using ptr::copy_out;
+    using ptr::is_zero;
+    using ptr::zero;
+    using ptr::get_mempool;
+    using ptr::wasted;
+    using ptr::start;
+    using ptr::end;
+    using ptr::set_length;
+    using ptr::set_offset;
+    using ptr::operator[];
+    using ptr::begin_deep;
+    using ptr::unused_tail_length;
+
+    // tests
+    using ptr::begin;
+
+    ptr& as_regular_ptr() { return *this; }
+    const ptr& as_regular_ptr() const { return *this; }
+    unsigned* lenptr() { return &_len; }
+
     struct cloner {
       ptr_node* operator()(const ptr_node& clone_this);
     };
@@ -632,7 +663,7 @@ struct error_code;
     // track bufferptr we can modify (especially ::append() to). Not all bptrs
     // bufferlist holds have this trait -- if somebody ::push_back(const ptr&),
     // he expects it won't change.
-    ptr* _carriage;
+    ptr_node* _carriage;
     unsigned _len, _num;
 
     template <bool is_const>
@@ -685,7 +716,7 @@ struct error_code;
       iterator_impl& operator+=(unsigned o);
       iterator_impl& operator++();
       ptr get_current_ptr() const;
-      bool is_pointing_same_raw(const ptr& other) const;
+      bool is_pointing_same_raw(const ptr_node& other) const;
 
       bl_t& get_bl() const { return *bl; }
 
@@ -905,7 +936,7 @@ struct error_code;
     // always_empty_bptr has no underlying raw but its _len is always 0.
     // This is useful for e.g. get_append_buffer_unused_tail_length() as
     // it allows to avoid conditionals on hot paths.
-    static ptr always_empty_bptr;
+    static ptr_node always_empty_bptr;
     ptr_node& refill_append_space(const unsigned len);
 
   public:
