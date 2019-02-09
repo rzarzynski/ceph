@@ -279,7 +279,7 @@ TEST(BufferPtr, assignment) {
   //
   {
     bufferptr original(len);
-    bufferptr same_raw(original.get_raw());
+    bufferptr same_raw(original);
     unsigned offset = 5;
     unsigned length = len - offset;
     original.set_offset(offset);
