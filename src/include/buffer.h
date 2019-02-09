@@ -168,17 +168,16 @@ namespace buffer CEPH_BUFFER_API {
   ceph::unique_leakable_ptr<raw> copy(const char *c, unsigned len);
   ceph::unique_leakable_ptr<raw> create(unsigned len);
   ceph::unique_leakable_ptr<raw> create_in_mempool(unsigned len, int mempool);
-  raw* claim_char(unsigned len, char *buf);
-  raw* create_malloc(unsigned len);
-  raw* claim_malloc(unsigned len, char *buf);
-  raw* create_static(unsigned len, char *buf);
+  ceph::unique_leakable_ptr<raw> claim_char(unsigned len, char *buf);
+  ceph::unique_leakable_ptr<raw> create_malloc(unsigned len);
+  ceph::unique_leakable_ptr<raw> claim_malloc(unsigned len, char *buf);
+  ceph::unique_leakable_ptr<raw> create_static(unsigned len, char *buf);
   ceph::unique_leakable_ptr<raw> create_aligned(unsigned len, unsigned align);
   ceph::unique_leakable_ptr<raw> create_aligned_in_mempool(unsigned len, unsigned align, int mempool);
   ceph::unique_leakable_ptr<raw> create_page_aligned(unsigned len);
   ceph::unique_leakable_ptr<raw> create_small_page_aligned(unsigned len);
-  raw* create_unshareable(unsigned len);
-  raw* create_static(unsigned len, char *buf);
-  raw* claim_buffer(unsigned len, char *buf, deleter del);
+  ceph::unique_leakable_ptr<raw> create_unshareable(unsigned len);
+  ceph::unique_leakable_ptr<raw> claim_buffer(unsigned len, char *buf, deleter del);
 
 #ifdef HAVE_SEASTAR
   /// create a raw buffer to wrap seastar cpu-local memory, using foreign_ptr to
@@ -439,14 +438,12 @@ namespace buffer CEPH_BUFFER_API {
       }
     };
 
+    ptr_node() = default;
     ~ptr_node() = default;
 
     static std::unique_ptr<ptr_node, disposer>
     create(ceph::unique_leakable_ptr<raw> r) {
       return create_hypercombined(std::move(r));
-    }
-    static std::unique_ptr<ptr_node, disposer> create(raw* const r) {
-      return create_hypercombined(r);
     }
     static std::unique_ptr<ptr_node, disposer> create(const unsigned l) {
       return create_hypercombined(buffer::create(l));
@@ -1122,13 +1119,11 @@ namespace buffer CEPH_BUFFER_API {
       _len += bp->length();
       _buffers.push_back(*bp.release());
     }
-    void push_back(raw* const r) {
-      _buffers.push_back(*ptr_node::create(r).release());
+    void push_back(raw* const r) = delete;
+    void push_back(ceph::unique_leakable_ptr<raw> r) {
+      _buffers.push_back(*ptr_node::create(std::move(r)).release());
       _carriage = &_buffers.back();
       _len += _buffers.back().length();
-    }
-    void push_back(ceph::unique_leakable_ptr<raw> r) {
-      push_back(r.release());
     }
 
     void zero();
