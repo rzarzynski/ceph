@@ -442,11 +442,6 @@ static ceph::spinlock debug_lock;
     return ceph::unique_leakable_ptr<buffer::raw>(new raw_unshareable(len));
   }
 
-  buffer::ptr::ptr(raw* r) : _raw(r), _off(0), _len(r->len)   // no lock needed; this is an unref raw.
-  {
-    r->nref++;
-    bdout << "ptr " << this << " get " << _raw << bendl;
-  }
   buffer::ptr::ptr(ceph::unique_leakable_ptr<raw> r)
     : _raw(r.release()),
       _off(0),

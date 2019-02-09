@@ -266,8 +266,6 @@ namespace buffer CEPH_BUFFER_API {
     using iterator = iterator_impl<false>;
 
     ptr() : _raw(nullptr), _off(0), _len(0) {}
-    // cppcheck-suppress noExplicitConstructor
-    ptr(raw* r);
     ptr(ceph::unique_leakable_ptr<raw> r);
     // cppcheck-suppress noExplicitConstructor
     ptr(unsigned l);
