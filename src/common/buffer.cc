@@ -2193,8 +2193,8 @@ buffer::ptr_node* buffer::ptr_node::copy_hypercombined(
   const buffer::ptr_node& copy_this)
 {
   auto raw_new = copy_this.get_raw()->clone();
-  return new (&raw_new->bptr_storage)
-    ptr_node(copy_this, std::move(raw_new));
+  void* const hc_storage = &raw_new->bptr_storage;
+  return new (hc_storage) ptr_node(copy_this, std::move(raw_new));
 }
 
 buffer::ptr_node* buffer::ptr_node::cloner::operator()(
