@@ -457,10 +457,19 @@ namespace buffer CEPH_BUFFER_API {
     static ptr_node* copy_hypercombined(const ptr_node& copy_this);
 
   private:
-    template <class... Args>
-    ptr_node(Args&&... args) : ptr(std::forward<Args>(args)...) {
-    }
     ptr_node(const ptr_node&) = default;
+    ptr_node(const ptr& p)
+      : ptr(p) {
+    }
+    ptr_node(const ptr& p, unsigned o, unsigned l)
+      : ptr(p, o, l) {
+    }
+    ptr_node(ceph::unique_leakable_ptr<raw> r)
+      : ptr(std::move(r)) {
+    }
+    ptr_node(const ptr& p, ceph::unique_leakable_ptr<raw> r)
+      : ptr(p, std::move(r)) {
+    }
 
     ptr& operator= (const ptr& p) = delete;
     ptr& operator= (ptr&& p) noexcept = delete;
