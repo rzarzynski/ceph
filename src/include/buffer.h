@@ -443,11 +443,13 @@ namespace buffer CEPH_BUFFER_API {
     create(ceph::unique_leakable_ptr<raw> r) {
       return create_hypercombined(std::move(r));
     }
-    static std::unique_ptr<ptr_node, disposer> create(const unsigned l) {
+    static std::unique_ptr<ptr_node, disposer>
+    create(const unsigned l) {
       return create_hypercombined(buffer::create(l));
     }
     template <class... Args>
-    static std::unique_ptr<ptr_node, disposer> create(Args&&... args) {
+    static std::unique_ptr<ptr_node, disposer>
+    create(Args&&... args) {
       return std::unique_ptr<ptr_node, disposer>(
 	new ptr_node(std::forward<Args>(args)...));
     }
@@ -468,8 +470,6 @@ namespace buffer CEPH_BUFFER_API {
     void swap(ptr_node& other) noexcept = delete;
 
     static bool dispose_if_hypercombined(ptr_node* delete_this);
-    static std::unique_ptr<ptr_node, disposer> create_hypercombined(
-      buffer::raw* r);
     static std::unique_ptr<ptr_node, disposer> create_hypercombined(
       ceph::unique_leakable_ptr<raw> r);
   };

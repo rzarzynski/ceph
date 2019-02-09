@@ -1630,20 +1630,6 @@ TEST(BufferList, push_back) {
     EXPECT_EQ(ptr.get_raw(), bl.back().get_raw());
   }
   //
-  // void push_back(raw *r)
-  //
-  {
-    bufferlist bl;
-    bl.append('A');
-    bufferptr ptr(len);
-    ptr.c_str()[0] = 'B';
-    bl.push_back(ptr.get_raw());
-    EXPECT_EQ((unsigned)(1 + len), bl.length());
-    EXPECT_EQ((unsigned)2, bl.get_num_buffers());
-    EXPECT_EQ('B', bl.back()[0]);
-    EXPECT_EQ(ptr.get_raw(), bl.back().get_raw());
-  }
-  //
   // void push_back(ptr&& bp)
   //
   {
