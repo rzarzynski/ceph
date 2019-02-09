@@ -395,8 +395,36 @@ namespace buffer CEPH_BUFFER_API {
     }
   };
 
-  class ptr_node : public ptr_hook, public ptr {
+  class ptr_node : public ptr_hook, private ptr {
   public:
+    using ptr::c_str;
+    using ptr::end_c_str;
+    using ptr::raw_c_str;
+    using ptr::length;
+    using ptr::offset;
+    using ptr::get_raw;
+    using ptr::is_aligned;
+    using ptr::is_n_align_sized;
+    using ptr::copy_in;
+    using ptr::copy_out;
+    using ptr::is_zero;
+    using ptr::zero;
+    using ptr::get_mempool;
+    using ptr::wasted;
+    using ptr::start;
+    using ptr::end;
+    using ptr::set_length;
+    using ptr::set_offset;
+    using ptr::operator[];
+    using ptr::begin_deep;
+    using ptr::unused_tail_length;
+
+    // tests
+    using ptr::begin;
+
+    ptr& as_regular_ptr() { return *this; }
+    const ptr& as_regular_ptr() const { return *this; }
+
     struct cloner {
       ptr_node* operator()(const ptr_node& clone_this);
     };
@@ -744,7 +772,7 @@ namespace buffer CEPH_BUFFER_API {
       char operator*() const;
       iterator_impl& operator++();
       ptr get_current_ptr() const;
-      bool is_pointing_same_raw(const ptr& other) const;
+      bool is_pointing_same_raw(const ptr_node& other) const;
 
       bl_t& get_bl() const { return *bl; }
 

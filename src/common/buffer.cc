@@ -779,17 +779,18 @@ static ceph::spinlock debug_lock;
     return *this;
   }
 
+  // TODO, KILLME
   template<bool is_const>
   buffer::ptr buffer::list::iterator_impl<is_const>::get_current_ptr() const
   {
     if (p == ls->end())
       throw end_of_buffer();
-    return ptr(*p, p_off, p->length() - p_off);
+    return ptr(p->as_regular_ptr(), p_off, p->length() - p_off);
   }
 
   template<bool is_const>
   bool buffer::list::iterator_impl<is_const>::is_pointing_same_raw(
-    const ptr& other) const
+    const ptr_node& other) const
   {
     if (p == ls->end())
       throw end_of_buffer();
@@ -847,7 +848,7 @@ static ceph::spinlock debug_lock;
       dest = create(len);
       copy(len, dest.c_str());
     } else {
-      dest = ptr(*p, p_off, len);
+      dest = ptr(p->as_regular_ptr(), p_off, len);
       advance(len);
     }
   }
@@ -864,7 +865,7 @@ static ceph::spinlock debug_lock;
       unsigned howmuch = p->length() - p_off;
       if (len < howmuch)
 	howmuch = len;
-      dest.append(*p, p_off, howmuch);
+      dest.append(p->as_regular_ptr(), p_off, howmuch);
 
       len -= howmuch;
       advance(howmuch);
@@ -1358,7 +1359,7 @@ static ceph::spinlock debug_lock;
   {
     // steal the other guy's buffers
     for (const auto& node : bl.buffers()) {
-      append(node, 0, node.length());
+      append(node.as_regular_ptr(), 0, node.length());
     }
     bl.clear();
   }
@@ -1510,7 +1511,7 @@ static ceph::spinlock debug_lock;
   {
     ceph_assert(len+off <= bp.length());
     if (!_buffers.empty()) {
-      ptr &l = _buffers.back();
+      auto& l = _buffers.back();
       if (l.get_raw() == bp.get_raw() &&
 	  l.end() == bp.start() + off) {
 	// yay contiguous with tail bp!
@@ -1723,7 +1724,7 @@ static ceph::spinlock debug_lock;
       if (off + len < (*curbuf).length()) {
 	//cout << "keeping end of " << *curbuf << ", losing first " << off+len << std::endl;
 	if (claim_by) 
-	  claim_by->append( *curbuf, off, len );
+	  claim_by->append(curbuf->as_regular_ptr(), off, len);
 	(*curbuf).set_offset( off+len + (*curbuf).offset() );    // ignore beginning big
 	(*curbuf).set_length( (*curbuf).length() - (len+off) );
 	_len -= off+len;
@@ -1735,7 +1736,7 @@ static ceph::spinlock debug_lock;
       unsigned howmuch = (*curbuf).length() - off;
       //cout << "discarding " << howmuch << " of " << *curbuf << std::endl;
       if (claim_by) 
-	claim_by->append( *curbuf, off, howmuch );
+	claim_by->append(curbuf->as_regular_ptr(), off, howmuch );
       _len -= (*curbuf).length();
       curbuf = _buffers.erase_after_and_dispose(curbuf_prev);
       len -= howmuch;
@@ -2228,7 +2229,7 @@ std::ostream& buffer::operator<<(std::ostream& out, const buffer::list& bl) {
   out << "buffer::list(len=" << bl.length() << "," << std::endl;
 
   for (const auto& node : bl.buffers()) {
-    out << "\t" << node;
+    out << "\t" << node.as_regular_ptr();
     if (&node != &bl.buffers().back()) {
       out << "," << std::endl;
     }
