@@ -458,8 +458,13 @@ namespace buffer CEPH_BUFFER_API {
 
   private:
     ptr_node(const ptr_node&) = default;
+    ptr_node(ptr_node&&) = default;
+
     ptr_node(const ptr& p)
       : ptr(p) {
+    }
+    ptr_node(ptr&& p)
+      : ptr(std::move(p)) {
     }
     ptr_node(const ptr& p, unsigned o, unsigned l)
       : ptr(p, o, l) {
