@@ -244,13 +244,6 @@ template <class T, typename... Args>
 struct SignedEncryptedFrame : public PayloadFrame<T, Args...> {
   SignedEncryptedFrame(ProtocolV2 &protocol, const Args &... args)
       : PayloadFrame<T, Args...>(args...) {
-#if 0
-    ceph::bufferlist trans_bl;
-    this->payload.splice(8, this->payload.length() - 8, &trans_bl);
-    protocol.authencrypt_payload(trans_bl);
-    this->payload.claim_append(trans_bl);
-
-#else
     ceph_assert(protocol.session_stream_handlers.tx);
 
     protocol.session_stream_handlers.tx->reset_tx_handler({
@@ -268,15 +261,10 @@ struct SignedEncryptedFrame : public PayloadFrame<T, Args...> {
       std::move(this->payload));
     this->payload = \
       protocol.session_stream_handlers.tx->authenticated_encrypt_final();
-#endif
   }
 
   SignedEncryptedFrame(ProtocolV2 &protocol, char *payload, uint32_t length)
       : PayloadFrame<T, Args...>() {
-#if 0
-    protocol.authdecrypt_payload(payload, length);
-    this->decode_frame(payload, length);
-#else
     protocol.session_stream_handlers.rx->reset_rx_handler();
 
     ceph::bufferlist bl;
@@ -286,7 +274,6 @@ struct SignedEncryptedFrame : public PayloadFrame<T, Args...> {
       protocol.session_stream_handlers.rx->authenticated_decrypt_update_final(
         std::move(bl), 8);
     this->decode_frame(plain_bl.c_str(), plain_bl.length());
-#endif
   }
 };
 
@@ -1084,16 +1071,9 @@ uint32_t ProtocolV2::calculate_payload_size(
   AuthStreamHandler *stream_handler,
   uint32_t length)
 {
-#if 0
-  if (auth_meta.is_mode_secure()) {
-    ceph_assert(stream_handler != nullptr);
-    return stream_handler->calculate_payload_size(length);
-  } else {
-    return length;
-  }
-#else
+  // FIXME: we need add rounding to AES_BLOCK_LEN. AES-GCM is stream cipher
+  // and doesn't really need this but other ciphers could do.
   return length;
-#endif
 }
 
 void ProtocolV2::authencrypt_payload(bufferlist &payload) {
