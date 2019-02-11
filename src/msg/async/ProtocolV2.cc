@@ -70,6 +70,7 @@ static void alloc_aligned_buffer(bufferlist &data, unsigned len, unsigned off) {
  * Protocol V2 Frame Structures
  **/
 
+static constexpr uint32_t FRAME_PREAMBLE_SIZE = 4 * sizeof(__le32);
 template <class T>
 struct Frame {
 protected:
@@ -77,14 +78,14 @@ protected:
   ceph::bufferlist::contiguous_filler preamble_filler;
 
 public:
-  Frame() : preamble_filler(payload.append_hole(8)) {}
+  Frame() : preamble_filler(payload.append_hole(FRAME_PREAMBLE_SIZE)) {}
 
   bufferlist &get_buffer(const uint32_t extra_payload_len = 0) {
-    __le32 msg_len = payload.length() + extra_payload_len - sizeof(std::uint32_t);
-    preamble_filler.copy_in(sizeof(msg_len),
-			    reinterpret_cast<const char*>(&msg_len));
+    __le32 rest_len = frame_size - FRAME_PREAMBLE_SIZE + extra_payload_len;
+    preamble_filler.copy_in(sizeof(rest_len),
+			    reinterpret_cast<const char*>(&rest_len));
 
-    __le32 tag = static_cast<uint32_t>(static_cast<T *>(this)->tag);
+    __le32 tag = static_cast<uint32_t>(T::tag);
     preamble_filler.copy_in(sizeof(tag),
 			    reinterpret_cast<const char*>(&tag));
     ceph_assert(tag != 0);
@@ -188,7 +189,7 @@ struct HelloFrame : public PayloadFrame<HelloFrame,
 struct AuthRequestFrame
   : public PayloadFrame<AuthRequestFrame,
 			uint32_t, vector<uint32_t>, bufferlist> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_REQUEST;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_REQUEST;
   using PayloadFrame::PayloadFrame;
 
   inline uint32_t &method() { return get_val<0>(); }
@@ -202,7 +203,7 @@ struct AuthBadMethodFrame
 			int32_t,  // result
 			std::vector<uint32_t>,   // allowed_methods
 			std::vector<uint32_t>> { // allowed_modes
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_BAD_METHOD;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_BAD_METHOD;
   using PayloadFrame::PayloadFrame;
 
   inline uint32_t &method() { return get_val<0>(); }
@@ -213,7 +214,7 @@ struct AuthBadMethodFrame
 
 struct AuthReplyMoreFrame
     : public PayloadFrame<AuthReplyMoreFrame, bufferlist> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_REPLY_MORE;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_REPLY_MORE;
   using PayloadFrame::PayloadFrame;
 
   inline bufferlist &auth_payload() { return get_val<0>(); }
@@ -221,7 +222,7 @@ struct AuthReplyMoreFrame
 
 struct AuthRequestMoreFrame
     : public PayloadFrame<AuthRequestMoreFrame, bufferlist> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_REQUEST_MORE;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_REQUEST_MORE;
   using PayloadFrame::PayloadFrame;
 
   inline bufferlist &auth_payload() { return get_val<0>(); }
@@ -232,7 +233,7 @@ struct AuthDoneFrame
 			uint64_t, // global_id
 			uint32_t, // con_mode
 			bufferlist> { // auth method payload
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_DONE;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::AUTH_DONE;
   using PayloadFrame::PayloadFrame;
 
   inline uint64_t &global_id() { return get_val<0>(); }
@@ -280,7 +281,7 @@ struct ClientIdentFrame
 				  entity_addr_t,
 				  int64_t,
                                   uint64_t, uint64_t, uint64_t, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::CLIENT_IDENT;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::CLIENT_IDENT;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline entity_addrvec_t &addrs() { return get_val<0>(); }
@@ -296,7 +297,7 @@ struct ServerIdentFrame
     : public SignedEncryptedFrame<ServerIdentFrame, entity_addrvec_t,
                                   int64_t, uint64_t, uint64_t,
                                   uint64_t, uint64_t, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::SERVER_IDENT;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::SERVER_IDENT;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline entity_addrvec_t &addrs() { return get_val<0>(); }
@@ -316,7 +317,7 @@ struct ReconnectFrame
                                   uint64_t, uint64_t,
 				  uint64_t, uint64_t,
 				  uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RECONNECT;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RECONNECT;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline entity_addrvec_t &addrs() { return get_val<0>(); }
@@ -331,11 +332,11 @@ struct ReconnectFrame
 };
 
 struct ResetFrame : public Frame<ResetFrame> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RESET;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RESET;
 };
 
 struct RetryFrame : public SignedEncryptedFrame<RetryFrame, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RETRY;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RETRY;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   uint64_t connect_seq() { return get_val<0>(); }
@@ -343,19 +344,19 @@ struct RetryFrame : public SignedEncryptedFrame<RetryFrame, uint64_t> {
 
 struct RetryGlobalFrame
     : public SignedEncryptedFrame<RetryGlobalFrame, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RETRY_GLOBAL;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RETRY_GLOBAL;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline uint64_t &global_seq() { return get_val<0>(); }
 };
 
 struct WaitFrame : public Frame<WaitFrame> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::WAIT;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::WAIT;
 };
 
 struct ReconnectOkFrame
     : public SignedEncryptedFrame<ReconnectOkFrame, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RECONNECT_OK;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RECONNECT_OK;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline uint64_t &msg_seq() { return get_val<0>(); }
@@ -363,14 +364,14 @@ struct ReconnectOkFrame
 
 struct IdentMissingFeaturesFrame
     : public SignedEncryptedFrame<IdentMissingFeaturesFrame, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::IDENT_MISSING_FEATURES;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::IDENT_MISSING_FEATURES;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline uint64_t &features() { return get_val<0>(); }
 };
 
 struct KeepAliveFrame : public SignedEncryptedFrame<KeepAliveFrame, utime_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::KEEPALIVE2;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::KEEPALIVE2;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   KeepAliveFrame(ProtocolV2 &protocol)
@@ -381,14 +382,14 @@ struct KeepAliveFrame : public SignedEncryptedFrame<KeepAliveFrame, utime_t> {
 
 struct KeepAliveFrameAck
     : public SignedEncryptedFrame<KeepAliveFrame, utime_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::KEEPALIVE2_ACK;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::KEEPALIVE2_ACK;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline utime_t &timestamp() { return get_val<0>(); }
 };
 
 struct AckFrame : public SignedEncryptedFrame<AckFrame, uint64_t> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::ACK;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::ACK;
   using SignedEncryptedFrame::SignedEncryptedFrame;
 
   inline uint64_t &seq() { return get_val<0>(); }
@@ -399,7 +400,7 @@ struct AckFrame : public SignedEncryptedFrame<AckFrame, uint64_t> {
 // being the `extra_payload_len` passed to get_buffer().
 struct MessageHeaderFrame
     : public PayloadFrame<MessageHeaderFrame, ceph_msg_header2> {
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::MESSAGE;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::MESSAGE;
 
   MessageHeaderFrame(ProtocolV2 &protocol,
 		     const ceph_msg_header2 &msghdr,
@@ -1282,7 +1283,7 @@ CtPtr ProtocolV2::read_frame() {
   }
 
   ldout(cct, 20) << __func__ << dendl;
-  return READ(sizeof(__le32) * 2, handle_read_frame_length_and_tag);
+  return READ(FRAME_PREAMBLE_SIZE, handle_read_frame_length_and_tag);
 }
 
 CtPtr ProtocolV2::handle_read_frame_length_and_tag(char *buffer, int r) {
@@ -1294,17 +1295,18 @@ CtPtr ProtocolV2::handle_read_frame_length_and_tag(char *buffer, int r) {
     return _fault();
   }
 
+  ceph::bufferlist preamble;
+  preamble.push_back(buffer::create_static(FRAME_PREAMBLE_SIZE, buffer));
+
   if (session_stream_handlers.rx) {
     session_stream_handlers.rx->reset_rx_handler();
   }
 
-  bufferlist bl;
-  bl.push_back(buffer::create_static(sizeof(uint32_t) * 2, buffer));
   try {
-    auto ti = bl.cbegin();
+    auto ti = preamble.cbegin();
     uint32_t frame_len;
     decode(frame_len, ti);
-    next_payload_len = frame_len - sizeof(uint32_t);
+    next_payload_len = frame_len;
     uint32_t tag;
     decode(tag, ti);
     next_tag = static_cast<Tag>(tag);
