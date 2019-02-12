@@ -569,8 +569,9 @@ static ceph::spinlock debug_lock;
       bdout << "ptr " << this << " release " << static_cast<raw*>(_raw) << bendl;
       const bool last_one = (1 == _raw->nref.load(std::memory_order_acquire));
       if (likely(last_one) || --_raw->nref == 0) {
+        // need to convert from bptr to ptr_node.
 	const bool would_be_hypercombined = \
-	  static_cast<void*>(this) == _raw->hc_bptr;
+	  ((std::uintptr_t)this - sizeof(void*)) == (std::uintptr_t)_raw->hc_bptr;
 	if (would_be_hypercombined) {
 	  auto* canary = \
 	    reinterpret_cast<std::uintptr_t*>(&_raw->bptr_storage);
@@ -578,7 +579,7 @@ static ceph::spinlock debug_lock;
 	  // this bptr_storage initially dedicated to us. I expect we're called
 	  // from ~bptr and can do everything with this tiny piece of memory.
 	  canary[0] = 0xbadb00ff;
-	  canary[1] = 0xbadb00ff;
+	  canary[1] = (std::uintptr_t)this;
 	  canary[2] = 0xbadb00ff;
 	}
         // BE CAREFUL: this is called also for hypercombined ptr_node. After
