@@ -248,6 +248,21 @@ TEST(BufferPtr, constructors) {
   }
 }
 
+TEST(BufferPtrNode, no_move_from) {
+  auto node = ceph::buffer::ptr_node::create(42);
+
+  // life time of an hypercombined ptr_node is tied to its buffer::raw
+  // instance. We cannot let even empty node (due to e.g. std::moving)
+  // to outlive ::raw it lives on. Otherwise we're risking double dtor
+  // call and thus double delete or, more likely, nullifying ptr::_raw
+  // by ptr::release_raw().
+  {
+    ceph::buffer::ptr thief(std::move(node->as_regular_ptr()));
+    ASSERT_TRUE(node->as_regular_ptr().have_raw());
+    ASSERT_EQ(2, node->as_regular_ptr().raw_nref());
+  }
+}
+
 TEST(BufferPtr, operator_assign) {
   //
   // ptr& operator= (const ptr& p)

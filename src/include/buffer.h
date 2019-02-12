@@ -430,7 +430,6 @@ namespace buffer CEPH_BUFFER_API {
     // tests
     using ptr::begin;
 
-    ptr& as_regular_ptr() { return *this; }
     const ptr& as_regular_ptr() const { return *this; }
     unsigned* lenptr() { return &_len; }
 
@@ -469,7 +468,7 @@ namespace buffer CEPH_BUFFER_API {
 
   private:
     ptr_node(const ptr_node&) = default;
-    ptr_node(ptr_node&&) = default;
+    ptr_node(ptr_node&&) = delete;
 
     ptr_node(const ptr& p)
       : ptr(p) {
