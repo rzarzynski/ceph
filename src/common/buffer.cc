@@ -546,6 +546,8 @@ static ceph::spinlock debug_lock;
   buffer::ptr::raw_canary_t& buffer::ptr::raw_canary_t::operator=(buffer::raw* r)
   {
     if (_real_raw) {
+      // this == &buffer::ptr this canary belongs to
+      // this - 8 == &buffer::ptr_node this canary belongs to
       const auto maybe_owning_ptr_node = (std::uintptr_t)this - sizeof(void*);
       const bool would_be_hypercombined = \
         maybe_owning_ptr_node == (std::uintptr_t)_real_raw->hc_bptr;
@@ -553,9 +555,7 @@ static ceph::spinlock debug_lock;
         auto* canary = \
           reinterpret_cast<std::uintptr_t*>(&_real_raw->bptr_storage);
         static_assert(sizeof(_raw->bptr_storage) == 3 * sizeof(std::uintptr_t));
-        canary[0] = 0xbadb00ff;
-        canary[1] = 0xbadb00ff;
-        canary[2] = 0xbadb00ff;
+        canary[1] = (std::uintptr_t)r;
       }
     }
 
@@ -578,9 +578,7 @@ static ceph::spinlock debug_lock;
 	  static_assert(sizeof(_raw->bptr_storage) == 3 * sizeof(std::uintptr_t));
 	  // this bptr_storage initially dedicated to us. I expect we're called
 	  // from ~bptr and can do everything with this tiny piece of memory.
-	  canary[0] = 0xbadb00ff;
-	  canary[1] = (std::uintptr_t)this;
-	  canary[2] = 0xbadb00ff;
+	  canary[1] = 0xbadb00ff;
 	}
         // BE CAREFUL: this is called also for hypercombined ptr_node. After
         // freeing underlying raw, `*this` can become inaccessible as well!
@@ -2210,9 +2208,8 @@ bool buffer::ptr_node::dispose_if_hypercombined(
       reinterpret_cast<std::uintptr_t*>(&delete_this->get_raw()->bptr_storage);
     static_assert(sizeof(delete_this->get_raw()->bptr_storage) == \
       3 * sizeof(std::uintptr_t));
-    ceph_assert_always(canary[0] == (std::uintptr_t)delete_this);
-    ceph_assert_always(canary[1] == (std::uintptr_t)delete_this);
-    ceph_assert_always(canary[2] == (std::uintptr_t)delete_this);
+    ceph_assert_always(canary[0] == canary[1]);
+    ceph_assert_always(canary[1] == canary[2]);
   }
 
   const bool is_hypercombined = static_cast<void*>(delete_this) == \
@@ -2227,15 +2224,17 @@ bool buffer::ptr_node::dispose_if_hypercombined(
 std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>
 buffer::ptr_node::create_hypercombined(ceph::unique_leakable_ptr<buffer::raw> r)
 {
+  auto* in_raw = r.get();
   auto* canary = reinterpret_cast<std::uintptr_t*>(&r->bptr_storage);
   auto ret = std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>(
     new ptr_node(std::move(r)));
   ret->get_raw()->hc_bptr = ret.get();
 
   static_assert(sizeof(r->bptr_storage) == 3 * sizeof(std::uintptr_t));
-  canary[0] = (std::uintptr_t)ret.get();
-  canary[1] = (std::uintptr_t)ret.get();
-  canary[2] = (std::uintptr_t)ret.get();
+  canary[0] = (std::uintptr_t)ret->get_raw();
+  canary[1] = (std::uintptr_t)ret->get_raw();
+  canary[2] = (std::uintptr_t)ret->get_raw();
+  ceph_assert_always((std::uintptr_t)in_raw == canary[2]);
 
   return ret;
 }
@@ -2245,15 +2244,17 @@ buffer::ptr_node::copy_hypercombined(
   const buffer::ptr_node& copy_this)
 {
   auto raw_new = copy_this.get_raw()->clone();
+  auto* in_raw = raw_new.get();
   auto* canary = reinterpret_cast<std::uintptr_t*>(&raw_new->bptr_storage);
   auto ret = std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>(
     new ptr_node(copy_this, std::move(raw_new)));
   ret->get_raw()->hc_bptr = ret.get();
 
   static_assert(sizeof(raw_new->bptr_storage) == 3 * sizeof(std::uintptr_t*));
-  canary[0] = (std::uintptr_t)ret.get();
-  canary[1] = (std::uintptr_t)ret.get();
-  canary[2] = (std::uintptr_t)ret.get();
+  canary[0] = (std::uintptr_t)ret->get_raw();
+  canary[1] = (std::uintptr_t)ret->get_raw();
+  canary[2] = (std::uintptr_t)ret->get_raw();
+  ceph_assert_always((std::uintptr_t)in_raw == canary[2]);
 
   return ret;
 }
