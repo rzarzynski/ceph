@@ -270,7 +270,7 @@ public:
 struct HelloFrame : public PayloadFrame<HelloFrame,
                                         uint8_t,          // entity type
                                         entity_addr_t> {  // peer_addr
-  const ProtocolV2::Tag tag = ProtocolV2::Tag::HELLO;
+  static const ProtocolV2::Tag tag = ProtocolV2::Tag::HELLO;
   using PayloadFrame::PayloadFrame;
 
   inline uint8_t &entity_type() { return get_val<0>(); }
