@@ -2622,6 +2622,7 @@ CtPtr ProtocolV2::handle_client_ident(char *payload, uint32_t length) {
                 << " flags=" << client_ident.flags() << std::dec << dendl;
   if (client_ident.addrs().empty() ||
       client_ident.addrs().front() == entity_addr_t()) {
+    ldout(cct,5) << __func__ << " oops, client_ident.addrs() is empty" << dendl;
     return _fault();  // a v2 peer should never do this
   }
   if (!messenger->get_myaddrs().contains(client_ident.target_addr())) {
