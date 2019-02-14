@@ -431,8 +431,9 @@ struct ReconnectFrame
   inline uint64_t &msg_seq() { return get_val<8>(); }
 };
 
-struct ResetFrame : public Frame<ResetFrame> {
+struct ResetFrame : public SignedEncryptedFrame<ResetFrame> {
   static const ProtocolV2::Tag tag = ProtocolV2::Tag::SESSION_RESET;
+  using SignedEncryptedFrame::SignedEncryptedFrame;
 };
 
 struct RetryFrame : public SignedEncryptedFrame<RetryFrame, uint64_t> {
@@ -2761,7 +2762,7 @@ CtPtr ProtocolV2::handle_reconnect(char *payload, uint32_t length) {
     return _fault();
   }
 
-  ResetFrame reset;
+  ResetFrame reset(*this);
   bufferlist &bl = reset.get_buffer();
 
   if (!existing) {
