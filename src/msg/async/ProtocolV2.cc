@@ -1900,7 +1900,7 @@ CtPtr ProtocolV2::read_message_data() {
                   << next_payload_len << dendl;
     ceph_assert(session_security.rx && session_security.tx &&
 		session_stream_handlers.rx && session_stream_handlers.tx &&
-		auth_meta.is_mode_secure());
+		auth_meta->is_mode_secure());
     extra.push_back(buffer::create(next_payload_len));
     return READB(next_payload_len, extra.c_str(), handle_message_extra_bytes);
   }
