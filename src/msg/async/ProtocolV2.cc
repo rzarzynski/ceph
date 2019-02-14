@@ -1165,7 +1165,7 @@ uint32_t ProtocolV2::calculate_payload_size(
 }
 
 void ProtocolV2::authencrypt_payload(bufferlist &payload) {
-  if (auth_meta.is_mode_secure()) {
+  if (auth_meta->is_mode_secure()) {
     // using tx
     ceph_assert(session_security.tx);
     session_security.tx->authenticated_encrypt(payload);
@@ -1174,7 +1174,7 @@ void ProtocolV2::authencrypt_payload(bufferlist &payload) {
 }
 
 void ProtocolV2::authdecrypt_payload(char *payload, uint32_t &length) {
-  if (auth_meta.is_mode_secure()) {
+  if (auth_meta->is_mode_secure()) {
     ceph_assert(session_security.rx);
     // using rx
     ceph_assert(length > 0);
