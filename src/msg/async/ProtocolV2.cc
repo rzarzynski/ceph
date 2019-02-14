@@ -719,6 +719,7 @@ void ProtocolV2::reset_recv_state() {
   uint32_t cur_msg_size = current_header.front_len + current_header.middle_len +
                           current_header.data_len;
 
+#if 0
   if (state > THROTTLE_MESSAGE && state <= READ_MESSAGE_FRONT &&
       connection->policy.throttler_messages) {
     ldout(cct, 10) << __func__ << " releasing " << 1
@@ -745,6 +746,7 @@ void ProtocolV2::reset_recv_state() {
         << connection->dispatch_queue->dispatch_throttler.get_max() << dendl;
     connection->dispatch_queue->dispatch_throttle_release(cur_msg_size);
   }
+#endif
 }
 
 CtPtr ProtocolV2::_fault() {
@@ -1686,8 +1688,13 @@ CtPtr ProtocolV2::handle_message_header(char *buffer, int r) {
 
   next_payload_len -= header_len;
 
+#if 0
   state = THROTTLE_MESSAGE;
   return CONTINUE(throttle_message);
+#else
+  state = READ_MESSAGE_FRONT;
+  return read_message_front();
+#endif
 }
 
 CtPtr ProtocolV2::throttle_message() {
@@ -1979,15 +1986,19 @@ CtPtr ProtocolV2::handle_message_complete() {
     return _fault();
   }
 
+#if 0
   message->set_byte_throttler(connection->policy.throttler_bytes);
   message->set_message_throttler(connection->policy.throttler_messages);
+#endif
 
   uint32_t cur_msg_size = current_header.front_len + current_header.middle_len +
                           current_header.data_len;
 
+#if 0
   // store reservation size in message, so we don't get confused
   // by messages entering the dispatch queue through other paths.
   message->set_dispatch_throttle_size(cur_msg_size);
+#endif
 
   message->set_recv_stamp(recv_stamp);
   message->set_throttle_stamp(throttle_stamp);
