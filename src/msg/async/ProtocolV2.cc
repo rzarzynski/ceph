@@ -2263,9 +2263,9 @@ CtPtr ProtocolV2::handle_auth_done(char *payload, uint32_t length) {
   }
   auth_meta->con_mode = auth_done.con_mode();
   session_security =
-    AuthStreamHandler::create_stream_handler_pair(cct, auth_meta);
+    AuthStreamHandler::create_stream_handler_pair(cct, *auth_meta);
   session_stream_handlers =
-    ceph::crypto::onwire::rxtx_t::create_handler_pair(cct, auth_meta, false);
+    ceph::crypto::onwire::rxtx_t::create_handler_pair(cct, *auth_meta, false);
 
   if (!cookie) {
     ceph_assert(connect_seq == 0);
