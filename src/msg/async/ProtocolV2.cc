@@ -1341,7 +1341,7 @@ CtPtr ProtocolV2::_handle_peer_banner_payload(char *buffer, int r) {
     this->connection_features = msgr2_required;
   }
 
-  HelloFrame hello(this, messenger->get_mytype(), connection->target_addr);
+  HelloFrame hello(messenger->get_mytype(), connection->target_addr);
   return WRITE(hello.get_buffer(), "hello frame", read_frame);
 }
 
@@ -2720,7 +2720,7 @@ CtPtr ProtocolV2::handle_reconnect(char *payload, uint32_t length) {
   if (feat_missing) {
     ldout(cct, 1) << __func__ << " peer missing required features " << std::hex
                   << feat_missing << std::dec << dendl;
-    IdentMissingFeaturesFrame ident_missing_features(this, feat_missing);
+    IdentMissingFeaturesFrame ident_missing_features(*this, feat_missing);
 
     bufferlist &bl = ident_missing_features.get_buffer();
     return WRITE(bl, "ident missing features", read_frame);
