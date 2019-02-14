@@ -1433,6 +1433,7 @@ CtPtr ProtocolV2::handle_read_frame_preamble_main(char *buffer, int r) {
     // everything through ::decode is unnecessary.
     next_payload_len = main_preamble.segments[0].length;
 
+    rx_segments_todo_rev.clear();
     for (std::uint8_t idx = main_preamble.num_segments; idx > 0; /* NOP */) {
       --idx;
       ldout(cct, 10) << __func__ << " got new segment:"
