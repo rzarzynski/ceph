@@ -2261,7 +2261,7 @@ CtPtr ProtocolV2::handle_auth_done(char *payload, uint32_t length) {
   if (r < 0) {
     return _fault();
   }
-  auth_meta.con_mode = auth_done.con_mode();
+  auth_meta->con_mode = auth_done.con_mode();
   session_security =
     AuthStreamHandler::create_stream_handler_pair(cct, auth_meta);
   session_stream_handlers =
