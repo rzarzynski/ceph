@@ -200,21 +200,21 @@ protected:
   std::tuple<Args...> _values;
 
   // FIXME: take this as encode's param
-  uint64_t features { 0 };
+  //uint64_t features { -1ll };
 
   template <typename T>
   inline void _encode_payload_each(T &t) {
     if constexpr (std::is_same<T, bufferlist const>()) {
       this->payload.claim_append((bufferlist &)t);
     } else if constexpr (std::is_same<T, std::vector<uint32_t> const>()) {
-      encode((uint32_t)t.size(), this->payload, features);
+      encode((uint32_t)t.size(), this->payload, -1ll);
       for (const auto &elem : t) {
-        encode(elem, this->payload, features);
+        encode(elem, this->payload, 0);
       }
     } else if constexpr (std::is_same<T, ceph_msg_header2 const>()) {
       this->payload.append((char *)&t, sizeof(t));
     } else {
-      encode(t, this->payload, features);
+      encode(t, this->payload, -1ll);
     }
   }
 
@@ -2326,6 +2326,7 @@ CtPtr ProtocolV2::send_client_ident() {
 
   ldout(cct, 5) << __func__ << " sending identification: "
                 << "addrs=" << messenger->get_myaddrs()
+		<< " target=" << connection->target_addr
                 << " gid=" << messenger->get_myname().num()
                 << " global_seq=" << global_seq
                 << " features_supported=" << std::hex
