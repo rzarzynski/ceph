@@ -2573,9 +2573,9 @@ CtPtr ProtocolV2::_handle_auth_request(bufferlist& auth_payload, bool more)
     return _fault();
   }
   if (r == 1) {
-#if 0
+#if 1
     session_security =
-      AuthStreamHandler::create_stream_handler_pair(cct, auth_meta);
+      AuthStreamHandler::create_stream_handler_pair(cct, *auth_meta);
     std::swap(session_security.rx, session_security.tx);
 #endif
 
