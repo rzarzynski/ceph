@@ -2333,6 +2333,8 @@ CtPtr ProtocolV2::handle_ident_missing_features(char *payload,
 CtPtr ProtocolV2::handle_session_reset() {
   ldout(cct, 20) << __func__ << dendl;
 
+  ceph_assert(rx_segments_data.size() == 1);
+  ResetFrame(*this, rx_segments_data[0].c_str(), rx_segments_data[0].length());
   ldout(cct, 1) << __func__ << " received session reset" << dendl;
   reset_session();
 
