@@ -333,7 +333,7 @@ void AES128GCM_OnWireTxHandler::reset_tx_handler(
   buffer.reserve(std::accumulate(std::begin(update_size_sequence),
     std::end(update_size_sequence), AESGCM_TAG_LEN));
   // transplantate the nonce update management from OpenVPN's AES-GCM
-  nonce++;
+  nonce += 1ULL << 32;
 }
 
 void AES128GCM_OnWireTxHandler::authenticated_encrypt_update(
@@ -449,7 +449,7 @@ void AES128GCM_OnWireRxHandler::reset_rx_handler()
 	reinterpret_cast<const unsigned char*>(&nonce))) {
     throw std::runtime_error("EVP_DecryptInit_ex failed");
   }
-  nonce++;
+  nonce += 1ULL << 32;
 }
 
 ceph::bufferlist AES128GCM_OnWireRxHandler::authenticated_decrypt_update(
