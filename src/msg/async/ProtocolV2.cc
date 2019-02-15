@@ -416,34 +416,23 @@ struct MessageHeaderFrame
     : public PayloadFrame<MessageHeaderFrame, ceph_msg_header2> {
   const ProtocolV2::Tag tag = ProtocolV2::Tag::MESSAGE;
 
+  // XXX, TODO: MessageHeaderFrame needs to be aware about `protocol` only
+  // because lacking preamble encryption. This will be dropped, altogether
+  // with the magics (8 is for size and tag), in subsequent commits.
   MessageHeaderFrame(ProtocolV2 &protocol,
 		     const ceph_msg_header2 &msghdr,
-		     ceph::bufferlist&& front_bl,
-		     ceph::bufferlist&& middle_bl,
-		     ceph::bufferlist&& data_bl)
+		     const uint32_t front_len,
+		     const uint32_t middle_len,
+		     const uint32_t data_len)
       : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>(msghdr) {
-#if 0
-    ceph::bufferlist trans_bl;
-    this->payload.splice(8, this->payload.length() - 8, &trans_bl);
-    protocol.authencrypt_payload(trans_bl);
-    this->payload.claim_append(trans_bl);
-
-    trans_bl.append(front_bl);
-    trans_bl.append(middle_bl);
-    trans_bl.append(data_bl);
-
-    protocol.authencrypt_payload(trans_bl);
-    this->payload.claim_append(trans_bl);
-
-#else
     ceph_assert(protocol.session_stream_handlers.tx);
 
     protocol.session_stream_handlers.tx->reset_tx_handler({
       8,
       this->payload.length(),
-      front_bl.length(),
-      middle_bl.length(),
-      data_bl.length()
+      front_len,
+      middle_len,
+      data_len
     });
 
     ceph::bufferlist trans_bl;
@@ -454,30 +443,10 @@ struct MessageHeaderFrame
 
     protocol.session_stream_handlers.tx->authenticated_encrypt_update(
       std::move(this->payload));
-    if (front_bl.length()) {
-    protocol.session_stream_handlers.tx->authenticated_encrypt_update(
-      std::move(front_bl));
-    }
-    if (middle_bl.length()) {
-    protocol.session_stream_handlers.tx->authenticated_encrypt_update(
-      std::move(middle_bl));
-    }
-    if (data_bl.length()) {
-    protocol.session_stream_handlers.tx->authenticated_encrypt_update(
-      std::move(data_bl));
-    }
-
-    this->payload = \
-      protocol.session_stream_handlers.tx->authenticated_encrypt_final();
-#endif
   }
 
   MessageHeaderFrame(ProtocolV2 &protocol, char *payload, uint32_t length)
       : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>() {
-#if 0
-    protocol.authdecrypt_payload(payload, length);
-    this->decode_frame(payload, length);
-#else
     protocol.session_stream_handlers.rx->reset_rx_handler();
 
     ceph::bufferlist bl;
@@ -487,7 +456,6 @@ struct MessageHeaderFrame
       protocol.session_stream_handlers.rx->authenticated_decrypt_update(
         std::move(bl), 8);
     this->decode_frame(plain_bl.c_str(), plain_bl.length());
-#endif
   }
 
   inline ceph_msg_header2 &header() { return get_val<0>(); }
@@ -910,14 +878,38 @@ ssize_t ProtocolV2::write_message(Message *m, bool more) {
   }
 
   MessageHeaderFrame message(*this, header2,
-    ceph::bufferlist(m->get_payload()),
-    ceph::bufferlist(m->get_middle()),
-    ceph::bufferlist(m->get_data()));
+    m->get_payload().length(),
+    m->get_middle().length(),
+    m->get_data().length());
+
+  if (auth_meta->is_mode_secure()) {
+    ceph_assert(session_stream_handlers.tx);
+
+    // receiver uses "front" for "payload"
+    if (m->get_payload().length()) {
+      session_stream_handlers.tx->authenticated_encrypt_update(
+	std::move(m->get_payload()));
+    }
+    if (m->get_middle().length()) {
+      session_stream_handlers.tx->authenticated_encrypt_update(
+	std::move(m->get_middle()));
+    }
+    if (m->get_data().length()) {
+      session_stream_handlers.tx->authenticated_encrypt_update(
+	std::move(m->get_data()));
+    }
+
+    auto cipherbl = session_stream_handlers.tx->authenticated_encrypt_final();
+    connection->outcoming_bl.claim_append(cipherbl);
+  } else {
+    connection->outcoming_bl.claim_append(message.get_buffer());
+    connection->outcoming_bl.claim_append(m->get_payload());
+    connection->outcoming_bl.claim_append(m->get_middle());
+    connection->outcoming_bl.claim_append(m->get_data());
+  }
 
   ldout(cct, 5) << __func__ << " sending message m=" << m
                 << " seq=" << m->get_seq() << " " << *m << dendl;
-
-  connection->outcoming_bl.claim_append(message.get_buffer());
 
   m->trace.event("async writing message");
   ldout(cct, 20) << __func__ << " sending m=" << m << " seq=" << m->get_seq()
