@@ -2371,6 +2371,8 @@ CtPtr ProtocolV2::handle_wait() {
   ldout(cct, 20) << __func__ << dendl;
   ldout(cct, 1) << __func__ << " received WAIT (connection race)" << dendl;
   state = WAIT;
+  ceph_assert(rx_segments_data.size() == 1);
+  WaitFrame(*this, rx_segments_data[0].c_str(), rx_segments_data[0].length());
   return _fault();
 }
 
