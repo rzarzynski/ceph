@@ -424,7 +424,8 @@ struct MessageHeaderFrame
 		     const uint32_t front_len,
 		     const uint32_t middle_len,
 		     const uint32_t data_len)
-      : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>(msghdr) {
+      : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>(msghdr)
+  {
     ceph_assert(protocol.session_stream_handlers.tx);
 
     protocol.session_stream_handlers.tx->reset_tx_handler({
@@ -446,16 +447,19 @@ struct MessageHeaderFrame
   }
 
   MessageHeaderFrame(ProtocolV2 &protocol, char *payload, uint32_t length)
-      : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>() {
-    protocol.session_stream_handlers.rx->reset_rx_handler();
+      : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>()
+  {
+    ceph::bufferlist text;
+    text.push_back(buffer::create_static(length, payload));
 
-    ceph::bufferlist bl;
-    bl.push_back(buffer::create_static(length, payload));
+    if (protocol.auth_meta->is_mode_secure()) {
+      ceph_assert(protocol.session_stream_handlers.rx);
+      protocol.session_stream_handlers.rx->reset_rx_handler();
 
-    ceph::bufferlist plain_bl = \
-      protocol.session_stream_handlers.rx->authenticated_decrypt_update(
-        std::move(bl), 8);
-    this->decode_frame(plain_bl.c_str(), plain_bl.length());
+      text = protocol.session_stream_handlers.rx->authenticated_decrypt_update(
+	std::move(text), 8);
+    }
+    this->decode_frame(text.c_str(), text.length());
   }
 
   inline ceph_msg_header2 &header() { return get_val<0>(); }
