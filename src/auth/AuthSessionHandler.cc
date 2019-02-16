@@ -64,13 +64,6 @@ AuthSessionHandler *get_auth_session_handler(
 // https://www.openssl.org/docs/man1.0.2/crypto/EVP_aes_128_gcm.html#GCM-mode
 // https://wiki.openssl.org/index.php/EVP_Authenticated_Encryption_and_Decryption
 
-AuthStreamHandler::rxtx_t AuthStreamHandler::create_stream_handler_pair(
-  CephContext* cct,
-  const class AuthConnectionMeta& auth_meta)
-{
-  return { nullptr, nullptr };
-}
-
 
 
 

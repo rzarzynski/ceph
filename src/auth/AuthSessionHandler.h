@@ -156,24 +156,4 @@ struct rxtx_t {
 
 } // namespace ceph::crypto::onwire
 
-struct AuthStreamHandler {
-  virtual ~AuthStreamHandler() = default;
-  //virtual ceph::bufferlist authenticated_encrypt(ceph::bufferlist& in) = 0;
-  //virtual ceph::bufferlist authenticated_decrypt(ceph::bufferlist& in) = 0;
-  virtual void authenticated_encrypt(ceph::bufferlist& payload) = 0;
-  virtual void authenticated_decrypt(char* payload, uint32_t& length) = 0;
-  virtual std::size_t calculate_payload_size(std::size_t length) = 0;
-
-  struct rxtx_t {
-    //rxtx_t(rxtx_t&& r) : rx(std::move(rx)), tx(std::move(tx)) {}
-    // Each peer can use different handlers.
-    // Hmm, isn't that too much flexbility?
-    std::unique_ptr<AuthStreamHandler> rx;
-    std::unique_ptr<AuthStreamHandler> tx;
-  };
-  static rxtx_t create_stream_handler_pair(
-    CephContext* ctx,
-    const class AuthConnectionMeta& auth_meta);
-};
-
 #endif
