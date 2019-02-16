@@ -429,18 +429,9 @@ struct MessageHeaderFrame
     fill_preamble(this->payload.length() + front_len + middle_len + data_len + 16);
   }
 
-  MessageHeaderFrame(ProtocolV2 &protocol, char *payload, uint32_t length)
+  MessageHeaderFrame(ceph::bufferlist&& text)
       : PayloadFrame<MessageHeaderFrame, ceph_msg_header2>()
   {
-    ceph::bufferlist text;
-    text.push_back(buffer::create_static(length, payload));
-
-    if (protocol.auth_meta->is_mode_secure()) {
-      ceph_assert(protocol.session_stream_handlers.rx);
-
-      text = protocol.session_stream_handlers.rx->authenticated_decrypt_update(
-	std::move(text), 8);
-    }
     this->decode_frame(text.c_str(), text.length());
   }
 
@@ -1510,7 +1501,15 @@ CtPtr ProtocolV2::handle_message_header(char *buffer, int r) {
   const uint32_t header_len = calculate_payload_size(
     session_security.rx.get(), sizeof(ceph_msg_header2));
 
-  MessageHeaderFrame header_frame(*this, buffer, header_len);
+  ceph::bufferlist text;
+  text.push_back(buffer::create_static(header_len, buffer));
+  if (auth_meta->is_mode_secure()) {
+    ceph_assert(session_stream_handlers.rx);
+
+    text = session_stream_handlers.rx->authenticated_decrypt_update(
+      std::move(text), 8);
+  }
+  MessageHeaderFrame header_frame(std::move(text));
   ceph_msg_header2 &header = header_frame.header();
 
   ldout(cct, 20) << __func__ << " got envelope type=" << header.type << " src "
