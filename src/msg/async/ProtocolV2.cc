@@ -1164,31 +1164,10 @@ bool ProtocolV2::is_queued() {
   return !out_queue.empty() || connection->is_queued();
 }
 
-uint32_t ProtocolV2::calculate_payload_size(
-  AuthStreamHandler *stream_handler,
-  uint32_t length)
-{
-  // FIXME: we need add rounding to AES_BLOCK_LEN. AES-GCM is stream cipher
-  // and doesn't really need this but other ciphers could do.
-  return length;
-}
-
 void ProtocolV2::authencrypt_payload(bufferlist &payload) {
-  if (auth_meta->is_mode_secure()) {
-    // using tx
-    ceph_assert(session_security.tx);
-    session_security.tx->authenticated_encrypt(payload);
-    ceph_assert(payload.length() > 0);
-  }
 }
 
 void ProtocolV2::authdecrypt_payload(char *payload, uint32_t &length) {
-  if (auth_meta->is_mode_secure()) {
-    ceph_assert(session_security.rx);
-    // using rx
-    ceph_assert(length > 0);
-    session_security.rx->authenticated_decrypt(payload, length);
-  }
 }
 
 CtPtr ProtocolV2::read(CONTINUATION_PARAM(next, ProtocolV2, char *, int),
@@ -2944,7 +2923,6 @@ CtPtr ProtocolV2::reuse_connection(AsyncConnectionRef existing,
   exproto->can_write = false;
   exproto->reconnecting = reconnecting;
   exproto->replacing = true;
-  std::swap(exproto->session_security, session_security);
   std::swap(exproto->session_stream_handlers, session_stream_handlers);
   exproto->auth_meta = auth_meta;
   existing->state_offset = 0;
