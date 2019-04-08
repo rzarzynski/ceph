@@ -311,8 +311,8 @@ static seastar::future<> run(unsigned rounds,
       entity_addr_t target_addr;
       target_addr.parse(addr.c_str(), nullptr);
       if (mode == perf_mode_t::both) {
-          logger().info("\nperf settings:\n  mode=server+client\n  server addr={}\n  server core={}\n  rounds={}\n  client jobs={}\n  client bs={}\n  server bs={}\n  depth={}\n",
-                        addr, core, rounds, jobs, cbs, sbs, depth);
+          logger().info("\nperf settings(client+server, {}):\n  client rounds={}\n  client jobs={}\n  client bs={}\n  client depth={}\n  server bs={}\n  server core={}\n",
+                        addr, rounds, jobs, cbs, depth, core, sbs);
           ceph_assert(seastar::smp::count >= std::max(1+jobs, 1+core));
           ceph_assert(core == 0 || core > jobs);
           ceph_assert(jobs > 0);
@@ -329,7 +329,7 @@ static seastar::future<> run(unsigned rounds,
               return server->shutdown();
             });
       } else if (mode == perf_mode_t::client) {
-          logger().info("\nperf settings:\n  mode=client\n  server addr={}\n  rounds={}\n  client jobs={}\n  client bs={}\n  depth={}\n",
+          logger().info("\nperf settings(client, {}):\n  client rounds={}\n  client jobs={}\n  client bs={}\n  client depth={}\n",
                         addr, rounds, jobs, cbs, depth);
           ceph_assert(seastar::smp::count >= 1+jobs);
           ceph_assert(jobs > 0);
@@ -343,7 +343,7 @@ static seastar::future<> run(unsigned rounds,
             });
       } else { // mode == perf_mode_t::server
           ceph_assert(seastar::smp::count >= 1+core);
-          logger().info("\nperf settings:\n  mode=server\n  server addr={}\n  server core={}\n  server bs={}\n",
+          logger().info("\nperf settings(server, {}):\n  server core={}\n  server bs={}\n",
                         addr, core, sbs);
           return server->init(target_addr)
           // dispatch ops
@@ -363,22 +363,22 @@ int main(int argc, char** argv)
 {
   seastar::app_template app;
   app.add_options()
-    ("addr", bpo::value<std::string>()->default_value("v1:0.0.0.0:9010"),
-     "server address")
-    ("core", bpo::value<unsigned>()->default_value(0),
-     "server running core")
     ("mode", bpo::value<unsigned>()->default_value(0),
      "0: both, 1:client, 2:server")
+    ("addr", bpo::value<std::string>()->default_value("v1:0.0.0.0:9010"),
+     "server address")
     ("rounds", bpo::value<unsigned>()->default_value(65536),
-     "number of messaging rounds")
+     "number of client messaging rounds")
     ("jobs", bpo::value<unsigned>()->default_value(1),
-     "number of jobs (client messengers)")
+     "number of client jobs (messengers)")
     ("cbs", bpo::value<unsigned>()->default_value(4096),
-     "block size")
-    ("sbs", bpo::value<unsigned>()->default_value(0),
-     "server block size")
+     "client block size")
     ("depth", bpo::value<unsigned>()->default_value(512),
-     "io depth");
+     "client io depth")
+    ("core", bpo::value<unsigned>()->default_value(0),
+     "server running core")
+    ("sbs", bpo::value<unsigned>()->default_value(0),
+     "server block size");
   return app.run(argc, argv, [&app] {
       auto&& config = app.configuration();
       auto rounds = config["rounds"].as<unsigned>();
