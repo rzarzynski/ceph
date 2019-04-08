@@ -90,6 +90,7 @@ class Protocol {
   bool need_keepalive = false;
   bool need_keepalive_ack = false;
   bool write_dispatching = false;
+  seastar::future<> write_worker();
   void write_event();
 };
 
