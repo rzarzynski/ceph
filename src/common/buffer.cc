@@ -471,9 +471,26 @@ static ceph::spinlock debug_lock;
       bdout << "ptr " << this << " get " << static_cast<raw*>(_raw) << bendl;
     }
   }
+
+  enum badboof_last_op {
+    CREATE_HC = 0x80,
+    COPY_HC,
+    ASSIGN_RAW,
+    DELETE_HC,
+    RELEASE_RAW,
+    RELEASE_RAW2,
+    RELEASE_RAW2_FROM_DTOR,
+    CTOR_MOVE,
+    ASSIGN_CONST_RAW,
+    ASSIGN_RVAL_RAW_LEFT,
+    ASSIGN_RVAL_RAW_RIGHT,
+    SWAP_LEFT,
+    SWAP_RIGHT
+  };
+
   buffer::ptr::ptr(ptr&& p) noexcept : _raw(p._raw), _off(p._off), _len(p._len)
   {
-    p._raw = nullptr;
+    p._raw.assign_operator(nullptr, CTOR_MOVE);
     p._off = p._len = 0;
   }
   buffer::ptr::ptr(const ptr& p, unsigned o, unsigned l)
@@ -501,7 +518,7 @@ static ceph::spinlock debug_lock;
     buffer::raw *raw = p._raw; 
     release_raw();
     if (raw) {
-      _raw = raw;
+      _raw.assign_operator(raw, ASSIGN_CONST_RAW);
       _off = p._off;
       _len = p._len;
     } else {
@@ -514,10 +531,10 @@ static ceph::spinlock debug_lock;
     release_raw();
     buffer::raw *raw = p._raw;
     if (raw) {
-      _raw = raw;
+      _raw.assign_operator(raw, ASSIGN_RVAL_RAW_LEFT);
       _off = p._off;
       _len = p._len;
-      p._raw = nullptr;
+      p._raw.assign_operator(nullptr, ASSIGN_RVAL_RAW_RIGHT);
       p._off = p._len = 0;
     } else {
       _off = _len = 0;
@@ -535,15 +552,15 @@ static ceph::spinlock debug_lock;
     raw *r = _raw;
     unsigned o = _off;
     unsigned l = _len;
-    _raw = other._raw;
+    _raw.assign_operator(other._raw, SWAP_LEFT);
     _off = other._off;
     _len = other._len;
-    other._raw = r;
+    other._raw.assign_operator(r, SWAP_RIGHT);
     other._off = o;
     other._len = l;
   }
 
-  buffer::ptr::raw_canary_t& buffer::ptr::raw_canary_t::operator=(buffer::raw* r)
+  buffer::ptr::raw_canary_t& buffer::ptr::raw_canary_t::assign_operator(buffer::raw* r, int code)
   {
     if (_real_raw) {
       // this == &buffer::ptr this canary belongs to
@@ -554,8 +571,12 @@ static ceph::spinlock debug_lock;
       if (would_be_hypercombined) {
         auto* canary = \
           reinterpret_cast<std::uintptr_t*>(&_real_raw->bptr_storage);
-        static_assert(sizeof(_raw->bptr_storage) == 3 * sizeof(std::uintptr_t));
+        static_assert(sizeof(_raw->bptr_storage) == 5 * sizeof(std::uintptr_t));
         canary[1] = (std::uintptr_t)r;
+        canary[2] = (std::uintptr_t)this;
+        canary[3] = code;
+        badboof_last_op badcode = (badboof_last_op)code;
+	ceph_assert_always(badcode == RELEASE_RAW || badcode == RELEASE_RAW2_FROM_DTOR);
       }
     }
 
@@ -563,7 +584,13 @@ static ceph::spinlock debug_lock;
     return *this;
   }
 
-  void buffer::ptr::release_raw()
+  buffer::ptr::raw_canary_t& buffer::ptr::raw_canary_t::operator=(buffer::raw* r)
+  {
+    assign_operator(r, ASSIGN_RAW);
+    return *this;
+  }
+
+  void buffer::ptr::release_raw(const bool from_dtor)
   {
     if (_raw) {
       bdout << "ptr " << this << " release " << static_cast<raw*>(_raw) << bendl;
@@ -575,22 +602,31 @@ static ceph::spinlock debug_lock;
 	if (would_be_hypercombined) {
 	  auto* canary = \
 	    reinterpret_cast<std::uintptr_t*>(&_raw->bptr_storage);
-	  static_assert(sizeof(_raw->bptr_storage) == 3 * sizeof(std::uintptr_t));
+	  static_assert(sizeof(_raw->bptr_storage) == 5 * sizeof(std::uintptr_t));
 	  // this bptr_storage initially dedicated to us. I expect we're called
 	  // from ~bptr and can do everything with this tiny piece of memory.
-	  canary[1] = 0xbadb00ff;
+	  canary[2] = 0xbadb00ff;
+          canary[3] = DELETE_HC;
 	}
         // BE CAREFUL: this is called also for hypercombined ptr_node. After
         // freeing underlying raw, `*this` can become inaccessible as well!
         const raw* delete_raw = _raw;
-        _raw = nullptr;
+        _raw.assign_operator(nullptr, RELEASE_RAW);
 	//cout << "hosing raw " << (void*)_raw << " len " << _raw->len << std::endl;
         ANNOTATE_HAPPENS_AFTER(&_raw->nref);
         ANNOTATE_HAPPENS_BEFORE_FORGET_ALL(&_raw->nref);
 	delete delete_raw;  // dealloc old (if any)
       } else {
         ANNOTATE_HAPPENS_BEFORE(&_raw->nref);
-        _raw = nullptr;
+        const auto maybe_owning_ptr_node = (std::uintptr_t)this - sizeof(void*);
+        const bool would_be_hypercombined = \
+          maybe_owning_ptr_node == (std::uintptr_t)_raw->hc_bptr;
+        if (would_be_hypercombined && _raw->len == 166) {
+          std::cout << "release_raw()-- on HC ptr=" << *this
+                    << " &ptr=" << this << std::endl;
+          //ceph_assert_always(_raw->len != 166);
+        }
+        _raw.assign_operator(nullptr, from_dtor ? RELEASE_RAW2_FROM_DTOR: RELEASE_RAW2);
       }
     }
   }
@@ -2207,7 +2243,12 @@ bool buffer::ptr_node::dispose_if_hypercombined(
     auto* canary = \
       reinterpret_cast<std::uintptr_t*>(&delete_this->get_raw()->bptr_storage);
     static_assert(sizeof(delete_this->get_raw()->bptr_storage) == \
-      3 * sizeof(std::uintptr_t));
+      5 * sizeof(std::uintptr_t));
+    enum badboof_last_op last_op { (badboof_last_op)canary[3] };
+    if (canary[0] != canary[1]) {
+      std::cout << "exploding dispose_if_hypercombined() on HC ptr=" << *delete_this
+                << " &ptr=" << delete_this << std::endl;
+    }
     ceph_assert_always(canary[0] == canary[1]);
     ceph_assert_always(canary[1] == canary[2]);
   }
@@ -2230,10 +2271,12 @@ buffer::ptr_node::create_hypercombined(ceph::unique_leakable_ptr<buffer::raw> r)
     new ptr_node(std::move(r)));
   ret->get_raw()->hc_bptr = ret.get();
 
-  static_assert(sizeof(r->bptr_storage) == 3 * sizeof(std::uintptr_t));
+  static_assert(sizeof(r->bptr_storage) == 5 * sizeof(std::uintptr_t));
   canary[0] = (std::uintptr_t)ret->get_raw();
   canary[1] = (std::uintptr_t)ret->get_raw();
   canary[2] = (std::uintptr_t)ret->get_raw();
+  canary[3] = CREATE_HC;
+  canary[4] = 0x123456789ABCDEF;
   ceph_assert_always((std::uintptr_t)in_raw == canary[2]);
 
   return ret;
@@ -2250,10 +2293,12 @@ buffer::ptr_node::copy_hypercombined(
     new ptr_node(copy_this, std::move(raw_new)));
   ret->get_raw()->hc_bptr = ret.get();
 
-  static_assert(sizeof(raw_new->bptr_storage) == 3 * sizeof(std::uintptr_t*));
+  static_assert(sizeof(raw_new->bptr_storage) == 5 * sizeof(std::uintptr_t*));
   canary[0] = (std::uintptr_t)ret->get_raw();
   canary[1] = (std::uintptr_t)ret->get_raw();
   canary[2] = (std::uintptr_t)ret->get_raw();
+  canary[3] = COPY_HC;
+  canary[4] = 0x123456789ABCDEF;
   ceph_assert_always((std::uintptr_t)in_raw == canary[2]);
 
   return ret;

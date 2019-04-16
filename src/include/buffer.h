@@ -202,6 +202,7 @@ namespace buffer CEPH_BUFFER_API {
       raw_canary_t() : _real_raw(nullptr) {}
       raw_canary_t(raw* r) : _real_raw(r) {}
       raw_canary_t& operator=(raw* r);
+      raw_canary_t& assign_operator(raw* r, int);
       operator bool () const { return _real_raw != nullptr; }
       operator raw*() const { return _real_raw; }
       raw* operator->() const { return _real_raw; }
@@ -210,7 +211,7 @@ namespace buffer CEPH_BUFFER_API {
     unsigned _off, _len;
   private:
 
-    void release_raw();
+    void release_raw(bool from_dtor = false);
 
     template<bool is_const>
     class iterator_impl {
@@ -288,7 +289,7 @@ namespace buffer CEPH_BUFFER_API {
     ~ptr() {
       // BE CAREFUL: this destructor is called also for hypercombined ptr_node.
       // After freeing underlying raw, `*this` can become inaccessible as well!
-      release_raw();
+      release_raw(true);
     }
 
     bool have_raw() const { return _raw ? true:false; }
