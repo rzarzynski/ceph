@@ -203,8 +203,9 @@ namespace buffer CEPH_BUFFER_API {
       raw_canary_t(raw* r) : _real_raw(r) {}
       raw_canary_t& operator=(raw* r);
       raw_canary_t& assign_operator(raw* r, int);
-      operator bool () const { return _real_raw != nullptr; }
+      bool operator==(const raw_canary_t& r) { return _real_raw == r._real_raw; }
       operator raw*() const { return _real_raw; }
+      explicit operator std::uintptr_t() const { return (std::uintptr_t)_real_raw; }
       raw* operator->() const { return _real_raw; }
     } _raw;
   public: // dirty hack for testing; if it works, this will be abstracted
@@ -329,7 +330,7 @@ namespace buffer CEPH_BUFFER_API {
     void try_assign_to_mempool(int pool);
 
     // accessors
-    raw *get_raw() const { return _raw; }
+    raw_canary_t get_raw() const { return _raw; }
     const char *c_str() const;
     char *c_str();
     const char *end_c_str() const;
@@ -446,8 +447,8 @@ namespace buffer CEPH_BUFFER_API {
       operator()(const ptr_node& clone_this);
     };
 
-    ptr_node() = default;
-    ~ptr_node() = default;
+    ptr_node();
+    ~ptr_node();
 
     static std::unique_ptr<ptr_node, disposer>
     create(ceph::unique_leakable_ptr<raw> r) {

@@ -485,7 +485,8 @@ static ceph::spinlock debug_lock;
     ASSIGN_RVAL_RAW_LEFT,
     ASSIGN_RVAL_RAW_RIGHT,
     SWAP_LEFT,
-    SWAP_RIGHT
+    SWAP_RIGHT,
+    DISPOSE_ON_HOLD
   };
 
   buffer::ptr::ptr(ptr&& p) noexcept : _raw(p._raw), _off(p._off), _len(p._len)
@@ -610,6 +611,12 @@ static ceph::spinlock debug_lock;
 	}
         // BE CAREFUL: this is called also for hypercombined ptr_node. After
         // freeing underlying raw, `*this` can become inaccessible as well!
+        if (_raw->hc_bptr) {
+          _raw->hc_bptr = nullptr;
+          auto* to_delete = (ptr_node*)_raw->hc_bptr;
+          //((ptr*)to_delete)->_raw.assign_operator(nullptr, DISPOSE_ON_HOLD);
+          delete to_delete;
+        }
         const raw* delete_raw = _raw;
         _raw.assign_operator(nullptr, RELEASE_RAW);
 	//cout << "hosing raw " << (void*)_raw << " len " << _raw->len << std::endl;
@@ -1413,7 +1420,7 @@ static ceph::spinlock debug_lock;
       auto curbuf_prev = bl._buffers.before_begin();
 
       while (curbuf != bl._buffers.end()) {
-	const auto* const raw = curbuf->get_raw();
+	const auto raw = curbuf->get_raw();
 	if (unlikely(raw && !raw->is_shareable())) {
 	  auto clone = ptr_node::copy_hypercombined(*curbuf);
 	  curbuf = bl._buffers.erase_after_and_dispose(curbuf_prev);
@@ -2234,6 +2241,14 @@ buffer::list buffer::list::static_from_string(string& s) {
   // const makes me generally sad.
 }
 
+buffer::ptr_node::ptr_node() {
+  next = nullptr;
+}
+
+buffer::ptr_node::~ptr_node() {
+  next = nullptr;
+}
+
 bool buffer::ptr_node::dispose_if_hypercombined(
   buffer::ptr_node* const delete_this)
 {
@@ -2251,6 +2266,10 @@ bool buffer::ptr_node::dispose_if_hypercombined(
     }
     ceph_assert_always(canary[0] == canary[1]);
     ceph_assert_always(canary[1] == canary[2]);
+
+    // make the hc node empty and postpone it deletion
+    --delete_this->get_raw()->nref;
+    delete_this->get_raw().assign_operator(nullptr, DISPOSE_ON_HOLD);
   }
 
   const bool is_hypercombined = static_cast<void*>(delete_this) == \
@@ -2259,7 +2278,7 @@ bool buffer::ptr_node::dispose_if_hypercombined(
     ceph_assert_always("hypercombining is actually disabled" == nullptr);
     delete_this->~ptr_node();
   }
-  return is_hypercombined;
+  return would_be_hypercombined;
 }
 
 std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>
