@@ -26,16 +26,131 @@
 
 #ifdef USE_OPENSSL
 #include <openssl/evp.h>
+
+# ifndef OPENSSL_API_1_1
+#  include <openssl/conf.h>
+#  include <openssl/err.h>
+# endif /* not OPENSSL_API_1_1 */
+#endif /*USE_OPENSSL*/
+
+#ifdef USE_OPENSSL
+namespace ceph::crypto::ssl {
+
+#ifndef OPENSSL_API_1_1
+static std::atomic_uint32_t crypto_refs;
+
+// XXX: vector instead?
+static pthread_mutex_t* ssl_mutexes;
+static size_t ssl_num_locks;
+#endif /* not OPENSSL_API_1_1 */
+
+#ifndef OPENSSL_API_1_1
+static void
+ssl_locking_callback(int mode, int mutex_num, const char *file, int line)
+{
+  static_cast<void>(line);
+  static_cast<void>(file);
+
+  if (mode & 1) {
+    /* 1 is CRYPTO_LOCK */
+    [[maybe_unused]] auto r = pthread_mutex_lock(&ssl_mutexes[mutex_num]);
+  } else {
+    [[maybe_unused]] auto r = pthread_mutex_unlock(&ssl_mutexes[mutex_num]);
+  }
+}
+
+static unsigned long
+ssl_get_thread_id(void)
+{
+  static_assert(sizeof(unsigned long) >= sizeof(pthread_t));
+  /* pthread_t may be any data type, so a simple cast to unsigned long
+   * can rise a warning/error, depending on the platform.
+   * Here memcpy is used as an anything-to-anything cast. */
+  unsigned long ret = 0;
+  pthread_t t = pthread_self();
+  memcpy(&ret, &t, sizeof(pthread_t));
+  return ret;
+}
+#endif /* not OPENSSL_API_1_1 */
+
+static void init() {
+#ifndef OPENSSL_API_1_1
+  if (++crypto_refs != 1) {
+    return;
+  }
+
+  /* According to https://wiki.openssl.org/index.php/Library_Initialization#libcrypto_Initialization */
+  OpenSSL_add_all_algorithms();
+  ERR_load_crypto_strings();
+
+  /* Initialize locking callbacks, needed for thread safety.
+   * http://www.openssl.org/support/faq.html#PROG1
+   */
+  ssl_num_locks = std::max(CRYPTO_num_locks(), 0);
+  if (ssl_num_locks > 0) {
+    try {
+      ssl_mutexes = new pthread_mutex_t[ssl_num_locks];
+    } catch (...) {
+      ceph_assert_always("can't allocate memory for OpenSSL init" == nullptr);
+    }
+  }
+
+  pthread_mutexattr_t pthread_mutex_attr;
+  pthread_mutexattr_init(&pthread_mutex_attr);
+  pthread_mutexattr_settype(&pthread_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+
+  for (size_t i = 0; i < ssl_num_locks; i++) {
+    pthread_mutex_init(&ssl_mutexes[i], &pthread_mutex_attr);
+  }
+
+  CRYPTO_set_locking_callback(&ssl_locking_callback);
+  CRYPTO_set_id_callback(&ssl_get_thread_id);
+
+  OPENSSL_config(nullptr);
+#endif /* OPENSSL_API_1_1 */
+}
+
+static void shutdown() {
+#ifdef OPENSSL_API_1_1
+  if (--crypto_refs != 0) {
+    return;
+  }
+
+  /* Shutdown according to
+   * https://wiki.openssl.org/index.php/Library_Initialization#Cleanup
+   * http://stackoverflow.com/questions/29845527/how-to-properly-uninitialize-openssl
+   */
+  CRYPTO_set_locking_callback(nullptr);
+  CRYPTO_set_id_callback(nullptr);
+  ENGINE_cleanup();
+  CONF_modules_unload(1);
+  ERR_free_strings();
+  EVP_cleanup();
+  CRYPTO_cleanup_all_ex_data();
+  ERR_remove_state(0);
+
+  for (size_t i = 0; i < ssl_num_locks; i++) {
+    pthread_mutex_destroy(&ssl_mutexes[i]);
+  }
+  delete[] ssl_mutexes;
+  ssl_mutexes = nullptr;
+#endif /* OPENSSL_API_1_1 */
+}
+
+} // namespace ceph::crypto::openssl
 #endif /*USE_OPENSSL*/
 
 #ifdef USE_NSS
+
+namespace ceph::crypto::nss {
 
 static pthread_mutex_t crypto_init_mutex = PTHREAD_MUTEX_INITIALIZER;
 static uint32_t crypto_refs = 0;
 static NSSInitContext *crypto_context = NULL;
 static pid_t crypto_init_pid = 0;
 
-void ceph::crypto::init(CephContext *cct)
+
+static void init(CephContext *cct)
 {
   pid_t pid = getpid();
   pthread_mutex_lock(&crypto_init_mutex);
@@ -62,7 +177,7 @@ void ceph::crypto::init(CephContext *cct)
   ceph_assert_always(crypto_context != NULL);
 }
 
-void ceph::crypto::shutdown(bool shared)
+static void shutdown(bool shared)
 {
   pthread_mutex_lock(&crypto_init_mutex);
   ceph_assert_always(crypto_refs > 0);
@@ -84,9 +199,31 @@ ceph::crypto::nss::HMAC::~HMAC()
   PK11_FreeSlot(slot);
 }
 
+} // namespace ceph::crypto::nss
 #else
 # error "No supported crypto implementation found."
 #endif /*USE_NSS*/
+
+
+void ceph::crypto::init(CephContext* const cct) {
+#ifdef USE_NSS
+  ceph::crypto::nss::init(cct);
+#endif
+
+#ifdef USE_OPENSSL
+  ceph::crypto::ssl::init();
+#endif
+}
+
+void ceph::crypto::shutdown(const bool shared) {
+#ifdef USE_NSS
+  ceph::crypto::nss::shutdown(shared);
+#endif
+
+#ifdef USE_OPENSSL
+  ceph::crypto::ssl::shutdown();
+#endif
+}
 
 #ifdef USE_OPENSSL
 
