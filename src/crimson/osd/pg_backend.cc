@@ -98,7 +98,14 @@ PGBackend::_load_oi(const hobject_t& oid)
   }
   return store->get_attr(coll,
                          ghobject_t{oid, ghobject_t::NO_GEN, shard},
-                         OI_ATTR).then([oid, this](auto bp) {
+                         OI_ATTR)
+  .handle_exception([this](std::exception_ptr ep) -> ceph::bufferptr {
+    if (ceph::os::CyanStore::EnoentException::is_class_of(ep)) {
+      ceph_assert("expected" == nullptr);
+    }
+    std::rethrow_exception(ep);
+  })
+  .then([oid, this](auto bp) {
     auto oi = std::make_unique<object_info_t>();
     bufferlist bl;
     bl.push_back(std::move(bp));
@@ -116,7 +123,14 @@ PGBackend::_load_ss(const hobject_t& oid)
   }
   return store->get_attr(coll,
                          ghobject_t{oid, ghobject_t::NO_GEN, shard},
-                         SS_ATTR).then([oid, this](auto bp) {
+                         SS_ATTR)
+  .handle_exception([this](std::exception_ptr ep) -> ceph::bufferptr {
+    if (ceph::os::CyanStore::EnoentException::is_class_of(ep)) {
+      ceph_assert("expected" == nullptr);
+    }
+    std::rethrow_exception(ep);
+  })
+  .then([oid, this](auto bp) {
     bufferlist bl;
     bl.push_back(std::move(bp));
     auto snapset = std::make_unique<SnapSet>(bl);
