@@ -135,9 +135,7 @@ static void shutdown() {
 #endif /*USE_OPENSSL*/
 
 
-void ceph::crypto::init(CephContext* const cct) {
-  static_cast<void>(cct);
-
+void ceph::crypto::init() {
 #ifdef USE_OPENSSL
   ceph::crypto::ssl::init();
 #endif
