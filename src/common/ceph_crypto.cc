@@ -16,16 +16,13 @@
 #include "common/config.h"
 #include "ceph_crypto.h"
 
-#ifdef USE_OPENSSL
 #include <openssl/evp.h>
 
-# ifndef OPENSSL_API_1_1
-#  include <openssl/conf.h>
-#  include <openssl/err.h>
-# endif /* not OPENSSL_API_1_1 */
-#endif /*USE_OPENSSL*/
+#ifndef OPENSSL_API_1_1
+# include <openssl/conf.h>
+# include <openssl/err.h>
+#endif /* not OPENSSL_API_1_1 */
 
-#ifdef USE_OPENSSL
 namespace ceph::crypto::ssl {
 
 #ifndef OPENSSL_API_1_1
@@ -133,26 +130,15 @@ static void shutdown() {
 }
 
 } // namespace ceph::crypto::openssl
-#else
-# error "No supported crypto implementation found."
-#endif /*USE_OPENSSL*/
 
 
 void ceph::crypto::init() {
-#ifdef USE_OPENSSL
   ceph::crypto::ssl::init();
-#endif
 }
 
-void ceph::crypto::shutdown(const bool shared) {
-  static_cast<void>(shared);
-
-#ifdef USE_OPENSSL
+void ceph::crypto::shutdown([[maybe_unused]] const bool shared) {
   ceph::crypto::ssl::shutdown();
-#endif
 }
-
-#ifdef USE_OPENSSL
 
 ceph::crypto::ssl::OpenSSLDigest::OpenSSLDigest(const EVP_MD * _type)
   : mpContext(EVP_MD_CTX_create())
@@ -178,6 +164,3 @@ void ceph::crypto::ssl::OpenSSLDigest::Final(unsigned char *digest) {
   unsigned int s;
   EVP_DigestFinal_ex(mpContext, digest, &s);
 }
-#else
-# error "No supported crypto implementation found."
-#endif /*USE_OPENSSL*/
