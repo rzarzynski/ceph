@@ -971,7 +971,7 @@ seastar::future<> PG::wait_for_active()
 
 // TODO: split the method accordingly to os' constness needs
 seastar::future<>
-PG::do_osd_op(ObjectState& os, OSDOp& osd_op, ceph::os::Transaction& txn)
+PG::do_osd_op(object_info_t& oi, OSDOp& osd_op, ceph::os::Transaction& txn)
 {
   // TODO: dispatch via call table?
   // TODO: we might want to find a way to unify both input and output
@@ -980,7 +980,7 @@ PG::do_osd_op(ObjectState& os, OSDOp& osd_op, ceph::os::Transaction& txn)
   case CEPH_OSD_OP_SYNC_READ:
     [[fallthrough]];
   case CEPH_OSD_OP_READ:
-    return backend->read(os.oi,
+    return backend->read(oi,
                          op.extent.offset,
                          op.extent.length,
                          op.extent.truncate_size,
@@ -996,7 +996,10 @@ PG::do_osd_op(ObjectState& os, OSDOp& osd_op, ceph::os::Transaction& txn)
     [[fallthrough]];
   case CEPH_OSD_OP_WRITEFULL:
     // XXX: os = backend->write(std::move(os), ...) instead?
+    {
+    ObjectState os{};
     return backend->writefull(os, osd_op, txn);
+    }
   case CEPH_OSD_OP_SETALLOCHINT:
     return seastar::now();
   default:
@@ -1005,6 +1008,40 @@ PG::do_osd_op(ObjectState& os, OSDOp& osd_op, ceph::os::Transaction& txn)
   }
 }
 
+#if 1
+seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(Ref<MOSDOp> m)
+{
+  // todo: issue requests in parallel if they don't write,
+  // with writes being basically a synchronization barrier
+  return seastar::do_with(std::move(m), [this](auto& m) {
+    return seastar::do_for_each(begin(m->ops), end(m->ops),
+                                [m,this](OSDOp& osd_op) {
+      const auto oid = (m->get_snapid() == CEPH_SNAPDIR ?
+                        m->get_hobj().get_head() :
+                        m->get_hobj());
+      return backend->get_object_state(oid).then([&osd_op,this](auto oi) {
+        ceph::os::Transaction txn{};
+        return do_osd_op(*oi, osd_op, txn);
+      }).handle_exception_type([&osd_op](const object_not_found&) {
+        osd_op.rval = -ENOENT;
+        throw;
+      });
+    }).then([=] {
+      auto reply = make_message<MOSDOpReply>(m.get(), 0, get_osdmap_epoch(),
+                                             0, false);
+      reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
+      return seastar::make_ready_future<Ref<MOSDOpReply>>(std::move(reply));
+    }).handle_exception_type([=](const object_not_found& dne) {
+      auto reply = make_message<MOSDOpReply>(m.get(), -ENOENT, get_osdmap_epoch(),
+                                             0, false);
+      reply->set_enoent_reply_versions(info.last_update,
+                                       info.last_user_version);
+      return seastar::make_ready_future<Ref<MOSDOpReply>>(std::move(reply));
+    });
+  });
+}
+
+#else
 seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(Ref<MOSDOp> m)
 {
   return seastar::do_with(std::move(m), ceph::os::Transaction{},
@@ -1043,6 +1080,7 @@ seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(Ref<MOSDOp> m)
     });
   });
 }
+#endif
 
 seastar::future<> PG::handle_op(ceph::net::Connection* conn,
                                 Ref<MOSDOp> m)

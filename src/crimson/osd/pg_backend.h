@@ -32,7 +32,7 @@ public:
 					   const pg_pool_t& pool,
 					   ceph::os::CyanStore* store,
 					   const ec_profile_t& ec_profile);
-  using cached_os_t = boost::local_shared_ptr<ObjectState>;
+  using cached_os_t = boost::local_shared_ptr<object_info_t>;
   seastar::future<> store_object_state(const cached_os_t os,
 				       const MOSDOp& m,
 				       ceph::os::Transaction& txn);
@@ -59,7 +59,7 @@ private:
   using cached_ss_t = boost::local_shared_ptr<SnapSet>;
   SharedLRU<hobject_t, SnapSet> ss_cache;
   seastar::future<cached_ss_t> _load_ss(const hobject_t& oid);
-  SharedLRU<hobject_t, ObjectState> os_cache;
+  SharedLRU<hobject_t, object_info_t> os_cache;
   seastar::future<cached_os_t> _load_os(const hobject_t& oid);
   virtual seastar::future<bufferlist> _read(const hobject_t& hoid,
 					    size_t offset,

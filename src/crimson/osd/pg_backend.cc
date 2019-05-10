@@ -111,14 +111,14 @@ PGBackend::_load_os(const hobject_t& oid)
       }
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
-          std::make_unique<ObjectState>(object_info_t{oid}, false)));
+          std::make_unique<object_info_t>(oid)));
     } else {
       // decode existing OI_ATTR's value
       ceph::bufferlist bl;
       bl.push_back(std::move(fut).get0());
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
-          std::make_unique<ObjectState>(object_info_t{bl}, true /* exists */)));
+          std::make_unique<object_info_t>(bl)));
     }
   });
 }
@@ -158,6 +158,7 @@ PGBackend::store_object_state(
   const MOSDOp& m,
   ceph::os::Transaction& txn)
 {
+#if 0
   if (os->exists) {
 #if 0
     os.oi.version = ctx->at_version;
@@ -179,6 +180,7 @@ PGBackend::store_object_state(
     // reset cached ObjectState without enforcing eviction
     os->oi = object_info_t(os->oi.soid);
   }
+#endif
   return seastar::now();
 }
 

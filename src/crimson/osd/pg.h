@@ -131,7 +131,7 @@ private:
 			    int new_acting_primary);
   seastar::future<Ref<MOSDOpReply>> do_osd_ops(Ref<MOSDOp> m);
   seastar::future<> do_osd_op(
-    ObjectState& os,
+    object_info_t& oi,
     OSDOp& op,
     ceph::os::Transaction& txn);
 
