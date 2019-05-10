@@ -113,7 +113,7 @@ seastar::future<stop_t> Protocol::do_write_dispatch_sweep()
       msg_ptr = conn.out_q.front().get();
     }
     // sweep all pending writes with the concrete Protocol
-    return socket->write_flush(do_sweep_messages(
+    return socket->write(do_sweep_messages(
         conn.out_q, num_msgs, need_keepalive, keepalive_ack))
     .then([this, msg_ptr, num_msgs, prv_keepalive_ack=keepalive_ack] {
       need_keepalive = false;
