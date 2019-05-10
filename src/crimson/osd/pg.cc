@@ -958,6 +958,7 @@ seastar::future<> PG::share_pg_info()
 
 seastar::future<> PG::wait_for_active()
 {
+  set_state(PG_STATE_ACTIVE);
   logger().debug("wait_for_active: {}", pg_state_string(info.stats.state));
   if (test_state(PG_STATE_ACTIVE)) {
     return seastar::now();
