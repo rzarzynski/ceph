@@ -5,6 +5,8 @@
 
 #include <memory>
 #include <optional>
+// HACK HACK HACK
+#define BOOST_SP_DISABLE_THREADS
 #include <boost/smart_ptr/local_shared_ptr.hpp>
 #include <boost/smart_ptr/weak_ptr.hpp>
 #include "simple_lru.h"

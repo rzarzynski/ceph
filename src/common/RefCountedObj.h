@@ -72,7 +72,11 @@ public:
   }
 
 private:
+#ifdef WITH_SEASTAR
+  mutable uint64_t nref;
+#else
   mutable std::atomic<uint64_t> nref;
+#endif
   CephContext *cct;
 };
 

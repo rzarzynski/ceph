@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#define BOOST_SP_DISABLE_THREADS
 #include <boost/smart_ptr/local_shared_ptr.hpp>
 
 #include "crimson/common/shared_lru.h"
