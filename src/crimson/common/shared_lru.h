@@ -22,8 +22,7 @@ class SharedLRU {
 
   // weak_refs is already ordered, and we don't use accessors like
   // LRUCache::lower_bound(), so unordered LRUCache would suffice.
-  SimpleLRU<K, shared_ptr_t, false> cache;
-  std::map<K, std::pair<weak_ptr_t, V*>> weak_refs;
+  std::unordered_map<K, std::pair<weak_ptr_t, V*>> weak_refs;
 
   struct Deleter {
     SharedLRU<K,V>* cache;
@@ -38,10 +37,8 @@ class SharedLRU {
   }
 public:
   SharedLRU(size_t max_size = 20)
-    : cache{max_size}
   {}
   ~SharedLRU() {
-    cache.clear();
     // use plain assert() in utiliy classes to avoid dependencies on logging
     assert(weak_refs.empty());
   }
@@ -56,12 +53,6 @@ public:
    */
   bool empty() const {
     return weak_refs.empty();
-  }
-  size_t size() const {
-    return cache.size();
-  }
-  size_t capacity() const {
-    return cache.capacity();
   }
   /***
    * Inserts a key if not present, or bumps it to the front of the LRU if
@@ -78,7 +69,6 @@ public:
   shared_ptr_t insert(const K& key, std::unique_ptr<V> value);
   // clear all strong reference from the lru.
   void clear() {
-    cache.clear();
   }
   shared_ptr_t find(const K& key);
   // return the last element that is not greater than key
@@ -87,7 +77,6 @@ public:
   std::optional<value_type> upper_bound(const K& key);
 
   void erase(const K& key) {
-    cache.erase(key);
     _erase_weak(key);
   }
 };
@@ -104,7 +93,6 @@ SharedLRU<K,V>::insert(const K& key, std::unique_ptr<V> value)
     val.reset(value.release(), Deleter{this, key});
     weak_refs.emplace(key, std::make_pair(val, val.get()));
   }
-  cache.insert(key, val);
   return val;
 }
 
@@ -112,9 +100,6 @@ template<class K, class V>
 typename SharedLRU<K,V>::shared_ptr_t
 SharedLRU<K,V>::operator[](const K& key)
 {
-  if (auto found = cache.find(key); found) {
-    return *found;
-  }
   shared_ptr_t val;
   if (auto found = weak_refs.find(key); found != weak_refs.end()) {
     val = found->second.first.lock();
@@ -123,7 +108,6 @@ SharedLRU<K,V>::operator[](const K& key)
     val.reset(new V{}, Deleter{this, key});
     weak_refs.emplace(key, std::make_pair(val, val.get()));
   }
-  cache.insert(key, val);
   return val;
 }
 
@@ -131,15 +115,9 @@ template<class K, class V>
 typename SharedLRU<K,V>::shared_ptr_t
 SharedLRU<K,V>::find(const K& key)
 {
-  if (auto found = cache.find(key); found) {
-    return *found;
-  }
   shared_ptr_t val;
   if (auto found = weak_refs.find(key); found != weak_refs.end()) {
     val = found->second.first.lock();
-  }
-  if (val) {
-    cache.insert(key, val);
   }
   return val;
 }
@@ -156,7 +134,6 @@ SharedLRU<K,V>::lower_bound(const K& key)
     --found;
   }
   if (auto val = found->second.first.lock(); val) {
-    cache.insert(key, val);
     return val;
   } else {
     return {};
