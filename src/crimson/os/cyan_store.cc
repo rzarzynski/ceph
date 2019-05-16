@@ -165,13 +165,13 @@ seastar::future<ceph::bufferptr> CyanStore::get_attr(CollectionRef c,
   auto o = c->get_object(oid);
   if (!o) {
     return seastar::make_exception_future<ceph::bufferptr>(
-      EnoentException(fmt::format("object does not exist: {}", oid)));
+      EnoentException("object does not exist"));
   }
   if (auto found = o->xattr.find(name); found != o->xattr.end()) {
     return seastar::make_ready_future<ceph::bufferptr>(found->second);
   } else {
     return seastar::make_exception_future<ceph::bufferptr>(
-      EnoentException(fmt::format("attr does not exist: {}/{}", oid, name)));
+      EnoentException("attr does not exist"));
   }
 }
 
@@ -182,7 +182,7 @@ seastar::future<CyanStore::attrs_t> CyanStore::get_attrs(CollectionRef c,
                 __func__, c->cid, oid);
   auto o = c->get_object(oid);
   if (!o) {
-    throw std::runtime_error(fmt::format("object does not exist: {}", oid));
+    throw std::runtime_error("object does not exist");
   }
   return seastar::make_ready_future<attrs_t>(o->xattr);
 }
