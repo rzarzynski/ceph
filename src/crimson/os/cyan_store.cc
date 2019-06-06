@@ -348,7 +348,7 @@ int CyanStore::_write(const coll_t& cid, const ghobject_t& oid,
   ObjectRef o = c->get_or_create_object(oid);
   if (len > 0) {
     const ssize_t old_size = o->get_size();
-    o->write(offset, bl);
+    //o->write(offset, bl);
     used_bytes += (o->get_size() - old_size);
   }
 
