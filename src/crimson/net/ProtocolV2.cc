@@ -198,13 +198,31 @@ ProtocolV2::create(seastar::compat::polymorphic_allocator<char>* const allocator
     // FIXME: magic
     return seastar::make_temporary_buffer<char>(allocator, 26 + FRAME_PREAMBLE_SIZE);
   } else {
-    // space for segments_n, epilogue_n and preable_n+1
+    // space for segments_n, epilogue_n and preamble_n+1. PAGE_SIZE is added
+    // for the sake of aligning-in-the-middle. There is a need for having
+    // the SegmentIndex::Msg::DATA at the page boundary to let kernel avoid
+    // memcpy on e.g. io_submit().
+    using ceph::msgr::v2::segment_t;
     size_t segment_size_sum = 0;
+    size_t aligned_seg_off = 0;
     for (const auto& segment : rx_segments_desc) {
+      if (segment.alignment == segment_t::PAGE_SIZE_ALIGNMENT) {
+        // XXX: currently the on-wire protocol envisions only single segment
+        // with special alignment needs.
+        aligned_seg_off = segment_size_sum;
+      }
       segment_size_sum += segment.length;
     }
-    return seastar::make_temporary_buffer<char>(allocator,
-        segment_size_sum + FRAME_PLAIN_EPILOGUE_SIZE + FRAME_PREAMBLE_SIZE);
+    const size_t logical_size = \
+      segment_size_sum + FRAME_PLAIN_EPILOGUE_SIZE + FRAME_PREAMBLE_SIZE;
+    auto ret = seastar::make_temporary_buffer<char>(allocator,
+      segment_t::PAGE_SIZE_ALIGNMENT + logical_size);
+    const auto offset_in_buf = segment_t::PAGE_SIZE_ALIGNMENT
+      - p2phase<uintptr_t>(reinterpret_cast<uintptr_t>(ret.get()), 4096u)
+      - aligned_seg_off;
+    ret.trim_front(offset_in_buf);
+    ret.trim(logical_size);
+    return ret;
   }
 
   // TODO: implement prefetching for very small (under 4K) chunk sizes to not
@@ -288,12 +306,6 @@ seastar::future<> ProtocolV2::read_frame_payload()
     [this] {
       // description of current segment to read
       const auto& cur_rx_desc = rx_segments_desc.at(rx_segments_data.size());
-      // TODO: create aligned and contiguous buffer from socket
-      if (cur_rx_desc.alignment != segment_t::DEFAULT_ALIGNMENT) {
-        logger().debug("{} cannot allocate {} aligned buffer at segment desc index {}",
-                       conn, cur_rx_desc.alignment, rx_segments_data.size());
-      }
-      // TODO: create aligned and contiguous buffer from socket
       return read(cur_rx_desc.length)
       .then([this] (auto&& data) {
         logger().debug("{} read frame segment[{}], length={}, num_buffers={}",
@@ -1465,6 +1477,12 @@ seastar::future<> ProtocolV2::read_message(utime_t throttle_stamp)
                            current_header.reserved,
                            0};
     ceph_msg_footer footer{0, 0, 0, 0, current_header.flags};
+
+    // TODO: large chunks can be fragmented even while using the POSIX stack
+    // and being placed on the same, huge memory block.
+    // We need to merge them.
+    using ceph::msgr::v2::segment_t;
+    ceph_assert(msg_frame.data().is_aligned(segment_t::PAGE_SIZE_ALIGNMENT));
 
     Message *message = decode_message(nullptr, 0, header, footer,
         msg_frame.front(), msg_frame.middle(), msg_frame.data(), nullptr);
