@@ -234,19 +234,26 @@ seastar::future<Tag> ProtocolV2::read_main_preamble()
       }
 
       size_t segment_size_sum = 0;
+      Socket::alignment_t alignment{0, 0};
       for (std::uint8_t idx = 0; idx < main_preamble.num_segments; idx++) {
         logger().debug("{} got new segment: len={} align={}",
                        conn, main_preamble.segments[idx].length,
                        main_preamble.segments[idx].alignment);
-        segment_size_sum += main_preamble.segments[idx].length;
         rx_segments_desc.emplace_back(main_preamble.segments[idx]);
+
+        using ceph::msgr::v2::segment_t;
+        if (main_preamble.segments[idx].alignment == segment_t::PAGE_SIZE_ALIGNMENT) {
+          alignment.base = segment_t::PAGE_SIZE_ALIGNMENT;
+          alignment.at = segment_size_sum;
+        }
+        segment_size_sum += main_preamble.segments[idx].length;
       }
       // basing on the current msg header we can determine the payload size
       // till (and including) the next message's header.
       const size_t known_payload_size = \
         segment_size_sum + FRAME_PLAIN_EPILOGUE_SIZE + FRAME_PREAMBLE_SIZE;
       logger().debug("{}: hint_read_chunk(size={}, ...)", __func__, known_payload_size);
-      socket->hint_read_chunk(known_payload_size, Socket::alignment_t{ 0, 0});
+      socket->hint_read_chunk(known_payload_size, alignment);
 
       return static_cast<Tag>(main_preamble.tag);
     });
@@ -402,9 +409,8 @@ seastar::future<entity_type_t, entity_addr_t> ProtocolV2::banner_exchange()
   return write_flush(std::move(bl)).then([this] {
       // 2. read peer banner
       unsigned banner_len = strlen(CEPH_BANNER_V2_PREFIX) + sizeof(__le16);
-      logger().error("{}: hint_read_chunk(size={}, ...)", __func__, 26 + FRAME_PREAMBLE_SIZE);
-      socket->hint_read_chunk(banner_len + FRAME_PREAMBLE_SIZE,
-                              Socket::alignment_t{ 0, 0});
+      logger().debug("banner_exchange: banner_len={}", banner_len);
+      socket->hint_read_chunk(banner_len, Socket::alignment_t{ 0, 0});
       return read_exactly(banner_len); // or read exactly?
     }).then([this] (auto bl) {
       // 3. process peer banner and read banner_payload
@@ -430,6 +436,9 @@ seastar::future<entity_type_t, entity_addr_t> ProtocolV2::banner_exchange()
         logger().error("{} decode banner payload len failed", conn);
         abort_in_fault();
       }
+
+      socket->hint_read_chunk(payload_len + FRAME_PREAMBLE_SIZE,
+                              Socket::alignment_t{ 0, 0});
       return read(payload_len);
     }).then([this] (bufferlist bl) {
       // 4. process peer banner_payload and send HelloFrame
@@ -1439,9 +1448,10 @@ seastar::future<> ProtocolV2::read_message(utime_t throttle_stamp)
     // TODO: large chunks can be fragmented even while using the POSIX stack
     // and being placed on the same, huge memory block.
     // We need to merge them.
-    //using ceph::msgr::v2::segment_t;
+    logger().debug("msg_frame.data()={}", msg_frame.data());
+    using ceph::msgr::v2::segment_t;
     ceph_assert(msg_frame.data().get_num_buffers() <= 1);
-    //ceph_assert(msg_frame.data().is_aligned(segment_t::PAGE_SIZE_ALIGNMENT));
+    ceph_assert(msg_frame.data().is_aligned(segment_t::PAGE_SIZE_ALIGNMENT));
 
     Message *message = decode_message(nullptr, 0, header, footer,
         msg_frame.front(), msg_frame.middle(), msg_frame.data(), nullptr);
