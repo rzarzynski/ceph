@@ -4,7 +4,6 @@
 #include "ProtocolV2.h"
 
 #include <seastar/core/lowres_clock.hh>
-#include <seastar/core/polymorphic_temporary_buffer.hh>
 #include <fmt/format.h>
 #if __has_include(<fmt/chrono.h>)
 #include <fmt/chrono.h>
@@ -123,7 +122,6 @@ void ProtocolV2::start_accept(SocketFRef&& sock,
   ceph_assert(!socket);
   conn.target_addr = _peer_addr;
   socket = std::move(sock);
-  socket->set_input_buffer_factory(this);
   messenger.accept_conn(
     seastar::static_pointer_cast<SocketConnection>(conn.shared_from_this()));
   execute_accepting();
@@ -179,56 +177,6 @@ seastar::future<> ProtocolV2::write_flush(bufferlist&& buf)
     txbuf.append(buf);
   }
   return socket->write_flush(std::move(buf));
-}
-
-seastar::temporary_buffer<char>
-ProtocolV2::create(seastar::compat::polymorphic_allocator<char>* const allocator)
-{
-#if 0
-  // space for segments_n, epilogue_n and preable_n+1
-  return seastar::make_temporary_buffer<char>(allocator, 8192);
-#else
-
-  if (!last_returned.empty()) {
-    return std::move(last_returned);
-  }
-
-  if (rx_segments_desc.empty()) {
-    // space just for the ceph banner + preamble_0
-    // FIXME: magic
-    return seastar::make_temporary_buffer<char>(allocator, 26 + FRAME_PREAMBLE_SIZE);
-  } else {
-    // space for segments_n, epilogue_n and preamble_n+1. PAGE_SIZE is added
-    // for the sake of aligning-in-the-middle. There is a need for having
-    // the SegmentIndex::Msg::DATA at the page boundary to let kernel avoid
-    // memcpy on e.g. io_submit().
-    using ceph::msgr::v2::segment_t;
-    size_t segment_size_sum = 0;
-    size_t aligned_seg_off = 0;
-    for (const auto& segment : rx_segments_desc) {
-      if (segment.alignment == segment_t::PAGE_SIZE_ALIGNMENT) {
-        // XXX: currently the on-wire protocol envisions only single segment
-        // with special alignment needs.
-        aligned_seg_off = segment_size_sum;
-      }
-      segment_size_sum += segment.length;
-    }
-    const size_t logical_size = \
-      segment_size_sum + FRAME_PLAIN_EPILOGUE_SIZE + FRAME_PREAMBLE_SIZE;
-    auto ret = seastar::make_temporary_buffer<char>(allocator,
-      segment_t::PAGE_SIZE_ALIGNMENT + logical_size);
-    const auto offset_in_buf = segment_t::PAGE_SIZE_ALIGNMENT
-      - p2phase<uintptr_t>(reinterpret_cast<uintptr_t>(ret.get()), 4096u)
-      - aligned_seg_off;
-    ret.trim_front(offset_in_buf);
-    ret.trim(logical_size);
-    return ret;
-  }
-
-  // TODO: implement prefetching for very small (under 4K) chunk sizes to not
-  // hurt RADOS' reads while the POSIX stack is being used (and till it lacks
-  // io_uring support).
-#endif
 }
 
 size_t ProtocolV2::get_current_msg_size() const
@@ -819,7 +767,6 @@ void ProtocolV2::execute_connecting()
       return Socket::connect(conn.peer_addr)
         .then([this](SocketFRef sock) {
           socket = std::move(sock);
-          socket->set_input_buffer_factory(this);
           if (state == state_t::CLOSING) {
             return socket->close().then([this] {
               logger().info("{} is closed during Socket::connect()", conn);
