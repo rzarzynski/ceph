@@ -1439,8 +1439,9 @@ seastar::future<> ProtocolV2::read_message(utime_t throttle_stamp)
     // TODO: large chunks can be fragmented even while using the POSIX stack
     // and being placed on the same, huge memory block.
     // We need to merge them.
-    using ceph::msgr::v2::segment_t;
-    ceph_assert(msg_frame.data().is_aligned(segment_t::PAGE_SIZE_ALIGNMENT));
+    //using ceph::msgr::v2::segment_t;
+    ceph_assert(msg_frame.data().get_num_buffers() <= 1);
+    //ceph_assert(msg_frame.data().is_aligned(segment_t::PAGE_SIZE_ALIGNMENT));
 
     Message *message = decode_message(nullptr, 0, header, footer,
         msg_frame.front(), msg_frame.middle(), msg_frame.data(), nullptr);

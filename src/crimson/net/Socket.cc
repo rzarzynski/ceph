@@ -22,17 +22,29 @@ inline seastar::temporary_buffer<char> sharing_split(
 } // anonymous namespace
 
 void Socket::return_unused(buffer_t&& buf) {
-    returned_rxbuf = std::move(buf);
+  returned_rxbuf = std::move(buf);
 }
 
 seastar::temporary_buffer<char>
 Socket::create(seastar::compat::polymorphic_allocator<char>* const allocator)
 {
-#if 1
+#if 0
   // space for segments_n, epilogue_n and preable_n+1
   return seastar::make_temporary_buffer<char>(allocator, 8192);
 #else
 
+#if 1
+  if (!returned_rxbuf.empty()) {
+    return std::move(returned_rxbuf);
+  }
+
+  ceph_assert(read_hint.bytes > 0);
+  logger().debug("{}: read_hint.bytes={}", __func__, read_hint.bytes);
+  auto ret = seastar::make_temporary_buffer<char>(allocator,
+      read_hint.bytes);
+  hinted_rxbuf = ceph::buffer::create(ret.share());
+  return ret;
+#else
   if (!returned_rxbuf.empty()) {
     return std::move(returned_rxbuf);
   }
@@ -73,6 +85,7 @@ Socket::create(seastar::compat::polymorphic_allocator<char>* const allocator)
   // hurt RADOS' reads while the POSIX stack is being used (and till it lacks
   // io_uring support).
 #endif
+#endif
 }
 
 
@@ -94,7 +107,16 @@ seastar::future<bufferlist> Socket::read(const size_t bytes)
       }
 
       const size_t round_size = std::min(r.remaining, rbuf.size());
-      r.sgl.push_back(buffer::create(sharing_split(rbuf, round_size)));
+
+      if (hinted_rxbuf.c_str() <= rbuf.get() &&
+          hinted_rxbuf.end_c_str() >= rbuf.get() + rbuf.size()) {
+        // yay, S* gave us back (a part of) buffer the ibf had produced.
+        size_t offset = rbuf.get() - hinted_rxbuf.c_str();
+        r.sgl.append(hinted_rxbuf, offset, round_size);
+        rbuf.trim_front(round_size);
+      } else {
+        r.sgl.push_back(buffer::create(sharing_split(rbuf, round_size)));
+      }
       r.remaining -= round_size;
       return seastar::now();
     }
