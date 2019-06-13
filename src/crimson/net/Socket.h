@@ -80,7 +80,7 @@ private:
   struct read_hint_t {
     size_t bytes;
     alignment_t alignment;
-  } read_hint;
+  } read_hint{0, {0, 0}};
 
   // interface for Protocols to hint us about the size of next incoming
   // chunk we expect on-wire. For instance, in many cases it's possible
@@ -134,6 +134,11 @@ private:
   /// Socket can only be closed once.
   seastar::future<> close() {
     return seastar::smp::submit_to(sid, [this] {
+        returned_rxbuf.release();
+        rbuf.release();
+        r.contiguous_buffer.release();
+        r.sgl.clear();
+        read_hint = { 0, { 0, 0 } };
         return seastar::when_all(
           in.close(), out.close()).discard_result();
       });
