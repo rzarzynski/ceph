@@ -3,12 +3,16 @@
 
 #include "Socket.h"
 #include <seastar/core/polymorphic_temporary_buffer.hh>
-
+#include "crimson/common/log.h"
 #include "Errors.h"
 
 namespace ceph::net {
 
 namespace {
+
+seastar::logger& logger() {
+  return ceph::get_logger(ceph_subsys_ms);
+}
 
 inline seastar::temporary_buffer<char> sharing_split(
   seastar::temporary_buffer<char>& buf,
