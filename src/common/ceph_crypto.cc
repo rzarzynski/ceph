@@ -98,6 +98,11 @@ static void init() {
 
 static void shutdown() {
 #ifndef OPENSSL_API_1_1
+  // drop error queue for each thread calling the shutdown to satisfy
+  // valgrind. The assumption here is that each thread that called ::init()
+  // will also invoke ::shutdown().
+  ERR_remove_state(0);
+
   if (--crypto_refs != 0) {
     return;
   }
@@ -116,7 +121,6 @@ static void shutdown() {
   ERR_free_strings();
   EVP_cleanup();
   CRYPTO_cleanup_all_ex_data();
-  ERR_remove_state(0);
 
   ssl_mutexes.clear();
 #endif /* not OPENSSL_API_1_1 */
