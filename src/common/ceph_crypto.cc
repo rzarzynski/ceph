@@ -23,6 +23,7 @@
 
 #ifndef OPENSSL_API_1_1
 # include <openssl/conf.h>
+# include <openssl/engine.h>
 # include <openssl/err.h>
 #endif /* not OPENSSL_API_1_1 */
 
@@ -92,11 +93,11 @@ static void init() {
   CRYPTO_set_id_callback(&ssl_get_thread_id);
 
   OPENSSL_config(nullptr);
-#endif /* OPENSSL_API_1_1 */
+#endif /* not OPENSSL_API_1_1 */
 }
 
 static void shutdown() {
-#ifdef OPENSSL_API_1_1
+#ifndef OPENSSL_API_1_1
   if (--crypto_refs != 0) {
     return;
   }
@@ -118,7 +119,7 @@ static void shutdown() {
   ERR_remove_state(0);
 
   ssl_mutexes.clear();
-#endif /* OPENSSL_API_1_1 */
+#endif /* not OPENSSL_API_1_1 */
 }
 
 } // namespace ceph::crypto::openssl
