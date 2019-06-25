@@ -87,19 +87,25 @@ ssl_get_thread_id(void)
 static void init() {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
   if (++crypto_refs == 1) {
-    /* According to https://wiki.openssl.org/index.php/Library_Initialization#libcrypto_Initialization */
+    // according to
+    // https://wiki.openssl.org/index.php/Library_Initialization#libcrypto_Initialization
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 
-    /* Initialize locking callbacks, needed for thread safety.
-     * http://www.openssl.org/support/faq.html#PROG1
-     */
+    // initialize locking callbacks, needed for thread safety.
+    // http://www.openssl.org/support/faq.html#PROG1
     CRYPTO_set_locking_callback(&ssl_locking_callback);
     CRYPTO_set_id_callback(&ssl_get_thread_id);
 
     OPENSSL_config(nullptr);
   }
 
+  // we need to record IDs of all threads calling the initialization in
+  // order to *manually* free per-thread memory OpenSSL *automagically*
+  // allocated in ERR_get_state().
+  // XXX: this solution is IMPERFECT. A leak will appear if a client
+  // init()ializes the crypto subsystem with one thread and then uses
+  // it from another (in a way that results in calling ERR_get_state()).
   {
     std::lock_guard l(init_records.lock);
     CRYPTO_THREADID tmp;
@@ -131,12 +137,11 @@ static void shutdown() {
     }
   }
 
-  /* Shutdown according to
-   * https://wiki.openssl.org/index.php/Library_Initialization#Cleanup
-   * http://stackoverflow.com/questions/29845527/how-to-properly-uninitialize-openssl
-   *
-   * The call to CONF_modules_free() has been introduced after a valgring run.
-   */
+  // Shutdown according to
+  // https://wiki.openssl.org/index.php/Library_Initialization#Cleanup
+  // http://stackoverflow.com/questions/29845527/how-to-properly-uninitialize-openssl
+  //
+  // The call to CONF_modules_free() has been introduced after a valgring run.
   CRYPTO_set_locking_callback(nullptr);
   CRYPTO_set_id_callback(nullptr);
   ENGINE_cleanup();
