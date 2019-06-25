@@ -36,6 +36,14 @@ static std::vector<ceph::shared_mutex> ssl_mutexes {
   static_cast<size_t>(std::max(CRYPTO_num_locks(), 0))
 };
 
+static struct {
+  // we could use e.g. unordered_set instead at the price of providing
+  // std::hash<...> specialization. However, we can live with duplicates
+  // quite well while the benefit is not worth the effort.
+  std::vector<CRYPTO_THREADID> tids;
+  ceph::mutex lock = ceph::make_mutex("crypto::ssl::init_records::lock");;
+} init_records;
+
 static void
 ssl_locking_callback(
   const int mode,
@@ -78,33 +86,43 @@ ssl_get_thread_id(void)
 
 static void init() {
 #ifndef OPENSSL_API_1_1
-  if (++crypto_refs != 1) {
-    return;
+  if (++crypto_refs == 1) {
+    /* According to https://wiki.openssl.org/index.php/Library_Initialization#libcrypto_Initialization */
+    OpenSSL_add_all_algorithms();
+    ERR_load_crypto_strings();
+
+    /* Initialize locking callbacks, needed for thread safety.
+     * http://www.openssl.org/support/faq.html#PROG1
+     */
+    CRYPTO_set_locking_callback(&ssl_locking_callback);
+    CRYPTO_set_id_callback(&ssl_get_thread_id);
+
+    OPENSSL_config(nullptr);
   }
 
-  /* According to https://wiki.openssl.org/index.php/Library_Initialization#libcrypto_Initialization */
-  OpenSSL_add_all_algorithms();
-  ERR_load_crypto_strings();
-
-  /* Initialize locking callbacks, needed for thread safety.
-   * http://www.openssl.org/support/faq.html#PROG1
-   */
-  CRYPTO_set_locking_callback(&ssl_locking_callback);
-  CRYPTO_set_id_callback(&ssl_get_thread_id);
-
-  OPENSSL_config(nullptr);
+  {
+    std::lock_guard l(init_records.lock);
+    CRYPTO_THREADID tmp;
+    CRYPTO_THREADID_current(&tmp);
+    init_records.tids.emplace_back(std::move(tmp));
+  }
 #endif /* not OPENSSL_API_1_1 */
 }
 
 static void shutdown() {
 #ifndef OPENSSL_API_1_1
-  // drop error queue for each thread calling the shutdown to satisfy
-  // valgrind. The assumption here is that each thread that called ::init()
-  // will also invoke ::shutdown().
-  ERR_remove_state(0);
-
   if (--crypto_refs != 0) {
     return;
+  }
+
+  // drop error queue for each thread that called the init() function to
+  // satisfy valgrind.
+  {
+    std::lock_guard l(init_records.lock);
+
+    for (const auto& tid : init_records.tids) {
+      ERR_remove_thread_state(&tid);
+    }
   }
 
   /* Shutdown according to
