@@ -103,9 +103,11 @@ static void init() {
   // we need to record IDs of all threads calling the initialization in
   // order to *manually* free per-thread memory OpenSSL *automagically*
   // allocated in ERR_get_state().
-  // XXX: this solution is IMPERFECT. A leak will appear if a client
-  // init()ializes the crypto subsystem with one thread and then uses
-  // it from another (in a way that results in calling ERR_get_state()).
+  // XXX: this solution/nasty hack is IMPERFECT. A leak will appear when
+  // a client init()ializes the crypto subsystem with one thread and then
+  // uses it from another one in a way that results in ERR_get_state().
+  // XXX: for discussion about another approaches please refer to:
+  // https://www.mail-archive.com/openssl-users@openssl.org/msg59070.html
   {
     std::lock_guard l(init_records.lock);
     CRYPTO_THREADID tmp;
@@ -130,7 +132,7 @@ static void shutdown() {
     //    void ERR_remove_thread_state(const CRYPTO_THREADID *tid);
     // but in 1.1.0j it has been changed to
     //    void ERR_remove_thread_state(void *);
-    // We're basing on OPENSSL_VERSION_NUMBER check to preserve
+    // We're basing on the OPENSSL_VERSION_NUMBER check to preserve
     // const-correctness without failing builds on modern envs.
     for (const auto& tid : init_records.tids) {
       ERR_remove_thread_state(&tid);
