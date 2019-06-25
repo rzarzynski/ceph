@@ -21,15 +21,15 @@
 
 #include <openssl/evp.h>
 
-#ifndef OPENSSL_API_1_1
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 # include <openssl/conf.h>
 # include <openssl/engine.h>
 # include <openssl/err.h>
-#endif /* not OPENSSL_API_1_1 */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 
 namespace ceph::crypto::ssl {
 
-#ifndef OPENSSL_API_1_1
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 static std::atomic_uint32_t crypto_refs;
 
 static std::vector<ceph::shared_mutex> ssl_mutexes {
@@ -82,10 +82,10 @@ ssl_get_thread_id(void)
   memcpy(&ret, &t, sizeof(pthread_t));
   return ret;
 }
-#endif /* not OPENSSL_API_1_1 */
+#endif /* not OPENSSL_VERSION_NUMBER < 0x10100000L */
 
 static void init() {
-#ifndef OPENSSL_API_1_1
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
   if (++crypto_refs == 1) {
     /* According to https://wiki.openssl.org/index.php/Library_Initialization#libcrypto_Initialization */
     OpenSSL_add_all_algorithms();
@@ -106,11 +106,11 @@ static void init() {
     CRYPTO_THREADID_current(&tmp);
     init_records.tids.emplace_back(std::move(tmp));
   }
-#endif /* not OPENSSL_API_1_1 */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 }
 
 static void shutdown() {
-#ifndef OPENSSL_API_1_1
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
   if (--crypto_refs != 0) {
     return;
   }
@@ -120,6 +120,12 @@ static void shutdown() {
   {
     std::lock_guard l(init_records.lock);
 
+    // NOTE: in OpenSSL 1.0.2g the signature is:
+    //    void ERR_remove_thread_state(const CRYPTO_THREADID *tid);
+    // but in 1.1.0j it has been changed to
+    //    void ERR_remove_thread_state(void *);
+    // We're basing on OPENSSL_VERSION_NUMBER check to preserve
+    // const-correctness without failing builds on modern envs.
     for (const auto& tid : init_records.tids) {
       ERR_remove_thread_state(&tid);
     }
@@ -141,7 +147,7 @@ static void shutdown() {
   CRYPTO_cleanup_all_ex_data();
 
   ssl_mutexes.clear();
-#endif /* not OPENSSL_API_1_1 */
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 }
 
 } // namespace ceph::crypto::openssl
