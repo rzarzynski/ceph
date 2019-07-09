@@ -32,7 +32,7 @@ namespace ceph::crypto::ssl {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 static std::atomic_uint32_t crypto_refs;
 
-static std::vector<ceph::shared_mutex> ssl_mutexes {
+static std::vector<ceph::recursive_mutex> ssl_mutexes {
   static_cast<size_t>(std::max(CRYPTO_num_locks(), 0))
 };
 
@@ -55,18 +55,10 @@ ssl_locking_callback(
     ceph_assert_always("openssl passed wrong mutex index" == nullptr);
   }
 
-  if (mode & CRYPTO_READ) {
-    if (mode & CRYPTO_LOCK) {
-      ssl_mutexes[mutex_num].lock_shared();
-    } else if (mode & CRYPTO_UNLOCK) {
-      ssl_mutexes[mutex_num].unlock_shared();
-    }
-  } else if (mode & CRYPTO_WRITE) {
-    if (mode & CRYPTO_LOCK) {
-      ssl_mutexes[mutex_num].lock();
-    } else if (mode & CRYPTO_UNLOCK) {
-      ssl_mutexes[mutex_num].unlock();
-    }
+  if (mode & CRYPTO_LOCK) {
+    ssl_mutexes[mutex_num].lock();
+  } else if (mode & CRYPTO_UNLOCK) {
+    ssl_mutexes[mutex_num].unlock();
   }
 }
 
