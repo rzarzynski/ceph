@@ -167,19 +167,24 @@ static seastar::future<bool, hobject_t> pgls_filter(
   if (const auto xattr = filter.get_xattr(); !xattr.empty()) {
     logger().debug("pgls_filter: filter is interested in xattr={} for obj={}",
                    xattr, sobj);
-    return backend.getxattr(sobj, xattr).then_wrapped(
-      [&filter, sobj] (auto futval) {
+    return backend.getxattr(sobj, xattr).safe_then(
+      [&filter, sobj] (ceph::bufferptr bp) {
         logger().debug("pgls_filter: got xvalue for obj={}", sobj);
 
         ceph::bufferlist val;
-        if (!futval.failed()) {
-          val.push_back(std::move(futval).get0());
-        } else if (filter.reject_empty_xattr()) {
-          return seastar::make_ready_future<bool, hobject_t>(false, sobj);
-        }
+        val.push_back(std::move(bp));
         const bool filtered = filter.filter(sobj, val);
         return seastar::make_ready_future<bool, hobject_t>(filtered, sobj);
-    });
+      }, [&filter, sobj] (const ceph::osd::ct_error::enoent&) {
+        logger().debug("pgls_filter: got enoent for obj={}", sobj);
+
+        if (filter.reject_empty_xattr()) {
+          return seastar::make_ready_future<bool, hobject_t>(false, sobj);
+        }
+        ceph::bufferlist val;
+        const bool filtered = filter.filter(sobj, val);
+        return seastar::make_ready_future<bool, hobject_t>(filtered, sobj);
+      });
   } else {
     ceph::bufferlist empty_lvalue_bl;
     const bool filtered = filter.filter(sobj, empty_lvalue_bl);

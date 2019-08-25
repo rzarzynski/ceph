@@ -93,7 +93,7 @@ template <class, class... ValuesT> class errorized_future;
 
 template <class... WrappedAllowedErrorsT, class... ValuesT>
 class errorized_future<error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>
-  : public seastar::future<ValuesT...> {
+  : private seastar::future<ValuesT...> {
   using base_t = seastar::future<ValuesT...>;
 
   // TODO: let `exception` use other type than `ct_error`.
