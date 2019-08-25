@@ -68,6 +68,7 @@ int cls_cxx_remove(cls_method_context_t hctx)
   // we're blocking here which presumes execution in Seastar's thread.
   try {
     reinterpret_cast<ceph::osd::OpsExecuter*>(hctx)->do_osd_op(op).get();
+    return 0;
   } catch (ceph::osd::error& e) {
     return -e.code().value();
   }
