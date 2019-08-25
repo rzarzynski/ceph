@@ -115,10 +115,10 @@ PGBackend::_load_os(const hobject_t& oid)
                          ghobject_t{oid, ghobject_t::NO_GEN, shard},
                          OI_ATTR)
   .safe_then(
-    [oid, this](auto bp) {
+    [oid, this] (ceph::bufferptr bp) {
       // decode existing OI_ATTR's value
       ceph::bufferlist bl;
-      //bl.push_back(bp);
+      bl.push_back(std::move(bp));
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{bl}, true /* exists */)));

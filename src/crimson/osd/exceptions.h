@@ -155,9 +155,9 @@ public:
       [ valfunc = std::forward<ValueFuncT>(valfunc),
         errfunc = std::forward<ErrorVisitorT>(errfunc)
       ] (auto future) mutable {
+        using futurator_t = \
+          seastar::futurize<std::result_of_t<ValueFuncT(ValuesT&&...)>>;
         if (future.failed()) {
-          using futurator_t = \
-            seastar::futurize<std::result_of_t<ValueFuncT(ValuesT&&...)>>;
           maybe_handle_error_t<ErrorVisitorT, futurator_t> maybe_handle_error(
             std::forward<ErrorVisitorT>(errfunc),
             std::move(future).get_exception()
@@ -165,7 +165,8 @@ public:
           (maybe_handle_error(WrappedAllowedErrorsT::instance) , ...);
           return std::move(maybe_handle_error).get_result();
         } else {
-          return std::forward<ValueFuncT>(valfunc)(std::move(future).get());
+          return futurator_t::apply(std::forward<ValueFuncT>(valfunc),
+                                    std::move(future).get());
         }
       });
   }
