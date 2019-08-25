@@ -199,22 +199,25 @@ seastar::future<ceph::bufferlist> CyanStore::read(CollectionRef c,
   return seastar::make_ready_future<ceph::bufferlist>(std::move(bl));
 }
 
-seastar::future<ceph::bufferptr> CyanStore::get_attr(CollectionRef c,
-                                                     const ghobject_t& oid,
-                                                     std::string_view name) const
+ceph::osd::errorized_future<
+  ceph::osd::error_spec_t<ceph::osd::ct_error::enoent>,
+  ceph::bufferptr>
+CyanStore::get_attr(CollectionRef c,
+                    const ghobject_t& oid,
+                    std::string_view name) const
 {
   logger().debug("{} {} {}",
                 __func__, c->cid, oid);
   auto o = c->get_object(oid);
   if (!o) {
-    return seastar::make_exception_future<ceph::bufferptr>(
-      EnoentException(fmt::format("object does not exist: {}", oid)));
+    return ceph::osd::make_error<ceph::osd::ct_error::enoent>();
   }
   if (auto found = o->xattr.find(name); found != o->xattr.end()) {
+    //return ceph::osd::from_plain_future(
+    //  seastar::make_ready_future<ceph::bufferptr>(found->second));
     return seastar::make_ready_future<ceph::bufferptr>(found->second);
   } else {
-    return seastar::make_exception_future<ceph::bufferptr>(
-      EnoentException(fmt::format("attr does not exist: {}/{}", oid, name)));
+    return ceph::osd::make_error<ceph::osd::ct_error::enoent>();
   }
 }
 

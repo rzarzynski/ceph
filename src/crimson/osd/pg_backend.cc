@@ -113,24 +113,21 @@ PGBackend::_load_os(const hobject_t& oid)
   }
   return store->get_attr(coll,
                          ghobject_t{oid, ghobject_t::NO_GEN, shard},
-                         OI_ATTR).then_wrapped([oid, this](auto fut) {
-    if (fut.failed()) {
-      auto ep = std::move(fut).get_exception();
-      if (!ceph::os::FuturizedStore::EnoentException::is_class_of(ep)) {
-        std::rethrow_exception(ep);
-      }
-      return seastar::make_ready_future<cached_os_t>(
-        os_cache.insert(oid,
-          std::make_unique<ObjectState>(object_info_t{oid}, false)));
-    } else {
+                         OI_ATTR)
+  .safe_then(
+    [oid, this](auto bp) {
       // decode existing OI_ATTR's value
       ceph::bufferlist bl;
-      bl.push_back(std::move(fut).get0());
+      //bl.push_back(bp);
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{bl}, true /* exists */)));
-    }
-  });
+    },
+    [oid, this] (const ceph::osd::ct_error::enoent&) {
+      return seastar::make_ready_future<cached_os_t>(
+        os_cache.insert(oid,
+          std::make_unique<ObjectState>(object_info_t{oid}, false)));
+    });
 }
 
 seastar::future<PGBackend::cached_ss_t>

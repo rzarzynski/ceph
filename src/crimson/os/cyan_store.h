@@ -49,9 +49,12 @@ public:
 				   uint64_t offset,
 				   size_t len,
 				   uint32_t op_flags = 0) final;
-  seastar::future<ceph::bufferptr> get_attr(CollectionRef c,
-					    const ghobject_t& oid,
-					    std::string_view name) const final;
+  virtual ceph::osd::errorized_future<
+    ceph::osd::error_spec_t<ceph::osd::ct_error::enoent>,
+    ceph::bufferptr>
+  get_attr(CollectionRef c,
+           const ghobject_t& oid,
+           std::string_view name) const final;
   seastar::future<attrs_t> get_attrs(CollectionRef c,
                                      const ghobject_t& oid) final;
 

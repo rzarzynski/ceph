@@ -11,6 +11,7 @@
 
 #include <seastar/core/future.hh>
 
+#include "crimson/osd/exceptions.h"
 #include "include/buffer_fwd.h"
 #include "include/uuid.h"
 #include "osd/osd_types.h"
@@ -70,9 +71,10 @@ public:
 				   uint64_t offset,
 				   size_t len,
 				   uint32_t op_flags = 0) = 0;
-  virtual seastar::future<ceph::bufferptr> get_attr(CollectionRef c,
-					    const ghobject_t& oid,
-					    std::string_view name) const = 0;
+  virtual ceph::osd::errorized_future<
+    ceph::osd::error_spec_t<ceph::osd::ct_error::enoent>,
+    ceph::bufferptr>
+  get_attr(CollectionRef c, const ghobject_t& oid, std::string_view name) const = 0;
 
   using attrs_t = std::map<std::string, ceph::bufferptr, std::less<>>;
   virtual seastar::future<attrs_t> get_attrs(CollectionRef c,
