@@ -132,9 +132,13 @@ class errorized_future<error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>
     }
   };
 
-public:
   using base_t::base_t;
 
+  errorized_future(base_t&& base)
+    : base_t(std::move(base)) {
+  }
+
+public:
   // initialize seastar::future as failed without any throwing (for
   // details see seastar::make_exception_future()).
   template <_impl::ct_error ErrorV>
@@ -143,10 +147,6 @@ public:
     // this is `fold expression` of C++17
     static_assert((... || (e == WrappedAllowedErrorsT::instance)),
                   "disallowed ct_error");
-  }
-
-  errorized_future(base_t&& base)
-    : base_t(std::move(base)) {
   }
 
   template <class ValueFuncT, class ErrorVisitorT>
@@ -180,7 +180,19 @@ public:
       // NOP
     }
   };
+
+  template <class... P1, class... P2>
+  friend errorized_future<error_spec_t<P1...>, P2...>
+  its_error_free(seastar::future<P2...>&& plain_future);
 };
+
+template <class... WrappedAllowedErrorsT, class... ValuesT>
+inline errorized_future<error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>
+its_error_free(seastar::future<ValuesT...>&& plain_future) {
+  return errorized_future<
+    error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>(
+      std::move(plain_future));
+}
 
 #ifdef REUSE_EP
 template <class... WrappedAllowedErrorsT>

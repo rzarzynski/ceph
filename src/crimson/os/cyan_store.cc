@@ -213,9 +213,8 @@ CyanStore::get_attr(CollectionRef c,
     return ceph::osd::make_error<ceph::osd::ct_error::enoent>();
   }
   if (auto found = o->xattr.find(name); found != o->xattr.end()) {
-    //return ceph::osd::from_plain_future(
-    //  seastar::make_ready_future<ceph::bufferptr>(found->second));
-    return seastar::make_ready_future<ceph::bufferptr>(found->second);
+    return ceph::osd::its_error_free<ceph::osd::ct_error::enoent>(
+      seastar::make_ready_future<ceph::bufferptr>(found->second));
   } else {
     return ceph::osd::make_error<ceph::osd::ct_error::enoent>();
   }
