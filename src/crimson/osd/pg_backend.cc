@@ -123,7 +123,7 @@ PGBackend::_load_os(const hobject_t& oid)
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{bl}, true /* exists */)));
     },
-    [oid, this] (const ceph::osd::ct_error::enoent&) {
+    [oid, this] (const ceph::ct_error::enoent&) {
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{oid}, false)));
@@ -147,7 +147,7 @@ PGBackend::_load_ss(const hobject_t& oid)
       return seastar::make_ready_future<cached_ss_t>(
         ss_cache.insert(oid, std::make_unique<SnapSet>(bl)));
     },
-    [oid, this] (const ceph::osd::ct_error::enoent&) {
+    [oid, this] (const ceph::ct_error::enoent&) {
       return seastar::make_ready_future<cached_ss_t>(
         ss_cache.insert(oid, std::make_unique<SnapSet>()));
     });
@@ -436,15 +436,13 @@ seastar::future<> PGBackend::getxattr(
     osd_op.op.xattr.value_len = osd_op.outdata.length();
     return seastar::now();
     //ctx->delta_stats.num_rd_kb += shift_round_up(osd_op.outdata.length(), 10);
-  }, [] (const ceph::osd::ct_error::enoent&) {
+  }, [] (const ceph::ct_error::enoent&) {
     return seastar::make_exception_future<>(ceph::osd::object_not_found{});
   });
   //ctx->delta_stats.num_rd++;
 }
 
-ceph::osd::errorized_future<
-  ceph::osd::error_spec_t<ceph::osd::ct_error::enoent>, ceph::bufferptr>
-PGBackend::getxattr(
+ceph::errorator<ceph::ct_error::enoent>::future<ceph::bufferptr> PGBackend::getxattr(
   const hobject_t& soid,
   std::string_view key) const
 {

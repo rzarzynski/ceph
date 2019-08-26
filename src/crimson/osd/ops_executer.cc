@@ -175,7 +175,7 @@ static seastar::future<bool, hobject_t> pgls_filter(
         val.push_back(std::move(bp));
         const bool filtered = filter.filter(sobj, val);
         return seastar::make_ready_future<bool, hobject_t>(filtered, sobj);
-      }, [&filter, sobj] (const ceph::osd::ct_error::enoent&) {
+      }, [&filter, sobj] (const ceph::ct_error::enoent&) {
         logger().debug("pgls_filter: got enoent for obj={}", sobj);
 
         if (filter.reject_empty_xattr()) {

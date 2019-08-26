@@ -55,6 +55,11 @@ struct input_output_error : public error {
   input_output_error() : error(std::errc::io_error) {}
 };
 
+} // namespace ceph::osd
+
+
+namespace ceph {
+
 namespace _impl {
   enum class ct_error {
     enoent,
@@ -86,129 +91,123 @@ template <class T> [[nodiscard]] const T& make_error() {
   return T::instance;
 }
 
-// TODO: don't like this
-template <class...> struct error_spec_t {};
+template <class... WrappedAllowedErrorsT>
+struct errorator {
+  template <class... ValuesT>
+  class future : private seastar::future<ValuesT...> {
+    using base_t = seastar::future<ValuesT...>;
 
-template <class, class... ValuesT> class errorized_future;
+    // TODO: let `exception` use other type than `ct_error`.
+    template <_impl::ct_error V>
+    class exception {
+      exception() = default;
+    public:
+      exception(const exception&) = default;
+    };
 
-template <class... WrappedAllowedErrorsT, class... ValuesT>
-class errorized_future<error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>
-  : private seastar::future<ValuesT...> {
-  using base_t = seastar::future<ValuesT...>;
+    template <class ErrorVisitorT, class FuturatorT>
+    class maybe_handle_error_t {
+      const std::type_info& type_info;
+      typename FuturatorT::type result;
+      ErrorVisitorT errfunc;
 
-  // TODO: let `exception` use other type than `ct_error`.
-  template <_impl::ct_error V> class exception {
-    exception() = default;
-  public:
-    exception(const exception&) = default;
-  };
-
-  template <class ErrorVisitorT, class FuturatorT> class maybe_handle_error_t {
-    const std::type_info& type_info;
-    typename FuturatorT::type result;
-    ErrorVisitorT errfunc;
-
-  public:
-    maybe_handle_error_t(ErrorVisitorT&& errfunc, std::exception_ptr ep)
-      : type_info(*ep.__cxa_exception_type()),
-        result(FuturatorT::make_exception_future(std::move(ep))),
-        errfunc(std::forward<ErrorVisitorT>(errfunc)) {
-    }
-
-    template <_impl::ct_error ErrorV>
-    void operator()(const unthrowable_wrapper<ErrorV>& e) {
-      // Throwing an exception isn't the sole way to signalize an error
-      // with it. This approach nicely fits cold, infrequent issues but
-      // when applied to a hot one (like ENOENT on write path), it will
-      // likely hurt performance.
-      // Alternative approach for hot errors is to create exception_ptr
-      // on our own and place it in the future via make_exception_future.
-      // When ::handle_exception is called, handler would inspect stored
-      // exception whether it's hot-or-cold before rethrowing it.
-      // The main advantage is both types flow through very similar path
-      // based on future::handle_exception.
-      //
-      // NOTE: this is extension of language. It should be available both
-      // in GCC and Clang but a fallback (basing on throw-catch) could be
-      // added as well.
-      if (type_info == typeid(exception<ErrorV>)) {
-        result = std::forward<ErrorVisitorT>(errfunc)(e);
-      } else {
-        //std::cout << "not this ErrorV" << std::endl;
+    public:
+      maybe_handle_error_t(ErrorVisitorT&& errfunc, std::exception_ptr ep)
+        : type_info(*ep.__cxa_exception_type()),
+          result(FuturatorT::make_exception_future(std::move(ep))),
+          errfunc(std::forward<ErrorVisitorT>(errfunc)) {
       }
-    }
 
-    auto get_result() && {
-      return std::move(result);
-    }
-  };
-
-  using base_t::base_t;
-
-  errorized_future(base_t&& base)
-    : base_t(std::move(base)) {
-  }
-
-public:
-  // initialize seastar::future as failed without any throwing (for
-  // details see seastar::make_exception_future()).
-  template <_impl::ct_error ErrorV>
-  errorized_future(const unthrowable_wrapper<ErrorV>& e)
-    : base_t(seastar::make_exception_future<ValuesT...>(exception<ErrorV>{})) {
-    // this is `fold expression` of C++17
-    static_assert((... || (e == WrappedAllowedErrorsT::instance)),
-                  "disallowed ct_error");
-  }
-
-  template <class ValueFuncT, class ErrorVisitorT>
-  auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
-    return this->then_wrapped(
-      [ valfunc = std::forward<ValueFuncT>(valfunc),
-        errfunc = std::forward<ErrorVisitorT>(errfunc)
-      ] (auto future) mutable {
-        using futurator_t = \
-          seastar::futurize<std::result_of_t<ValueFuncT(ValuesT&&...)>>;
-        if (__builtin_expect(future.failed(), false)) {
-          maybe_handle_error_t<ErrorVisitorT, futurator_t> maybe_handle_error(
-            std::forward<ErrorVisitorT>(errfunc),
-            std::move(future).get_exception()
-          );
-          (maybe_handle_error(WrappedAllowedErrorsT::instance) , ...);
-          return std::move(maybe_handle_error).get_result();
+      template <_impl::ct_error ErrorV>
+      void operator()(const unthrowable_wrapper<ErrorV>& e) {
+        // Throwing an exception isn't the sole way to signalize an error
+        // with it. This approach nicely fits cold, infrequent issues but
+        // when applied to a hot one (like ENOENT on write path), it will
+        // likely hurt performance.
+        // Alternative approach for hot errors is to create exception_ptr
+        // on our own and place it in the future via make_exception_future.
+        // When ::handle_exception is called, handler would inspect stored
+        // exception whether it's hot-or-cold before rethrowing it.
+        // The main advantage is both types flow through very similar path
+        // based on future::handle_exception.
+        //
+        // NOTE: this is extension of language. It should be available both
+        // in GCC and Clang but a fallback (basing on throw-catch) could be
+        // added as well.
+        if (type_info == typeid(exception<ErrorV>)) {
+          result = std::forward<ErrorVisitorT>(errfunc)(e);
         } else {
-          return futurator_t::apply(std::forward<ValueFuncT>(valfunc),
-                                    std::move(future).get());
+          //std::cout << "not this ErrorV" << std::endl;
         }
-      });
-  }
+      }
 
-  // the visitor that ignores any errors
-  struct ignore_all {
-    template <_impl::ct_error ErrorV>
-    void operator()(const unthrowable_wrapper<ErrorV>& e) {
-      static_assert((... || (e == WrappedAllowedErrorsT::instance)),
-                    "ignoring disallowed ct_error");
-      // NOP
+      auto get_result() && {
+        return std::move(result);
+      }
+    };
+
+    using base_t::base_t;
+
+    future(base_t&& base)
+      : base_t(std::move(base)) {
     }
+
+  public:
+    // initialize seastar::future as failed without any throwing (for
+    // details see seastar::make_exception_future()).
+    template <_impl::ct_error ErrorV>
+    future(const unthrowable_wrapper<ErrorV>& e)
+      : base_t(seastar::make_exception_future<ValuesT...>(exception<ErrorV>{})) {
+      // this is `fold expression` of C++17
+      static_assert((... || (e == WrappedAllowedErrorsT::instance)),
+                    "disallowed ct_error");
+    }
+
+    template <class ValueFuncT, class ErrorVisitorT>
+    auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
+      return this->then_wrapped(
+        [ valfunc = std::forward<ValueFuncT>(valfunc),
+          errfunc = std::forward<ErrorVisitorT>(errfunc)
+        ] (auto future) mutable {
+          using futurator_t = \
+            seastar::futurize<std::result_of_t<ValueFuncT(ValuesT&&...)>>;
+          if (__builtin_expect(future.failed(), false)) {
+            maybe_handle_error_t<ErrorVisitorT, futurator_t> maybe_handle_error(
+              std::forward<ErrorVisitorT>(errfunc),
+              std::move(future).get_exception()
+            );
+            (maybe_handle_error(WrappedAllowedErrorsT::instance) , ...);
+            return std::move(maybe_handle_error).get_result();
+          } else {
+            return futurator_t::apply(std::forward<ValueFuncT>(valfunc),
+                                      std::move(future).get());
+          }
+        });
+    }
+
+    // the visitor that ignores any errors
+    struct ignore_all {
+      template <_impl::ct_error ErrorV>
+      void operator()(const unthrowable_wrapper<ErrorV>& e) {
+        static_assert((... || (e == WrappedAllowedErrorsT::instance)),
+                      "ignoring disallowed ct_error");
+        // NOP
+      }
+    };
+
+    friend errorator<WrappedAllowedErrorsT...>;
   };
 
-  template <class... P1, class... P2>
-  friend errorized_future<error_spec_t<P1...>, P2...>
-  its_error_free(seastar::future<P2...>&& plain_future);
-};
-
-template <class... WrappedAllowedErrorsT, class... ValuesT>
-inline errorized_future<error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>
-its_error_free(seastar::future<ValuesT...>&& plain_future) {
-  return errorized_future<
-    error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>(
-      std::move(plain_future));
-}
+  template <class... ValuesT>
+  static future<ValuesT...> its_error_free(seastar::future<ValuesT...>&& plain_future) {
+    return future<ValuesT...>(std::move(plain_future));
+  }
+}; // class errorator
 
 #ifdef REUSE_EP
 template <class... WrappedAllowedErrorsT>
 template <_impl::ct_error V>
-std::exception_ptr errorized_future<WrappedAllowedErrorsT>::exception<V>::ep = std::make_exception_ptr(exception<V>{});
+std::exception_ptr future<WrappedAllowedErrorsT>::exception<V>::ep = std::make_exception_ptr(exception<V>{});
 #endif // REUSE_EP
 
 namespace ct_error {
@@ -216,4 +215,4 @@ namespace ct_error {
   using invarg = unthrowable_wrapper<_impl::ct_error::invarg>;
 }
 
-} // namespace ceph::osd
+} // namespace ceph
