@@ -157,7 +157,7 @@ public:
       ] (auto future) mutable {
         using futurator_t = \
           seastar::futurize<std::result_of_t<ValueFuncT(ValuesT&&...)>>;
-        if (future.failed()) {
+        if (__builtin_expect(future.failed(), false)) {
           maybe_handle_error_t<ErrorVisitorT, futurator_t> maybe_handle_error(
             std::forward<ErrorVisitorT>(errfunc),
             std::move(future).get_exception()
