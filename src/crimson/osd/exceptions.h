@@ -135,6 +135,7 @@ struct errorator {
         // in GCC and Clang but a fallback (basing on throw-catch) could be
         // added as well.
         if (type_info == typeid(exception<ErrorV>)) {
+          result.ignore_ready_future();
           result = std::forward<ErrorVisitorT>(errfunc)(e);
         } else {
           //std::cout << "not this ErrorV" << std::endl;
