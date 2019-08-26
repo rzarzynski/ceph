@@ -117,6 +117,17 @@ class errorized_future<error_spec_t<WrappedAllowedErrorsT...>, ValuesT...>
 
     template <_impl::ct_error ErrorV>
     void operator()(const unthrowable_wrapper<ErrorV>& e) {
+      // Throwing an exception isn't the sole way to signalize an error
+      // with it. This approach nicely fits cold, infrequent issues but
+      // when applied to a hot one (like ENOENT on write path), it will
+      // likely hurt performance.
+      // Alternative approach for hot errors is to create exception_ptr
+      // on our own and place it in the future via make_exception_future.
+      // When ::handle_exception is called, handler would inspect stored
+      // exception whether it's hot-or-cold before rethrowing it.
+      // The main advantage is both types flow through very similar path
+      // based on future::handle_exception.
+      //
       // NOTE: this is extension of language. It should be available both
       // in GCC and Clang but a fallback (basing on throw-catch) could be
       // added as well.
