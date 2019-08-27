@@ -476,3 +476,41 @@ ceph::errorator<ceph::ct_error::enoent>::future<ceph::bufferptr> PGBackend::getx
 {
   return store->get_attr(coll, ghobject_t{soid}, key);
 }
+
+static seastar::future<ceph::os::FuturizedStore::omap_values_t>
+get_maybe_empty_omap_vals(
+  auto& store,
+  const auto& coll,
+  const auto& oi,
+  const auto& keys_to_get)
+{
+  if (!oi.is_omap()) {
+    return seastar::make_ready_future<ceph::os::FuturizedStore::omap_values_t>(
+      ceph::os::FuturizedStore::omap_values_t{});
+  } else {
+    return store->omap_get_values(coll, ghobject_t{oi.soid}, keys_to_get);
+  }
+}
+
+seastar::future<> PGBackend::omap_get_vals_by_keys(
+  const ObjectState& os,
+  OSDOp& osd_op) const
+{
+  std::set<std::string> keys_to_get;
+  try {
+    auto p = osd_op.indata.cbegin();
+    decode(keys_to_get, p);
+  } catch (buffer::error&) {
+    throw ceph::osd::invalid_argument();
+  }
+
+  return get_maybe_empty_omap_vals(store, coll, os.oi, keys_to_get).then(
+    [&osd_op] (ceph::os::FuturizedStore::omap_values_t vals) {
+      encode(vals, osd_op.outdata);
+      return seastar::now();
+    });
+
+  // TODO:
+  //ctx->delta_stats.num_rd_kb += shift_round_up(osd_op.outdata.length(), 10);
+  //ctx->delta_stats.num_rd++;
+}
