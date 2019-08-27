@@ -301,6 +301,10 @@ seastar::future<> PGBackend::write(
     // write arrives before trimtrunc
     if (os.exists && !os.oi.is_whiteout()) {
       txn.truncate(coll->cid, ghobject_t{os.oi.soid}, op.extent.truncate_size);
+      if (op.extent.truncate_size != os.oi.size) {
+        os.oi.size = length;
+        // TODO: truncate_update_size_and_usage()
+      }
     }
     os.oi.truncate_seq = op.extent.truncate_seq;
     os.oi.truncate_size = op.extent.truncate_size;
@@ -315,6 +319,7 @@ seastar::future<> PGBackend::write(
   } else {
     txn.write(coll->cid, ghobject_t{os.oi.soid},
 	      offset, length, std::move(buf), op.flags);
+    os.oi.size = std::max(offset + length, os.oi.size);
   }
   return seastar::now();
 }
