@@ -341,6 +341,34 @@ seastar::future<> PGBackend::writefull(
   return seastar::now();
 }
 
+seastar::future<> PGBackend::create(
+  ObjectState& os,
+  const OSDOp& osd_op,
+  ceph::os::Transaction& txn)
+{
+  const ceph_osd_op& op = osd_op.op;
+  const int flags = le32_to_cpu(op.flags);
+  if (os.exists && !os.oi.is_whiteout() && (flags & CEPH_OSD_OP_FLAG_EXCL)) {
+    // this is an exclusive create
+    throw ceph::osd::make_error(-EEXIST);
+  }
+
+  if (osd_op.indata.length()) {
+    // handle the legacy. `category` is no longer implemented.
+    try {
+      auto p = osd_op.indata.cbegin();
+      std::string category;
+      decode(category, p);
+    } catch (buffer::error& e) {
+      throw ceph::osd::invalid_argument();
+    }
+  }
+
+  maybe_create_new_object(os, txn);
+  txn.nop();
+  return seastar::now();
+}
+
 seastar::future<> PGBackend::remove(ObjectState& os,
                                     ceph::os::Transaction& txn)
 {
