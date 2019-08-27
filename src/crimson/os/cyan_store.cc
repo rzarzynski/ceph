@@ -199,7 +199,8 @@ seastar::future<ceph::bufferlist> CyanStore::read(CollectionRef c,
   return seastar::make_ready_future<ceph::bufferlist>(std::move(bl));
 }
 
-ceph::errorator<ceph::ct_error::enoent>::future<ceph::bufferptr>
+ceph::errorator<ceph::ct_error::enoent,
+                ceph::ct_error::enodata>::future<ceph::bufferptr>
 CyanStore::get_attr(CollectionRef c,
                     const ghobject_t& oid,
                     std::string_view name) const
@@ -211,10 +212,11 @@ CyanStore::get_attr(CollectionRef c,
     return ceph::make_error<ceph::ct_error::enoent>();
   }
   if (auto found = o->xattr.find(name); found != o->xattr.end()) {
-    return ceph::errorator<ceph::ct_error::enoent>::its_error_free(
+    return ceph::errorator<ceph::ct_error::enoent,
+                           ceph::ct_error::enodata>::its_error_free(
       seastar::make_ready_future<ceph::bufferptr>(found->second));
   } else {
-    return ceph::make_error<ceph::ct_error::enoent>();
+    return ceph::make_error<ceph::ct_error::enodata>();
   }
 }
 

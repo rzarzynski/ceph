@@ -123,10 +123,16 @@ PGBackend::_load_os(const hobject_t& oid)
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{bl}, true /* exists */)));
     },
-    [oid, this] (const ceph::ct_error::enoent&) {
-      return seastar::make_ready_future<cached_os_t>(
-        os_cache.insert(oid,
-          std::make_unique<ObjectState>(object_info_t{oid}, false)));
+    [oid, this] (const auto& e) {
+      using T = std::decay_t<decltype(e)>;
+      if constexpr (std::is_same_v<T, ceph::ct_error::enoent> ||
+                    std::is_same_v<T, ceph::ct_error::enodata>) {
+        return seastar::make_ready_future<cached_os_t>(
+          os_cache.insert(oid,
+            std::make_unique<ObjectState>(object_info_t{oid}, false)));
+      } else {
+        static_assert(always_false<T>::value, "non-exhaustive visitor!");
+      }
     });
 }
 
@@ -147,9 +153,15 @@ PGBackend::_load_ss(const hobject_t& oid)
       return seastar::make_ready_future<cached_ss_t>(
         ss_cache.insert(oid, std::make_unique<SnapSet>(bl)));
     },
-    [oid, this] (const ceph::ct_error::enoent&) {
-      return seastar::make_ready_future<cached_ss_t>(
-        ss_cache.insert(oid, std::make_unique<SnapSet>()));
+    [oid, this] (const auto& e) {
+      using T = std::decay_t<decltype(e)>;
+      if constexpr (std::is_same_v<T, ceph::ct_error::enoent> ||
+                    std::is_same_v<T, ceph::ct_error::enodata>) {
+        return seastar::make_ready_future<cached_ss_t>(
+          ss_cache.insert(oid, std::make_unique<SnapSet>()));
+      } else {
+        static_assert(always_false<T>::value, "non-exhaustive visitor!");
+      }
     });
 }
 
@@ -445,6 +457,7 @@ seastar::future<> PGBackend::setxattr(
     name = "_" + aname;
     bp.copy(osd_op.op.xattr.value_len, val);
   }
+  logger().debug("setxattr on obj={} for attr={}", os.oi.soid, name);
 
   txn.setattr(coll->cid, ghobject_t{os.oi.soid}, name, val);
   return seastar::now();
@@ -463,19 +476,29 @@ seastar::future<> PGBackend::getxattr(
     bp.copy(osd_op.op.xattr.name_len, aname);
     name = "_" + aname;
   }
+  logger().debug("getxattr on obj={} for attr={}", os.oi.soid, name);
   return getxattr(os.oi.soid, name).safe_then([&osd_op] (ceph::bufferptr val) {
     osd_op.outdata.clear();
     osd_op.outdata.push_back(std::move(val));
     osd_op.op.xattr.value_len = osd_op.outdata.length();
     return seastar::now();
     //ctx->delta_stats.num_rd_kb += shift_round_up(osd_op.outdata.length(), 10);
-  }, [] (const ceph::ct_error::enoent&) {
-    return seastar::make_exception_future<>(ceph::osd::object_not_found{});
+  }, [] (const auto& e) {
+    using T = std::decay_t<decltype(e)>;
+    if constexpr (std::is_same_v<T, ceph::ct_error::enoent>) {
+      return seastar::make_exception_future<>(ceph::osd::object_not_found{});
+    } else if constexpr (std::is_same_v<T, ceph::ct_error::enodata>) {
+      return seastar::make_exception_future<>(ceph::osd::no_message_available{});
+    } else {
+      static_assert(always_false<T>::value, "non-exhaustive visitor!");
+    }
   });
   //ctx->delta_stats.num_rd++;
 }
 
-ceph::errorator<ceph::ct_error::enoent>::future<ceph::bufferptr> PGBackend::getxattr(
+ceph::errorator<ceph::ct_error::enoent,
+                ceph::ct_error::enodata>::future<ceph::bufferptr>
+PGBackend::getxattr(
   const hobject_t& soid,
   std::string_view key) const
 {

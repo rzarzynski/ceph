@@ -84,7 +84,8 @@ public:
   seastar::future<> getxattr(
     const ObjectState& os,
     OSDOp& osd_op) const;
-  ceph::errorator<ceph::ct_error::enoent>::future<ceph::bufferptr> getxattr(
+  ceph::errorator<ceph::ct_error::enoent,
+                  ceph::ct_error::enodata>::future<ceph::bufferptr> getxattr(
     const hobject_t& soid,
     std::string_view key) const;
 

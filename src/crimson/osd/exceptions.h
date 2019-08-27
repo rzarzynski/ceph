@@ -40,6 +40,10 @@ struct invalid_argument : public error {
   invalid_argument() : error(std::errc::invalid_argument) {}
 };
 
+struct no_message_available : public error {
+  no_message_available() : error(std::errc::no_message_available) {}
+};
+
 // FIXME: error handling
 struct operation_not_supported : public error {
   operation_not_supported()
@@ -64,6 +68,7 @@ namespace _impl {
   enum class ct_error {
     enoent,
     invarg,
+    enodata
   };
 }
 
@@ -213,6 +218,7 @@ std::exception_ptr future<WrappedAllowedErrorsT>::exception<V>::ep = std::make_e
 
 namespace ct_error {
   using enoent = unthrowable_wrapper<_impl::ct_error::enoent>;
+  using enodata = unthrowable_wrapper<_impl::ct_error::enodata>;
   using invarg = unthrowable_wrapper<_impl::ct_error::invarg>;
 }
 
