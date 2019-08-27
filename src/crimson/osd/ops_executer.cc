@@ -407,7 +407,7 @@ OpsExecuter::do_osd_op(OSDOp& osd_op)
       return backend.stat(os, osd_op);
     });
   case CEPH_OSD_OP_TMAPUP:
-    throw ceph::osd::operation_not_supported();
+    return dont_do_legacy_op();
   default:
     logger().warn("unknown op {}", ceph_osd_op_name(op.op));
     throw std::runtime_error(

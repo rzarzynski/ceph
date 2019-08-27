@@ -67,6 +67,10 @@ class OpsExecuter {
                                  std::as_const(os->oi.soid.get_namespace()));
   }
 
+  seastar::future<> dont_do_legacy_op() {
+    throw ceph::osd::operation_not_supported();
+  }
+
 public:
   OpsExecuter(PGBackend::cached_os_t os, PG& pg)
     : os(std::move(os)), pg(pg), backend(pg.get_backend()) {
