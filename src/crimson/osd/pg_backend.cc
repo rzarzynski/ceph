@@ -506,7 +506,7 @@ PGBackend::getxattr(
 }
 
 static seastar::future<ceph::os::FuturizedStore::omap_values_t>
-get_maybe_empty_omap_vals(
+maybe_get_omap_vals_by_keys(
   auto& store,
   const auto& coll,
   const auto& oi,
@@ -580,7 +580,7 @@ seastar::future<> PGBackend::omap_get_vals_by_keys(
     throw ceph::osd::invalid_argument();
   }
 
-  return get_maybe_empty_omap_vals(store, coll, os.oi, keys_to_get).then(
+  return maybe_get_omap_vals_by_keys(store, coll, os.oi, keys_to_get).then(
     [&osd_op] (ceph::os::FuturizedStore::omap_values_t vals) {
       encode(vals, osd_op.outdata);
       return seastar::now();
