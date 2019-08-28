@@ -48,11 +48,16 @@ int cls_read(cls_method_context_t hctx,
              char **outdata,
              int *outdatalen)
 {
+  ceph_assert("not implemented yet" == nullptr);
   return 0;
 }
 
 int cls_get_request_origin(cls_method_context_t hctx, entity_inst_t *origin)
 {
+  if (origin) {
+    *origin = \
+      reinterpret_cast<ceph::osd::OpsExecuter*>(hctx)->get_orig_source_inst();
+  }
   return 0;
 }
 
