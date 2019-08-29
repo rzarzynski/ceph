@@ -88,8 +88,8 @@ public:
     return std::forward<Func>(f)(std::move(txn), std::move(os));
   }
 
-  auto get_orig_source_inst() const {
-    return msg->get_orig_source_inst();
+  const auto& get_message() const {
+    return *msg;
   }
 };
 
