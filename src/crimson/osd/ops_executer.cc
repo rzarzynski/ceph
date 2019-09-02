@@ -439,7 +439,17 @@ OpsExecuter::do_osd_op(OSDOp& osd_op)
 
   // watch/notify
   case CEPH_OSD_OP_WATCH:
-    return do_write_op([&osd_op] (auto& backend, auto& os, auto& txn) {
+    return with_effect(std::string{}, [&] (std::string& str) {
+      return do_write_op([&osd_op, &str] (auto& backend, auto& os, auto& txn) {
+        str = "it works!";
+        return backend.watch(os, osd_op, txn);
+      });
+    }, [/* must be closureless */] (std::string&& str) {
+      std::cout << "str={}" << str << std::endl;
+      return seastar::now();
+    });
+  case CEPH_OSD_OP_NOTIFY:
+    return do_read_op([&osd_op] (auto& backend, const auto& os) {
       return seastar::now();
     });
 
