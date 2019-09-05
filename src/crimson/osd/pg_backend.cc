@@ -247,22 +247,12 @@ seastar::future<bufferlist> PGBackend::read(const object_info_t& oi,
     // read size was trimmed to zero and it is expected to do nothing,
     return seastar::make_ready_future<bufferlist>();
   }
-  std::optional<uint32_t> maybe_crc;
-  if (oi.is_data_digest() && offset == 0 && length >= oi.size) {
-    maybe_crc = oi.data_digest;
-  }
   return _read(oi.soid, offset, length, flags).then(
-    [maybe_crc, soid=oi.soid, size=oi.size](auto bl) {
-      // whole object?  can we verify the checksum?
-      if (maybe_crc && bl.length() == size) {
-        if (auto crc = bl.crc32c(-1); crc != *maybe_crc) {
-          logger().error("full-object read crc {} != expected {} on {}",
-            crc, *maybe_crc, soid);
-          // todo: mark soid missing, perform recovery, and retry
-          throw ceph::osd::object_corrupted{};
-        }
-      }
-      return seastar::make_ready_future<bufferlist>(std::move(bl));
+    [&oi](auto bl) {
+      return _read_verify_data(oi, bl).then(
+        [bl = std::move(bl)] {
+          return seastar::make_ready_future<bufferlist>(std::move(bl));
+        });
     });
 }
 
