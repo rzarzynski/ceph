@@ -42,6 +42,14 @@ public:
   seastar::future<> umount() final;
 
   seastar::future<> mkfs(uuid_d new_osd_fsid) final;
+
+  ceph::errorator<
+    ceph::ct_error::enoent>::future<std::map<uint64_t, uint64_t>>
+  fiemap(const CollectionRef& ch,
+         const ghobject_t& oid,
+         uint64_t offset,
+         size_t len) const final;
+
   store_statfs_t stat() const final;
 
   seastar::future<ceph::bufferlist> read(CollectionRef c,

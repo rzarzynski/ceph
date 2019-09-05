@@ -113,6 +113,33 @@ seastar::future<> CyanStore::mkfs(uuid_d new_osd_fsid)
   });
 }
 
+ceph::errorator<ceph::ct_error::enoent>::future<std::map<uint64_t, uint64_t>>
+CyanStore::fiemap(
+  const CollectionRef& c,
+  const ghobject_t& oid,
+  uint64_t offset,
+  size_t len) const
+{
+  logger().debug("{} {} {} {} {}",
+                 __func__, c->cid, oid, offset, len);
+
+  if (!c->exists) {
+    return ceph::make_error<ceph::ct_error::enoent>();
+  }
+  ObjectRef o = c->get_object(oid);
+  if (!o) {
+    return ceph::make_error<ceph::ct_error::enoent>();
+  }
+  std::map<uint64_t, uint64_t> destmap;
+  size_t l = len;
+  if (offset + l > o->get_size())
+    l = o->get_size() - offset;
+  if (offset < o->get_size())
+    destmap[offset] = l;
+  return ceph::errorator<ceph::ct_error::enoent>::its_error_free(
+    seastar::make_ready_future<std::map<uint64_t, uint64_t>>(destmap));
+}
+
 store_statfs_t CyanStore::stat() const
 {
   logger().debug("{}", __func__);

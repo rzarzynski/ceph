@@ -47,6 +47,9 @@ public:
 				   size_t truncate_size,
 				   uint32_t truncate_seq,
 				   uint32_t flags);
+  seastar::future<> sparse_read(
+    const ObjectState& os,
+    OSDOp& osd_op) /*const*/;
   seastar::future<> stat(
     const ObjectState& os,
     OSDOp& osd_op);
@@ -121,6 +124,16 @@ private:
 					    size_t offset,
 					    size_t length,
 					    uint32_t flags) = 0;
+  seastar::future<> _sparse_read_verify_hole(
+    const OSDOp& osd_op,
+    const ObjectState& os,
+    uint64_t maybe_hole_offset,
+    uint64_t offset);
+  seastar::future<> _sparse_read_verify_trailing_hole(
+    const OSDOp& osd_op,
+    const ObjectState& os,
+    uint64_t maybe_hole_offset);
+
   bool maybe_create_new_object(ObjectState& os, ceph::os::Transaction& txn);
   virtual seastar::future<ceph::osd::acked_peers_t>
   _submit_transaction(std::set<pg_shard_t>&& pg_shards,

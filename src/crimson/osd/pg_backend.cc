@@ -208,6 +208,22 @@ PGBackend::evict_object_state(const hobject_t& oid)
   return seastar::now();
 }
 
+static inline seastar::future<> _read_verify_data(
+  const object_info_t& oi,
+  const ceph::bufferlist& data)
+{
+  if (oi.is_data_digest() && oi.size == data.length()) {
+    // whole object?  can we verify the checksum?
+    if (auto crc = data.crc32c(-1); crc != oi.data_digest) {
+      logger().error("full-object read crc {} != expected {} on {}",
+                     crc, oi.data_digest, oi.soid);
+      // todo: mark soid missing, perform recovery, and retry
+      throw ceph::osd::object_corrupted{};
+    }
+  }
+  return seastar::now();
+}
+
 seastar::future<bufferlist> PGBackend::read(const object_info_t& oi,
                                             size_t offset,
                                             size_t length,
@@ -247,6 +263,125 @@ seastar::future<bufferlist> PGBackend::read(const object_info_t& oi,
         }
       }
       return seastar::make_ready_future<bufferlist>(std::move(bl));
+    });
+}
+
+seastar::future<> PGBackend::_sparse_read_verify_hole(
+  const OSDOp& osd_op,
+  const ObjectState& os,
+  const uint64_t maybe_hole_offset,
+  const uint64_t offset)
+{
+  // verify hole?
+  if (__builtin_expect(local_conf()->osd_verify_sparse_read_holes, false) &&
+      maybe_hole_offset < offset) {
+    const uint64_t hole_offset = maybe_hole_offset;
+    const uint64_t hole_length = offset - hole_offset;
+    return _read(os.oi.soid, hole_offset, hole_length, osd_op.op.flags).then(
+      [&] (ceph::bufferlist hole_data) {
+        if (!hole_data.is_zero()) {
+          logger().error("{} {} sparse-read found data in hole {}~{}",
+                         coll, os.oi.soid, hole_offset, hole_length);
+          throw ceph::osd::input_output_error{};
+        }
+      });
+  }
+  return seastar::now();
+}
+
+seastar::future<> PGBackend::_sparse_read_verify_trailing_hole(
+  const OSDOp& osd_op,
+  const ObjectState& os,
+  const uint64_t maybe_hole_offset)
+{
+  // verify trailing hole?
+  if (__builtin_expect(local_conf()->osd_verify_sparse_read_holes, false)) {
+    if (const auto end = std::min<uint64_t>(os.oi.size,
+          osd_op.op.extent.offset + osd_op.op.extent.length);
+        maybe_hole_offset < end) {
+      const auto hole_offset = maybe_hole_offset;
+      const auto hole_length = end - hole_offset;
+      return _read(os.oi.soid, hole_offset, hole_length, osd_op.op.flags).then(
+        [&] (ceph::bufferlist hole_data) {
+          if (!hole_data.is_zero()) {
+            logger().error("{} {} sparse-read found data in hole {}~{}",
+                           coll, os.oi.soid, hole_offset, hole_length);
+            throw ceph::osd::input_output_error{};
+          }
+        });
+    }
+  }
+  return seastar::now();
+}
+
+seastar::future<> PGBackend::sparse_read(
+  const ObjectState& os,
+  OSDOp& osd_op) /* const */
+{
+  using errorator = ceph::errorator<ceph::ct_error::enoent,
+                                    ceph::ct_error::enodata>;
+  struct sparse_read_ctx_t {
+    ceph::bufferlist resdata;
+    uint64_t maybe_hole_offset;
+    std::map<uint64_t, uint64_t> layout;
+
+    sparse_read_ctx_t(const OSDOp& osd_op)
+      : maybe_hole_offset(osd_op.op.extent.offset) {
+    }
+  };
+  if (osd_op.op.extent.truncate_seq) {
+    logger().error("sparse_read does not support truncation sequence");
+    throw ceph::osd::invalid_argument{};
+  }
+  return seastar::do_with(sparse_read_ctx_t(osd_op),
+    [this, &os, &osd_op] (auto ctx) {
+      return store->fiemap(coll,
+                           ghobject_t{os.oi.soid},
+                           osd_op.op.extent.offset,
+                           osd_op.op.extent.length).safe_then(
+        [this, &ctx, &os, &osd_op] (std::map<uint64_t, uint64_t> destmap) {
+          return seastar::do_for_each(destmap,
+            [this, &ctx, &os, &osd_op](const auto& p) {
+              const auto [ offset, length ] = p;
+              return _read(os.oi.soid, offset, length, osd_op.op.flags).then(
+                [&] (ceph::bufferlist data) {
+                  const auto real_length = \
+                    std::min<uint64_t>(data.length(), length);
+                  const auto maybe_hole_offset = ctx.maybe_hole_offset;
+
+                  ctx.layout.emplace(offset, real_length);
+                  ctx.resdata.claim_append(data);
+                  ctx.maybe_hole_offset = offset + real_length;
+                  return _sparse_read_verify_hole(osd_op,
+                                                  os,
+                                                  maybe_hole_offset,
+                                                  offset);
+                });
+            }).then([&] {
+              return _sparse_read_verify_trailing_hole(osd_op,
+                                                       os,
+                                                       ctx.maybe_hole_offset);
+            }).then([&ctx, &os] {
+              // Why SPARSE_READ need checksum? In fact, librbd always
+              // use sparse-read. Maybe at first, there is no much whole
+              // objects. With continued use, more and more whole object
+              // exist. So from this point, for spare-read add  checksum
+              // makes sense.
+              return _read_verify_data(os.oi, ctx.resdata);
+            }).then([&ctx, &os, &osd_op] {
+              logger().debug("sparse_read got {} bytes from object {}",
+                             ctx.resdata.length(), os.oi.soid);
+              osd_op.op.extent.length = ctx.resdata.length();
+              // layout can be different than destmap
+              encode(ctx.layout, osd_op.outdata);
+              encode_destructively(ctx.resdata, osd_op.outdata);
+              return seastar::now();
+            });
+        },
+        [] (const auto& /* any error */) {
+          //return errorator::forward_up();
+          return seastar::now();
+        });
     });
 }
 

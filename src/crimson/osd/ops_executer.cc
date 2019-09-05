@@ -372,6 +372,10 @@ OpsExecuter::do_osd_op(OSDOp& osd_op)
           return seastar::now();
         });
     });
+  case CEPH_OSD_OP_SPARSE_READ:
+    return do_read_op([&osd_op] (auto& backend, const auto& os) {
+      return backend.sparse_read(os, osd_op);
+    });
   case CEPH_OSD_OP_GETXATTR:
     return do_read_op([&osd_op] (auto& backend, const auto& os) {
       return backend.getxattr(os, osd_op);
