@@ -211,8 +211,7 @@ CyanStore::get_attr_errorator::future<ceph::bufferptr> CyanStore::get_attr(
     return ceph::make_error<ceph::ct_error::enoent>();
   }
   if (auto found = o->xattr.find(name); found != o->xattr.end()) {
-    return get_attr_errorator::its_error_free(
-      seastar::make_ready_future<ceph::bufferptr>(found->second));
+    return seastar::make_ready_future<ceph::bufferptr>(found->second);
   } else {
     return ceph::make_error<ceph::ct_error::enodata>();
   }
