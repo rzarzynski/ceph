@@ -169,6 +169,42 @@ struct errorator {
                     "disallowed ct_error");
     }
 
+    using errorator_t = errorator<WrappedAllowedErrorsT...>;
+
+    template <class FutureT>
+    struct get_errorator_t {
+      using type = typename FutureT::errorator_t;
+    };
+    template <class... OtherValuesT>
+    struct get_errorator_t<seastar::future<OtherValuesT...>> {
+      using type = errorator<>;
+    };
+
+    template <class ValueFuncErroratorT, class... ErrorVisitorRetsT>
+    struct error_builder_t {
+      // NOP. The generic template.
+    };
+    template <class... ValueFuncWrappedAllowedErrorsT,
+              class    ErrorVisitorRetsHeadT,
+              class... ErrorVisitorRetsTailT>
+    struct error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>,
+                           ErrorVisitorRetsHeadT,
+                           ErrorVisitorRetsTailT...> {
+      using type = std::conditional_t<
+        //is_error_t<ErrorVisitorRetsHeadT>,
+        true,
+        typename error_builder_t<errorator<WrappedAllowedErrorsT...,
+                                           ErrorVisitorRetsHeadT>,
+                                 ErrorVisitorRetsTailT...>::type,
+        typename error_builder_t<errorator<WrappedAllowedErrorsT...>,
+                                 ErrorVisitorRetsTailT...>::type>;
+    };
+    // finish the recursion
+    template <class... ValueFuncWrappedAllowedErrorsT>
+    struct error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>> {
+      using type = errorator<ValueFuncWrappedAllowedErrorsT...>;
+    };
+
     template <class ValueFuncT, class ErrorVisitorT>
     auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
       return this->then_wrapped(
@@ -177,6 +213,17 @@ struct errorator {
         ] (auto future) mutable {
           using futurator_t = \
             seastar::futurize<std::result_of_t<ValueFuncT(ValuesT&&...)>>;
+          using t = \
+            std::tuple<
+              std::result_of_t<ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>...>;
+          using valfunc_errorator_t = \
+            typename get_errorator_t<std::result_of_t<ValueFuncT(ValuesT&&...)>>::type;
+          using next_errorator_t = \
+            typename error_builder_t<
+              valfunc_errorator_t,
+              std::result_of_t<ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>...
+            >::type;
+          //typename next_errorator_t::nie_ma_mnie x;
           if (__builtin_expect(future.failed(), false)) {
             maybe_handle_error_t<ErrorVisitorT, futurator_t> maybe_handle_error(
               std::forward<ErrorVisitorT>(errfunc),
