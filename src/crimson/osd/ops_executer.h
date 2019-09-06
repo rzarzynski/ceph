@@ -46,13 +46,6 @@ class OpsExecuter {
     virtual ~effect_t() = default;
   };
 
-  // **pointer to a function** representing the `effect` stage of an op.
-  // intentionally using pointer to allow only **closureless** lambdas as
-  // some parts of OpsExecuter (like txn) can be already moved-out when
-  // the function is executed.
-  template <class ContextT>
-  using effect_func_t = seastar::future<>(*)(std::decay_t<ContextT>&&);
-
   PGBackend::cached_os_t os;
   PG& pg;
   PGBackend& backend;
@@ -67,8 +60,8 @@ class OpsExecuter {
   // TODO: verify the init overhead of chunked_fifo
   seastar::chunked_fifo<std::unique_ptr<effect_t>> op_effects;
 
-  template <class ContextT, class MainFunc>
-  auto with_effect(ContextT&& ctx, MainFunc&& mf, effect_func_t<ContextT> ef);
+  template <class Context, class MainFunc, class EffectFunc>
+  auto with_effect(Context&& ctx, MainFunc&& main_func, EffectFunc&& effect_func);
 
   seastar::future<> do_op_call(class OSDOp& osd_op);
 
@@ -120,24 +113,33 @@ public:
   }
 };
 
-template <class ContextT, class MainFuncT>
-auto OpsExecuter::with_effect(ContextT&& ctx, MainFuncT&& mf, effect_func_t<ContextT> ef) {
-  struct contextual_effect_t : public effect_t {
-    std::decay_t<ContextT> ctx;
-    effect_func_t<ContextT> ef;
+template <class Context, class MainFunc, class EffectFunc>
+auto OpsExecuter::with_effect(
+  Context&& ctx,
+  MainFunc&& main_func,
+  EffectFunc&& effect_func)
+{
+  using context_t = std::decay_t<Context>;
+  // the language offers implicit conversion to pointer-to-function for
+  // lambda only when it's closureless
+  static_assert(std::is_convertible_v<EffectFunc,
+                                      seastar::future<> (*)(context_t&&)>,
+                "with_effect function is not allowed to capture");
+  struct task_t final : effect_t {
+    context_t ctx;
+    EffectFunc effect_func;
 
-    contextual_effect_t(ContextT&& ctx, effect_func_t<ContextT> ef)
-      : ctx(std::move(ctx)), ef(std::move(ef)) {}
-    seastar::future<> execute() override {
-      return ef(std::move(ctx));
+    task_t(Context&& ctx, EffectFunc&& effect_func)
+       : ctx(std::move(ctx)), effect_func(std::move(effect_func)) {}
+    seastar::future<> execute() final {
+      return std::move(effect_func)(std::move(ctx));
     }
   };
-
-  auto new_effect = \
-    std::make_unique<contextual_effect_t>(std::move(ctx), ef);
-  auto& ctxref = new_effect->ctx;
-  op_effects.emplace_back(std::move(new_effect));
-  return std::forward<MainFuncT>(mf)(ctxref);
+  auto task =
+    std::make_unique<task_t>(std::move(ctx), std::move(effect_func));
+  auto& ctx_ref = task->ctx;
+  op_effects.emplace_back(std::move(task));
+  return std::forward<MainFunc>(main_func)(ctx_ref);
 }
 
 template <typename Func>
@@ -149,7 +151,7 @@ seastar::future<> OpsExecuter::submit_changes(Func&& f) && {
         return seastar::now();
       }
       return seastar::do_until(
-        std::bind(&decltype(op_effects)::empty, &op_effects),
+        [this] { return op_effects.empty(); },
         [this] {
           auto fut = op_effects.front()->execute();
           op_effects.pop_front();
