@@ -195,17 +195,17 @@ struct errorator {
                            ErrorVisitorRetsTailT...> {
       using type = std::conditional_t<
         //is_error_t<ErrorVisitorRetsHeadT>,
-        true,
-        typename error_builder_t<errorator<WrappedAllowedErrorsT...,
+        false,
+        typename error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...,
                                            ErrorVisitorRetsHeadT>,
                                  ErrorVisitorRetsTailT...>::type,
-        typename error_builder_t<errorator<WrappedAllowedErrorsT...>,
+        typename error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>,
                                  ErrorVisitorRetsTailT...>::type>;
     };
     // finish the recursion
     template <class... ValueFuncWrappedAllowedErrorsT>
     struct error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>> {
-      using type = errorator<ValueFuncWrappedAllowedErrorsT...>;
+      using type = ::ceph::errorator<ValueFuncWrappedAllowedErrorsT...>;
     };
 
     template <class ValueFuncT, class ErrorVisitorT>
