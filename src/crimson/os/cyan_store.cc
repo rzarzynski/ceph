@@ -259,11 +259,50 @@ seastar::future<CyanStore::attrs_t> CyanStore::get_attrs(CollectionRef c,
   return seastar::make_ready_future<attrs_t>(o->xattr);
 }
 
+using testbed_errorator = ceph::errorator<ceph::ct_error::enoent>;
+
+static testbed_errorator::future<>
+testbed1()
+{
+  return testbed_errorator::its_error_free(seastar::now());
+}
 seastar::future<CyanStore::omap_values_t>
 CyanStore::omap_get_values(CollectionRef c,
                            const ghobject_t& oid,
                            const omap_keys_t& keys)
 {
+//#define FWD
+#undef FWD
+#ifdef FWD
+      testbed1().safe_then([] {
+        return seastar::now();
+      }, [] (const ceph::ct_error::enoent&) {
+        return ceph::make_error<ceph::ct_error::enoent>();
+      });
+#else
+#if 0
+      testbed1().safe_then([] {
+        //return errorator::its_error_free(seastar::now());
+        return seastar::now();
+      }, [] (const ceph::ct_error::enoent&) {
+        return seastar::now();
+      }).then([] {
+        return seastar::now();
+      });
+#else
+      testbed1().safe_then([] {
+        return testbed_errorator::its_error_free(seastar::now());
+      }, [] (const ceph::ct_error::enoent&) {
+        return testbed_errorator::its_error_free(seastar::now());
+      }).safe_then([] {
+        return seastar::now();
+      }, [] (const ceph::ct_error::enoent&) {
+        return seastar::now();
+      }).then([] {
+        return seastar::now();
+      });
+#endif
+#endif
   logger().debug("{} {} {}",
                 __func__, c->cid, oid);
   auto o = c->get_object(oid);
