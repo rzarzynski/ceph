@@ -221,13 +221,11 @@ struct errorator {
       // from the Error Visitor. Yes, it's perfectly fine to fail error
       // handling at one step and delegate even broader set of issues
       // to next continuation.
-#if 0
       using next_errorator_t = \
         typename error_builder_t<
           valfunc_errorator_t,
           std::result_of_t<ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>...
         >::type;
-#endif
       // OK, now we know about all errors next continuation must take
       // care about. If Visitor handled everything and the Value Func
       // doesn't return any, we'll finish with errorator<>::future
@@ -235,7 +233,7 @@ struct errorator {
       // finally could use `.then()`!
 
       using futurator_t = \
-        typename valfunc_errorator_t::template futurize<valfunc_result_t>;
+        typename next_errorator_t::template futurize<valfunc_result_t>;
 
       return (typename futurator_t::type)(this->then_wrapped(
         [ valfunc = std::forward<ValueFuncT>(valfunc),
@@ -298,7 +296,6 @@ struct errorator {
 
   template <class T, class = std::void_t<T>>
   class futurize {
-      static_assert(always_false<T>::value, "non-exhaustive visitor!");
     using vanilla_futurize = seastar::futurize<T>;
   public:
     using type = typename tuple2future<typename vanilla_futurize::value_type>::type;
