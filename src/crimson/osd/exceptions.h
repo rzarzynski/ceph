@@ -104,6 +104,7 @@ struct errorator {
   template <class... ValuesT>
   class future : private seastar::future<ValuesT...> {
     using base_t = seastar::future<ValuesT...>;
+    using errorator_type = ceph::errorator<WrappedAllowedErrorsT...>;
 
     // TODO: let `exception` use other type than `ct_error`.
     template <_impl::ct_error V>
@@ -155,6 +156,60 @@ struct errorator {
       }
     };
 
+    template <class, class = std::void_t<>>
+    struct is_error {
+      static constexpr bool value = false;
+    };
+    template <class T>
+    struct is_error<T, std::void_t<typename T::wrapped_type>> {
+      // specialization for _impl::ct_error. it could be written in much
+      // simpler form – without void_t and is_same_v.
+      static constexpr bool value = \
+        std::is_same_v<typename T::wrapped_type, _impl::ct_error>;
+    };
+    template <class T>
+    static inline constexpr bool is_error_v = is_error<T>::value;
+
+    template <class, class = std::void_t<>>
+    struct get_errorator {
+      // generic template for non-errorated things (plain types and
+      // vanilla seastar::future as well).
+      using type = errorator<>;
+    };
+    template <class FutureT>
+    struct get_errorator<FutureT,
+                         std::void_t<typename FutureT::errorator_type>> {
+      using type = typename FutureT::errorator_type;
+    };
+    template <class T>
+    using get_errorator_t = typename get_errorator<T>::type;
+
+    template <class ValueFuncErroratorT, class... ErrorVisitorRetsT>
+    struct make_errorator {
+      // NOP. The generic template.
+    };
+    template <class... ValueFuncWrappedAllowedErrorsT,
+              class    ErrorVisitorRetsHeadT,
+              class... ErrorVisitorRetsTailT>
+    struct make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...>,
+                          ErrorVisitorRetsHeadT,
+                          ErrorVisitorRetsTailT...> {
+      using type = std::conditional_t<
+        is_error_v<ErrorVisitorRetsHeadT>,
+        typename make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...,
+                                          ErrorVisitorRetsHeadT>,
+                                ErrorVisitorRetsTailT...>::type,
+        typename make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...>,
+                                ErrorVisitorRetsTailT...>::type>;
+    };
+    // finish the recursion
+    template <class... ValueFuncWrappedAllowedErrorsT>
+    struct make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...>> {
+      using type = ::ceph::errorator<ValueFuncWrappedAllowedErrorsT...>;
+    };
+    template <class... Args>
+    using make_errorator_t = typename make_errorator<Args...>::type;
+
     using base_t::base_t;
 
     future(base_t&& base)
@@ -172,101 +227,43 @@ struct errorator {
                     "disallowed ct_error");
     }
 
-    template <class, class = std::void_t<>>
-    struct is_error {
-      static constexpr bool value = false;
-    };
-    template <class T>
-    struct is_error<T, std::void_t<typename T::wrapped_type>> {
-      // specialization for _impl::ct_error. it could be written in much
-      // simpler form – without void_t and is_same_v.
-      static constexpr bool value = \
-        std::is_same_v<typename T::wrapped_type, _impl::ct_error>;
-    };
-    template <class T>
-    static inline constexpr bool is_error_v = is_error<T>::value;
-
-    using errorator_t = ::ceph::errorator<WrappedAllowedErrorsT...>;
-
-    template <class T, class = std::void_t<>>
-    struct get_errorator_t {
-      // generic template for non-errorated things (plain types and
-      // vanilla seastar::future as well).
-      using type = errorator<>;
-    };
-    template <class FutureT>
-    struct get_errorator_t<FutureT,
-                           std::void_t<typename FutureT::errorator_t>> {
-      using type = typename FutureT::errorator_t;
-    };
-
-    template <class ValueFuncErroratorT, class... ErrorVisitorRetsT>
-    struct error_builder_t {
-      // NOP. The generic template.
-    };
-    template <class... ValueFuncWrappedAllowedErrorsT,
-              class    ErrorVisitorRetsHeadT,
-              class... ErrorVisitorRetsTailT>
-    struct error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>,
-                           ErrorVisitorRetsHeadT,
-                           ErrorVisitorRetsTailT...> {
-      using type = std::conditional_t<
-        is_error_v<ErrorVisitorRetsHeadT>,
-        typename error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...,
-                                           ErrorVisitorRetsHeadT>,
-                                 ErrorVisitorRetsTailT...>::type,
-        typename error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>,
-                                 ErrorVisitorRetsTailT...>::type>;
-    };
-    // finish the recursion
-    template <class... ValueFuncWrappedAllowedErrorsT>
-    struct error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...>> {
-      using type = ::ceph::errorator<ValueFuncWrappedAllowedErrorsT...>;
-    };
-
     template <class ValueFuncT, class ErrorVisitorT>
     auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
-      // NOTE: not using result_of_t for coherence
-      using valfunc_result_t = \
-        std::result_of_t<ValueFuncT(ValuesT&&...)>;
+      using ValueFuncResult = std::result_of_t<ValueFuncT(ValuesT&&...)>;
       // recognize whether there can be any error coming from the Value
       // Function.
-      using valfunc_errorator_t = \
-        typename get_errorator_t<valfunc_result_t>::type;
+      using ValueFuncErrorator = get_errorator_t<ValueFuncResult>;
       // mutate the Value Function's errorator to harvest errors coming
       // from the Error Visitor. Yes, it's perfectly fine to fail error
       // handling at one step and delegate even broader set of issues
       // to next continuation.
-      using next_errorator_t = \
-        typename error_builder_t<
-          valfunc_errorator_t,
-          std::result_of_t<ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>...
-        >::type;
+      using ReturnErrorator = make_errorator_t<
+        ValueFuncErrorator,
+        std::result_of_t<
+          ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>...>;
       // OK, now we know about all errors next continuation must take
       // care about. If Visitor handled everything and the Value Func
       // doesn't return any, we'll finish with errorator<>::future
       // which is just vanilla seastar::future – that's it, next cont
       // finally could use `.then()`!
-
-      using futurator_t = \
-        typename next_errorator_t::template futurize<valfunc_result_t>;
-
-      return (typename futurator_t::type)(this->then_wrapped(
+      using Futurator = \
+        typename ReturnErrorator::template futurize<ValueFuncResult>;
+      return typename Futurator::type{ this->then_wrapped(
         [ valfunc = std::forward<ValueFuncT>(valfunc),
           errfunc = std::forward<ErrorVisitorT>(errfunc)
         ] (auto future) mutable {
           if (__builtin_expect(future.failed(), false)) {
-            maybe_handle_error_t<ErrorVisitorT, futurator_t> maybe_handle_error(
+            maybe_handle_error_t<ErrorVisitorT, Futurator> maybe_handle_error(
               std::forward<ErrorVisitorT>(errfunc),
               std::move(future).get_exception()
             );
             (maybe_handle_error(WrappedAllowedErrorsT::instance) , ...);
             return plainify(std::move(maybe_handle_error).get_result());
           } else {
-            return plainify(futurator_t::apply(std::forward<ValueFuncT>(valfunc),
-                                               std::move(future).get()));
+            return plainify(Futurator::apply(std::forward<ValueFuncT>(valfunc),
+                                             std::move(future).get()));
           }
-        }));
+        })};
     }
 
     friend errorator<WrappedAllowedErrorsT...>;
@@ -331,7 +328,7 @@ struct errorator {
   template <template <class...> class ErroratedFutureT,
             class... ValuesT>
   class futurize<ErroratedFutureT<ValuesT...>,
-                 std::void_t<typename ErroratedFutureT<ValuesT...>::errorator_t>> {
+                 std::void_t<typename ErroratedFutureT<ValuesT...>::errorator_type>> {
   public:
     using type = ::ceph::errorator<WrappedAllowedErrorsT...>::future<ValuesT...>;
 
