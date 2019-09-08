@@ -284,16 +284,6 @@ struct errorator {
     return std::forward<Arg>(arg).plainifyxxx();
   }
 
-  // the visitor that ignores any errors
-  struct forward_all {
-    template <_impl::ct_error ErrorV>
-    auto operator()(const unthrowable_wrapper<ErrorV>& e) {
-      static_assert((... || (e == WrappedAllowedErrorsT::instance)),
-                    "ignoring disallowed ct_error");
-      return ceph::make_error<std::decay_t<decltype(e)>>();
-    }
-  };
-
   template <class... ValuesT>
   static future<ValuesT...> its_error_free(seastar::future<ValuesT...>&& plain_future) {
     return future<ValuesT...>(std::move(plain_future));
