@@ -76,7 +76,10 @@ namespace _impl {
 // would like to `throw make_error<...>)()` instead of returning.
 // returning allows for the compile-time verification of future's
 // AllowedErrorsV and also avoid the burden of throwing.
-template <_impl::ct_error ErrorV> struct unthrowable_wrapper {
+template <_impl::ct_error ErrorV>
+struct unthrowable_wrapper {
+  using wrapped_type = decltype(ErrorV);
+
   unthrowable_wrapper(const unthrowable_wrapper&) = delete;
   static constexpr unthrowable_wrapper instance{};
   template <class T> friend const T& make_error();
@@ -88,7 +91,7 @@ template <_impl::ct_error ErrorV> struct unthrowable_wrapper {
   }
 
 private:
-  // can be used only for initialize the `instance` member
+  // can be used only to initialize the `instance` member
   explicit unthrowable_wrapper() = default;
 };
 
@@ -169,6 +172,20 @@ struct errorator {
                     "disallowed ct_error");
     }
 
+    template <class, class = std::void_t<>>
+    struct is_error {
+      static constexpr bool value = false;
+    };
+    template <class T>
+    struct is_error<T, std::void_t<typename T::wrapped_type>> {
+      // specialization for _impl::ct_error. it could be written in much
+      // simpler form – without void_t and is_same_v.
+      static constexpr bool value = \
+        std::is_same_v<typename T::wrapped_type, _impl::ct_error>;
+    };
+    template <class T>
+    static inline constexpr bool is_error_v = is_error<T>::value;
+
     using errorator_t = ::ceph::errorator<WrappedAllowedErrorsT...>;
 
     template <class T, class = std::void_t<>>
@@ -194,8 +211,7 @@ struct errorator {
                            ErrorVisitorRetsHeadT,
                            ErrorVisitorRetsTailT...> {
       using type = std::conditional_t<
-        //is_error_t<ErrorVisitorRetsHeadT>,
-        false,
+        is_error_v<ErrorVisitorRetsHeadT>,
         typename error_builder_t<errorator<ValueFuncWrappedAllowedErrorsT...,
                                            ErrorVisitorRetsHeadT>,
                                  ErrorVisitorRetsTailT...>::type,
