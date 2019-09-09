@@ -304,6 +304,11 @@ struct errorator {
     return future<ValuesT...>(std::move(plain_future));
   }
 
+  // derived errorators
+  template <class... NewWrappedAllowedErrorsT>
+  using extend = errorator<WrappedAllowedErrorsT...,
+                           NewWrappedAllowedErrorsT...>;
+
 private:
   struct ignore_marker_t{};
 
