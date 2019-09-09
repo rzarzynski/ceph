@@ -28,6 +28,8 @@ class PGBackend
 protected:
   using CollectionRef = boost::intrusive_ptr<ceph::os::Collection>;
   using ec_profile_t = std::map<std::string, std::string>;
+  // low-level read errorator
+  using ll_read_errorator = ceph::os::FuturizedStore::read_errorator;
 
 public:
   PGBackend(shard_id_t shard, CollectionRef coll, ceph::os::FuturizedStore* store);
@@ -41,6 +43,9 @@ public:
   using cached_os_t = boost::local_shared_ptr<ObjectState>;
   seastar::future<cached_os_t> get_object_state(const hobject_t& oid);
   seastar::future<> evict_object_state(const hobject_t& oid);
+
+  using read_errorator = \
+    ll_read_errorator::extend<ceph::ct_error::input_output_error>;
   seastar::future<bufferlist> read(const object_info_t& oi,
 				   uint64_t off,
 				   uint64_t len,
@@ -110,8 +115,6 @@ public:
   virtual void got_rep_op_reply(const MOSDRepOpReply&) {}
 
 protected:
-  // low-level read errorator
-  using ll_read_errorator = ceph::os::FuturizedStore::read_errorator;
   const shard_id_t shard;
   CollectionRef coll;
   ceph::os::FuturizedStore* store;

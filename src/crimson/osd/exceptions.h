@@ -68,7 +68,8 @@ namespace _impl {
   enum class ct_error {
     enoent,
     invarg,
-    enodata
+    enodata,
+    input_output_error
   };
 }
 
@@ -391,6 +392,7 @@ namespace ct_error {
   using enoent = unthrowable_wrapper<_impl::ct_error::enoent>;
   using enodata = unthrowable_wrapper<_impl::ct_error::enodata>;
   using invarg = unthrowable_wrapper<_impl::ct_error::invarg>;
+  using input_output_error = unthrowable_wrapper<_impl::ct_error::input_output_error>;
 }
 
 } // namespace ceph
