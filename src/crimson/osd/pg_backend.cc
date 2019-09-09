@@ -247,13 +247,13 @@ seastar::future<bufferlist> PGBackend::read(const object_info_t& oi,
     // read size was trimmed to zero and it is expected to do nothing,
     return seastar::make_ready_future<bufferlist>();
   }
-  return _read(oi.soid, offset, length, flags).then(
+  return _read(oi.soid, offset, length, flags).safe_then(
     [&oi](auto bl) {
       return _read_verify_data(oi, bl).then(
         [bl = std::move(bl)] {
           return seastar::make_ready_future<bufferlist>(std::move(bl));
         });
-    });
+    }, ll_read_errorator::throw_as_runtime_error{});
 }
 
 seastar::future<> PGBackend::_sparse_read_verify_hole(
@@ -267,14 +267,17 @@ seastar::future<> PGBackend::_sparse_read_verify_hole(
       maybe_hole_offset < offset) {
     const uint64_t hole_offset = maybe_hole_offset;
     const uint64_t hole_length = offset - hole_offset;
-    return _read(os.oi.soid, hole_offset, hole_length, osd_op.op.flags).then(
+    return _read(os.oi.soid,
+                 hole_offset,
+                 hole_length,
+                 osd_op.op.flags).safe_then(
       [&] (ceph::bufferlist hole_data) {
         if (!hole_data.is_zero()) {
           logger().error("{} {} sparse-read found data in hole {}~{}",
                          coll, os.oi.soid, hole_offset, hole_length);
           throw ceph::osd::input_output_error{};
         }
-      });
+      }, ll_read_errorator::throw_as_runtime_error{});
   }
   return seastar::now();
 }
@@ -291,14 +294,17 @@ seastar::future<> PGBackend::_sparse_read_verify_trailing_hole(
         maybe_hole_offset < end) {
       const auto hole_offset = maybe_hole_offset;
       const auto hole_length = end - hole_offset;
-      return _read(os.oi.soid, hole_offset, hole_length, osd_op.op.flags).then(
+      return _read(os.oi.soid,
+                   hole_offset,
+                   hole_length,
+                   osd_op.op.flags).safe_then(
         [&] (ceph::bufferlist hole_data) {
           if (!hole_data.is_zero()) {
             logger().error("{} {} sparse-read found data in hole {}~{}",
                            coll, os.oi.soid, hole_offset, hole_length);
             throw ceph::osd::input_output_error{};
           }
-        });
+        }, ll_read_errorator::throw_as_runtime_error{});
     }
   }
   return seastar::now();
@@ -333,7 +339,7 @@ seastar::future<> PGBackend::sparse_read(
           return seastar::do_for_each(destmap,
             [this, &ctx, &os, &osd_op](const auto& p) {
               const auto [ offset, length ] = p;
-              return _read(os.oi.soid, offset, length, osd_op.op.flags).then(
+              return _read(os.oi.soid, offset, length, osd_op.op.flags).safe_then(
                 [&] (ceph::bufferlist data) {
                   const auto real_length = \
                     std::min<uint64_t>(data.length(), length);
@@ -346,7 +352,7 @@ seastar::future<> PGBackend::sparse_read(
                                                   os,
                                                   maybe_hole_offset,
                                                   offset);
-                });
+                }, ll_read_errorator::throw_as_runtime_error{});
             }).then([&] {
               return _sparse_read_verify_trailing_hole(osd_op,
                                                        os,

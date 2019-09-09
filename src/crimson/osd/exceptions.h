@@ -268,6 +268,9 @@ struct errorator {
         })};
     }
 
+    template <class Func>
+    void then(Func&&) = delete;
+
     friend errorator<WrappedAllowedErrorsT...>;
     template<class>
     friend auto plainify(future<ValuesT...>&&);

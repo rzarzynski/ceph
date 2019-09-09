@@ -110,6 +110,8 @@ public:
   virtual void got_rep_op_reply(const MOSDRepOpReply&) {}
 
 protected:
+  // low-level read errorator
+  using ll_read_errorator = ceph::os::FuturizedStore::read_errorator;
   const shard_id_t shard;
   CollectionRef coll;
   ceph::os::FuturizedStore* store;
@@ -120,10 +122,12 @@ private:
   seastar::future<cached_ss_t> _load_ss(const hobject_t& oid);
   SharedLRU<hobject_t, ObjectState> os_cache;
   seastar::future<cached_os_t> _load_os(const hobject_t& oid);
-  virtual seastar::future<bufferlist> _read(const hobject_t& hoid,
-					    size_t offset,
-					    size_t length,
-					    uint32_t flags) = 0;
+
+  virtual ll_read_errorator::future<ceph::bufferlist> _read(
+    const hobject_t& hoid,
+    size_t offset,
+    size_t length,
+    uint32_t flags) = 0;
   seastar::future<> _sparse_read_verify_hole(
     const OSDOp& osd_op,
     const ObjectState& os,
