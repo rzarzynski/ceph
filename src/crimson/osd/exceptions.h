@@ -275,15 +275,6 @@ struct errorator {
     }
   };
 
-  template <class... Args>
-  static auto plainify(seastar::future<Args...>&& fut) {
-    return std::forward<seastar::future<Args...>>(fut);
-  }
-  template <class Arg>
-  static auto plainify(Arg&& arg) {
-    return std::forward<Arg>(arg).plainifyxxx();
-  }
-
   // the visitor that forwards handling of all errors to next continuation
   struct pass_further {
     template <_impl::ct_error ErrorV>
@@ -297,6 +288,16 @@ struct errorator {
   template <class... ValuesT>
   static future<ValuesT...> its_error_free(seastar::future<ValuesT...>&& plain_future) {
     return future<ValuesT...>(std::move(plain_future));
+  }
+
+private:
+  template <class... Args>
+  static auto plainify(seastar::future<Args...>&& fut) {
+    return std::forward<seastar::future<Args...>>(fut);
+  }
+  template <class Arg>
+  static auto plainify(Arg&& arg) {
+    return std::forward<Arg>(arg).plainifyxxx();
   }
 
   template <class...>
