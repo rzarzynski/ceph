@@ -48,7 +48,6 @@ struct errorator {
   template <class... ValuesT>
   class future : private seastar::future<ValuesT...> {
     using base_t = seastar::future<ValuesT...>;
-    using errorator_type = ceph::errorator<WrappedAllowedErrorsT...>;
 
     // TODO: let `exception` use other type than `ct_error`.
     template <_impl::ct_error V>
@@ -174,11 +173,26 @@ struct errorator {
 
     using base_t::base_t;
 
+  public:
+    using errorator_type = ceph::errorator<WrappedAllowedErrorsT...>;
+
     future(base_t&& base)
       : base_t(std::move(base)) {
     }
 
-  public:
+    template <template <class...> class ErroratedFuture,
+              class = std::void_t<
+                typename ErroratedFuture<ValuesT...>::errorator_type>>
+    operator ErroratedFuture<ValuesT...> () && {
+      using DestErrorator = \
+        typename ErroratedFuture<ValuesT...>::errorator_type;
+      using ThisErrorator = errorator<WrappedAllowedErrorsT...>;
+
+      static_assert(!DestErrorator::template is_less_errorated_v<ThisErrorator>,
+                    "conversion is possible to more-or-eq errorated future!");
+      return std::move(*this).as_plain_future();
+    }
+
     // initialize future as failed without throwing. `make_exception_future()`
     // internally uses `std::make_exception_ptr()`. cppreference.com shouldn't
     // be misinterpreted when it says:
@@ -297,6 +311,28 @@ struct errorator {
   template <class... NewWrappedAllowedErrorsT>
   using extend = errorator<WrappedAllowedErrorsT...,
                            NewWrappedAllowedErrorsT...>;
+
+  // comparing errorators
+  template <class ErrorT>
+  struct is_carried {
+    static constexpr bool value = \
+      ((WrappedAllowedErrorsT::instance == ErrorT::instance) || ...);
+  };
+  template <class ErrorT>
+  static constexpr bool is_carried_v = is_carried<ErrorT>::value;
+
+  template <class>
+  struct is_less_errorated {
+    // NOP.
+  };
+  template <class... OtherWrappedAllowedErrorsT>
+  struct is_less_errorated<errorator<OtherWrappedAllowedErrorsT...>> {
+    static constexpr bool value = \
+      ((!is_carried_v<OtherWrappedAllowedErrorsT>) || ...);
+  };
+  template <class OtherErrorator>
+  static constexpr bool is_less_errorated_v = \
+    is_less_errorated<OtherErrorator>::value;
 
 private:
   struct ignore_marker_t{};
