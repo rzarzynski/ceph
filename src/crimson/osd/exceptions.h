@@ -145,9 +145,11 @@ struct errorator {
         // added as well.
         if (type_info == typeid(exception<ErrorV>)) {
           result.ignore_ready_future();
-          result = std::forward<ErrorVisitorT>(errfunc)(e);
-        } else {
-          //std::cout << "not this ErrorV" << std::endl;
+          constexpr bool explicitly_discarded = std::is_invocable_r<
+            struct ignore_marker_t&&, ErrorVisitorT, decltype(e)>::value;
+          if constexpr (!explicitly_discarded) {
+            result = std::forward<ErrorVisitorT>(errfunc)(e);
+          }
         }
       }
 
@@ -285,12 +287,23 @@ struct errorator {
     }
   };
 
+  struct discard_all {
+    template <_impl::ct_error ErrorV>
+    auto operator()(const unthrowable_wrapper<ErrorV>& e) {
+      static_assert((... || (e == WrappedAllowedErrorsT::instance)),
+                    "discarding disallowed ct_error");
+      return ignore_marker_t{};
+    }
+  };
+
   template <class... ValuesT>
   static future<ValuesT...> its_error_free(seastar::future<ValuesT...>&& plain_future) {
     return future<ValuesT...>(std::move(plain_future));
   }
 
 private:
+  struct ignore_marker_t{};
+
   template <class... Args>
   static auto plainify(seastar::future<Args...>&& fut) {
     return std::forward<seastar::future<Args...>>(fut);
