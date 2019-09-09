@@ -197,29 +197,32 @@ std::vector<coll_t> CyanStore::list_collections()
   return collections;
 }
 
-seastar::future<ceph::bufferlist> CyanStore::read(CollectionRef c,
-                                            const ghobject_t& oid,
-                                            uint64_t offset,
-                                            size_t len,
-                                            uint32_t op_flags)
+CyanStore::read_errorator::future<ceph::bufferlist> CyanStore::read(
+  CollectionRef c,
+  const ghobject_t& oid,
+  uint64_t offset,
+  size_t len,
+  uint32_t op_flags)
 {
   logger().debug("{} {} {} {}~{}",
                 __func__, c->cid, oid, offset, len);
   if (!c->exists) {
-    throw std::runtime_error(fmt::format("collection does not exist: {}", c->cid));
+    return ceph::make_error<ceph::ct_error::enoent>();
   }
   ObjectRef o = c->get_object(oid);
   if (!o) {
-    throw std::runtime_error(fmt::format("object does not exist: {}", oid));
+    return ceph::make_error<ceph::ct_error::enoent>();
   }
   if (offset >= o->get_size())
-    return seastar::make_ready_future<ceph::bufferlist>();
+    return read_errorator::its_error_free(
+      seastar::make_ready_future<ceph::bufferlist>());
   size_t l = len;
   if (l == 0 && offset == 0)  // note: len == 0 means read the entire object
     l = o->get_size();
   else if (offset + l > o->get_size())
     l = o->get_size() - offset;
-  return seastar::make_ready_future<ceph::bufferlist>(o->read(offset, l));
+  return read_errorator::its_error_free(
+    seastar::make_ready_future<ceph::bufferlist>(o->read(offset, l)));
 }
 
 ceph::errorator<ceph::ct_error::enoent,

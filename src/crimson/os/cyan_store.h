@@ -52,11 +52,12 @@ public:
 
   store_statfs_t stat() const final;
 
-  seastar::future<ceph::bufferlist> read(CollectionRef c,
-				   const ghobject_t& oid,
-				   uint64_t offset,
-				   size_t len,
-				   uint32_t op_flags = 0) final;
+  read_errorator::future<ceph::bufferlist> read(
+    CollectionRef c,
+    const ghobject_t& oid,
+    uint64_t offset,
+    size_t len,
+    uint32_t op_flags = 0) final;
   virtual ceph::errorator<ceph::ct_error::enoent,
                           ceph::ct_error::enodata>::future<ceph::bufferptr>
   get_attr(CollectionRef c,
