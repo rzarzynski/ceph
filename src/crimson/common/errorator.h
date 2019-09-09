@@ -292,6 +292,11 @@ struct errorator {
     }
   };
 
+  // get a new errorator by extending current one with new error
+  template <class... NewWrappedAllowedErrorsT>
+  using extend = errorator<WrappedAllowedErrorsT...,
+                           NewWrappedAllowedErrorsT...>;
+
 private:
   struct ignore_marker_t{};
 
