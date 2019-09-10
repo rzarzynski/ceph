@@ -208,7 +208,9 @@ PGBackend::evict_object_state(const hobject_t& oid)
   return seastar::now();
 }
 
-static inline seastar::future<> _read_verify_data(
+using verify_data_errorator = \
+  ceph::errorator<ceph::ct_error::object_corrupted>;
+static inline verify_data_errorator::future<> _read_verify_data(
   const object_info_t& oi,
   const ceph::bufferlist& data)
 {
@@ -218,18 +220,19 @@ static inline seastar::future<> _read_verify_data(
       logger().error("full-object read crc {} != expected {} on {}",
                      crc, oi.data_digest, oi.soid);
       // todo: mark soid missing, perform recovery, and retry
-      throw ceph::osd::object_corrupted{};
+      return ceph::make_error<ceph::ct_error::object_corrupted>();
     }
   }
-  return seastar::now();
+  return verify_data_errorator::its_error_free(seastar::now());
 }
 
-seastar::future<bufferlist> PGBackend::read(const object_info_t& oi,
-                                            size_t offset,
-                                            size_t length,
-                                            size_t truncate_size,
-                                            uint32_t truncate_seq,
-                                            uint32_t flags)
+PGBackend::read_errorator::future<ceph::bufferlist>
+PGBackend::read(const object_info_t& oi,
+                const size_t offset,
+                size_t length,
+                const size_t truncate_size,
+                const uint32_t truncate_seq,
+                const uint32_t flags)
 {
   logger().trace("read: {} {}~{}", oi.soid, offset, length);
   // are we beyond truncate_size?
@@ -245,15 +248,16 @@ seastar::future<bufferlist> PGBackend::read(const object_info_t& oi,
   }
   if (offset >= size) {
     // read size was trimmed to zero and it is expected to do nothing,
-    return seastar::make_ready_future<bufferlist>();
+    return read_errorator::its_error_free(
+      seastar::make_ready_future<bufferlist>());
   }
   return _read(oi.soid, offset, length, flags).safe_then(
     [&oi](auto bl) {
-      return _read_verify_data(oi, bl).then(
+      return _read_verify_data(oi, bl).safe_then(
         [bl = std::move(bl)] {
           return seastar::make_ready_future<bufferlist>(std::move(bl));
-        });
-    }, ll_read_errorator::throw_as_runtime_error{});
+        }, verify_data_errorator::pass_further{});
+    }, ll_read_errorator::pass_further{});
 }
 
 seastar::future<> PGBackend::_sparse_read_verify_hole(
@@ -363,7 +367,9 @@ seastar::future<> PGBackend::sparse_read(
               // objects. With continued use, more and more whole object
               // exist. So from this point, for spare-read add  checksum
               // makes sense.
-              return _read_verify_data(os.oi, ctx.resdata);
+              return _read_verify_data(os.oi, ctx.resdata).safe_then(
+                [] { return seastar::now(); },
+                verify_data_errorator::discard_all{});
             }).then([&ctx, &os, &osd_op] {
               logger().debug("sparse_read got {} bytes from object {}",
                              ctx.resdata.length(), os.oi.soid);
