@@ -130,6 +130,8 @@ struct errorator {
 
       template <_impl::ct_error ErrorV>
       void operator()(const unthrowable_wrapper<ErrorV>& e) {
+        static_assert(std::is_invocable<ErrorVisitorT, decltype(e)>::value,
+                      "provided Error Visitor is not exhaustive");
         // Throwing an exception isn't the sole way to signalize an error
         // with it. This approach nicely fits cold, infrequent issues but
         // when applied to a hot one (like ENOENT on write path), it will
@@ -249,6 +251,11 @@ struct errorator {
 
     template <class ValueFuncT, class ErrorVisitorT>
     auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
+      static_assert((... && std::is_invocable_v<
+                      ErrorVisitorT,
+                      decltype(WrappedAllowedErrorsT::instance)>),
+                    "provided Error Visitor is not exhaustive");
+
       using ValueFuncResult = std::result_of_t<ValueFuncT(ValuesT&&...)>;
       // recognize whether there can be any error coming from the Value
       // Function.
