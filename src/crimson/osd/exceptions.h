@@ -349,6 +349,8 @@ struct errorator {
 
 private:
   struct ignore_marker_t{};
+  template <class... ValueT>
+  friend class future;
 
   template <class... Args>
   static auto plainify(seastar::future<Args...>&& fut) {
