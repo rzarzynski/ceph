@@ -158,6 +158,8 @@ struct errorator {
         return std::move(result);
       }
     };
+    template <class ErrorVisitor, class Futurator>
+    friend class maybe_handle_error_t;
 
     template <class, class = std::void_t<>>
     struct is_error {
