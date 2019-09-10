@@ -299,7 +299,7 @@ struct errorator {
   // the visitor that forwards handling of all errors to next continuation
   struct pass_further {
     template <_impl::ct_error ErrorV>
-    auto operator()(const unthrowable_wrapper<ErrorV>& e) {
+    const auto& operator()(const unthrowable_wrapper<ErrorV>& e) {
       static_assert((... || (e == WrappedAllowedErrorsT::instance)),
                     "passing further disallowed ct_error");
       return ceph::make_error<std::decay_t<decltype(e)>>();
