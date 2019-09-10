@@ -257,8 +257,8 @@ struct errorator {
       // to next continuation.
       using ReturnErrorator = make_errorator_t<
         ValueFuncErrorator,
-        std::result_of_t<
-          ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>...>;
+        std::decay_t<std::result_of_t<
+          ErrorVisitorT(decltype(WrappedAllowedErrorsT::instance))>>...>;
       // OK, now we know about all errors next continuation must take
       // care about. If Visitor handled everything and the Value Func
       // doesn't return any, we'll finish with errorator<>::future
