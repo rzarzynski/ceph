@@ -100,7 +100,7 @@ public:
   }
 };
 
-template <class... WrappedAllowedErrorsT>
+template <class... AllowedErrors>
 struct errorator {
   template <class... ValuesT>
   class future : private seastar::future<ValuesT...> {
@@ -144,24 +144,24 @@ struct errorator {
     struct make_errorator {
       // NOP. The generic template.
     };
-    template <class... ValueFuncWrappedAllowedErrorsT,
+    template <class... ValueFuncAllowedErrors,
               class    ErrorVisitorRetsHeadT,
               class... ErrorVisitorRetsTailT>
-    struct make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...>,
+    struct make_errorator<errorator<ValueFuncAllowedErrors...>,
                           ErrorVisitorRetsHeadT,
                           ErrorVisitorRetsTailT...> {
       using type = std::conditional_t<
         is_error_v<ErrorVisitorRetsHeadT>,
-        typename make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...,
+        typename make_errorator<errorator<ValueFuncAllowedErrors...,
                                           ErrorVisitorRetsHeadT>,
                                 ErrorVisitorRetsTailT...>::type,
-        typename make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...>,
+        typename make_errorator<errorator<ValueFuncAllowedErrors...>,
                                 ErrorVisitorRetsTailT...>::type>;
     };
     // finish the recursion
-    template <class... ValueFuncWrappedAllowedErrorsT>
-    struct make_errorator<errorator<ValueFuncWrappedAllowedErrorsT...>> {
-      using type = ::ceph::errorator<ValueFuncWrappedAllowedErrorsT...>;
+    template <class... ValueFuncAllowedErrors>
+    struct make_errorator<errorator<ValueFuncAllowedErrors...>> {
+      using type = ::ceph::errorator<ValueFuncAllowedErrors...>;
     };
     template <class... Args>
     using make_errorator_t = typename make_errorator<Args...>::type;
@@ -169,7 +169,7 @@ struct errorator {
     using base_t::base_t;
 
   public:
-    using errorator_type = ceph::errorator<WrappedAllowedErrorsT...>;
+    using errorator_type = ceph::errorator<AllowedErrors...>;
 
     future(base_t&& base)
       : base_t(std::move(base)) {
@@ -181,7 +181,7 @@ struct errorator {
     operator ErroratedFuture<ValuesT...> () && {
       using DestErrorator = \
         typename ErroratedFuture<ValuesT...>::errorator_type;
-      using ThisErrorator = errorator<WrappedAllowedErrorsT...>;
+      using ThisErrorator = errorator<AllowedErrors...>;
 
       static_assert(!DestErrorator::template is_less_errorated_v<ThisErrorator>,
                     "conversion is possible to more-or-eq errorated future!");
@@ -214,19 +214,21 @@ struct errorator {
     // TODO: we don't really need to `make_exception_ptr` each time. It still
     // allocates memory underneath while can be replaced with single instance
     // per type created on start-up.
-    template <_impl::ct_error ErrorV>
-    future(const unthrowable_wrapper<ErrorV>& e)
-      : base_t(seastar::make_exception_future<ValuesT...>(exception<std::decay_t<decltype(e)>>{})) {
-      // this is `fold expression` of C++17
-      static_assert((... || (std::is_same_v<std::decay_t<decltype(e)>,
-                                            WrappedAllowedErrorsT>)),
-                    "disallowed ct_error");
+    template <class ErrorT,
+              class DecayedT = std::decay_t<ErrorT>,
+              bool IsError = is_error_v<DecayedT>,
+              class = std::enable_if_t<IsError>>
+    future(ErrorT&&)
+      : base_t(seastar::make_exception_future<ValuesT...>(exception<DecayedT>{})) {
+      // this is `fold expression` of C++17.
+      static_assert((... || (std::is_same_v<DecayedT, AllowedErrors>)),
+                    "ErrorT is not enlisted in errorator");
     }
 
     template <class ValueFuncT, class ErrorVisitorT>
     auto safe_then(ValueFuncT&& valfunc, ErrorVisitorT&& errfunc) {
       static_assert((... && std::is_invocable_v<ErrorVisitorT,
-                                                WrappedAllowedErrorsT>),
+                                                AllowedErrors>),
                     "provided Error Visitor is not exhaustive");
 
       using ValueFuncResult = std::result_of_t<ValueFuncT(ValuesT&&...)>;
@@ -239,8 +241,7 @@ struct errorator {
       // to next continuation.
       using ReturnErrorator = make_errorator_t<
         ValueFuncErrorator,
-        std::decay_t<std::result_of_t<
-          ErrorVisitorT(WrappedAllowedErrorsT)>>...>;
+        std::decay_t<std::result_of_t<ErrorVisitorT(AllowedErrors)>>...>;
       // OK, now we know about all errors next continuation must take
       // care about. If Visitor handled everything and the Value Func
       // doesn't return any, we'll finish with errorator<>::future
@@ -264,7 +265,7 @@ struct errorator {
               std::forward<ErrorVisitorT>(errfunc),
               std::move(future).get_exception()
             );
-            (maybe_handle_error.template handle<WrappedAllowedErrorsT>() , ...);
+            (maybe_handle_error.template handle<AllowedErrors>() , ...);
             return plainify(std::move(maybe_handle_error).get_result());
           } else {
             return plainify(Futurator::apply(std::forward<ValueFuncT>(valfunc),
@@ -280,7 +281,7 @@ struct errorator {
   private:
     // for the sake of `plainify()` let any errorator convert errorated
     // future into plain one.
-    template <class... AnyWrappedAllowedErrorsT>
+    template <class...>
     friend class errorator;
 
     base_t&& as_plain_future() && {
@@ -293,7 +294,7 @@ struct errorator {
     template <class ErrorT>
     decltype(auto) operator()(ErrorT&& e) {
       using DecayedT = std::decay_t<ErrorT>;
-      static_assert((... || std::is_same_v<WrappedAllowedErrorsT, DecayedT>),
+      static_assert((... || std::is_same_v<AllowedErrors, DecayedT>),
                     "passing further disallowed ErrorT");
       return std::forward<ErrorT>(e);
     }
@@ -302,7 +303,7 @@ struct errorator {
   struct discard_all {
     template <class ErrorT>
     decltype(auto) operator()(ErrorT&&) {
-      static_assert((... || std::is_same_v<WrappedAllowedErrorsT,
+      static_assert((... || std::is_same_v<AllowedErrors,
                                            std::decay_t<ErrorT>>),
                     "discarding disallowed ErrorT");
       return ignore_marker_t{};
@@ -310,15 +311,14 @@ struct errorator {
   };
 
   // get a new errorator by extending current one with new error
-  template <class... NewWrappedAllowedErrorsT>
-  using extend = errorator<WrappedAllowedErrorsT...,
-                           NewWrappedAllowedErrorsT...>;
+  template <class... NewAllowedErrorsT>
+  using extend = errorator<AllowedErrors..., NewAllowedErrorsT...>;
 
   // comparing errorators
   template <class ErrorT>
   struct is_carried {
     static constexpr bool value = \
-      ((std::is_same_v<WrappedAllowedErrorsT, ErrorT>) || ...);
+      ((std::is_same_v<AllowedErrors, ErrorT>) || ...);
   };
   template <class ErrorT>
   static constexpr bool is_carried_v = is_carried<ErrorT>::value;
@@ -327,10 +327,10 @@ struct errorator {
   struct is_less_errorated {
     // NOP.
   };
-  template <class... OtherWrappedAllowedErrorsT>
-  struct is_less_errorated<errorator<OtherWrappedAllowedErrorsT...>> {
+  template <class... OtherAllowedErrors>
+  struct is_less_errorated<errorator<OtherAllowedErrors...>> {
     static constexpr bool value = \
-      ((!is_carried_v<OtherWrappedAllowedErrorsT>) || ...);
+      ((!is_carried_v<OtherAllowedErrors>) || ...);
   };
   template <class OtherErrorator>
   static constexpr bool is_less_errorated_v = \
@@ -378,7 +378,7 @@ private:
                  std::void_t<
                    typename ErroratedFutureT<ValuesT...>::errorator_type>> {
   public:
-    using type = ::ceph::errorator<WrappedAllowedErrorsT...>::future<ValuesT...>;
+    using type = ::ceph::errorator<AllowedErrors...>::future<ValuesT...>;
 
     template <class Func, class... Args>
     static type apply(Func&& func, std::tuple<Args...>&& args) {
