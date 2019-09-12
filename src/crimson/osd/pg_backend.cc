@@ -220,7 +220,7 @@ static inline verify_data_errorator::future<> _read_verify_data(
       logger().error("full-object read crc {} != expected {} on {}",
                      crc, oi.data_digest, oi.soid);
       // todo: mark soid missing, perform recovery, and retry
-      return ceph::make_error<ceph::ct_error::object_corrupted>();
+      return ceph::ct_error::object_corrupted::make();
     }
   }
   return seastar::now();
