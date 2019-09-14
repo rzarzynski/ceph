@@ -45,9 +45,13 @@ public:
 				   uint64_t offset,
 				   size_t len,
 				   uint32_t op_flags = 0) = 0;
-  virtual ceph::errorator<ceph::ct_error::enoent,
-                          ceph::ct_error::enodata>::future<ceph::bufferptr>
-  get_attr(CollectionRef c, const ghobject_t& oid, std::string_view name) const = 0;
+  using get_attr_errorator = ceph::errorator<
+    ceph::ct_error::enoent,
+    ceph::ct_error::enodata>;
+  virtual get_attr_errorator::future<ceph::bufferptr> get_attr(
+    CollectionRef c,
+    const ghobject_t& oid,
+    std::string_view name) const = 0;
 
   using attrs_t = std::map<std::string, ceph::bufferptr, std::less<>>;
   virtual seastar::future<attrs_t> get_attrs(CollectionRef c,
