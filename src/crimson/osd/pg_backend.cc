@@ -123,13 +123,8 @@ PGBackend::_load_os(const hobject_t& oid)
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{bl}, true /* exists */)));
-    },
-    ceph::ct_error::enoent::handle([oid, this] {
-      return seastar::make_ready_future<cached_os_t>(
-        os_cache.insert(oid,
-          std::make_unique<ObjectState>(object_info_t{oid}, false)));
-    }),
-    ceph::ct_error::enodata::handle([oid, this] {
+    }, ceph::errorator<ceph::ct_error::enoent,
+                       ceph::ct_error::enodata>::all_same_way([oid, this] {
       return seastar::make_ready_future<cached_os_t>(
         os_cache.insert(oid,
           std::make_unique<ObjectState>(object_info_t{oid}, false)));
@@ -152,17 +147,15 @@ PGBackend::_load_ss(const hobject_t& oid)
       bl.push_back(std::move(bp));
       return seastar::make_ready_future<cached_ss_t>(
         ss_cache.insert(oid, std::make_unique<SnapSet>(bl)));
-    },
-    [oid, this] (const auto& e) {
-      using T = std::decay_t<decltype(e)>;
-      if constexpr (std::is_same_v<T, ceph::ct_error::enoent> ||
-                    std::is_same_v<T, ceph::ct_error::enodata>) {
-        return seastar::make_ready_future<cached_ss_t>(
-          ss_cache.insert(oid, std::make_unique<SnapSet>()));
-      } else {
-        static_assert(always_false<T>::value, "non-exhaustive visitor!");
-      }
-    });
+    }, ceph::errorator<ceph::ct_error::enoent,
+                       ceph::ct_error::enodata>::all_same_way([oid, this] {
+      // NOTE: the errors could have been handled by writing just:
+      //   `get_attr_errorator::all_same_way(...)`.
+      // however, this way is more explicit and resilient to unexpected
+      // changes in the alias definition.
+      return seastar::make_ready_future<cached_ss_t>(
+        ss_cache.insert(oid, std::make_unique<SnapSet>()));
+    }));
 }
 
 seastar::future<ceph::osd::acked_peers_t>
