@@ -65,7 +65,13 @@ class OpsExecuter {
   template <class Context, class MainFunc, class EffectFunc>
   auto with_effect(Context&& ctx, MainFunc&& main_func, EffectFunc&& effect_func);
 
-  using call_errorator = ceph::errorator<ceph::stateful_errint>;
+  using call_errorator = ceph::errorator<
+    ceph::stateful_errint,
+    ceph::ct_error::enoent,
+    ceph::ct_error::invarg,
+    ceph::ct_error::permission_denied,
+    ceph::ct_error::operation_not_supported,
+    ceph::ct_error::input_output_error>;
   call_errorator::future<> do_op_call(class OSDOp& osd_op);
 
   template <class Func>
