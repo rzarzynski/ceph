@@ -104,7 +104,6 @@ PG::PG(
       pg_shard,
       pgid,
       PGPool(
-	shard_services.get_cct(),
 	osdmap,
 	pgid.pool(),
 	pool,
