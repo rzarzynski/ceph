@@ -66,7 +66,7 @@ class OpsExecuter {
   auto with_effect(Context&& ctx, MainFunc&& main_func, EffectFunc&& effect_func);
 
   using call_errorator = ceph::errorator<
-    ceph::stateful_errint,
+    ceph::stateful_ec,
     ceph::ct_error::enoent,
     ceph::ct_error::invarg,
     ceph::ct_error::permission_denied,
