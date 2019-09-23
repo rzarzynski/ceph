@@ -354,7 +354,7 @@ static seastar::future<> do_pgnls_filtered(
   });
 }
 
-seastar::future<>
+OpsExecuter::osd_op_errorator::future<>
 OpsExecuter::execute_osd_op(OSDOp& osd_op)
 {
   // TODO: dispatch via call table?
@@ -376,20 +376,7 @@ OpsExecuter::execute_osd_op(OSDOp& osd_op)
           osd_op.rval = bl.length();
           osd_op.outdata = std::move(bl);
           return seastar::now();
-        },
-        // TODO: move this error handling do PG::do_osd_ops().
-        ceph::ct_error::input_output_error::handle([] {
-          throw ceph::osd::input_output_error{};
-        }),
-        ceph::ct_error::object_corrupted::handle([] {
-          throw ceph::osd::object_corrupted{};
-        }),
-        ceph::ct_error::enoent::handle([] {
-          throw ceph::osd::object_not_found{};
-        }),
-        ceph::ct_error::enodata::handle([] {
-          throw ceph::osd::no_message_available{};
-        }));
+        }, read_errorator::pass_further{});
     });
   case CEPH_OSD_OP_GETXATTR:
     return do_read_op([&osd_op] (auto& backend, const auto& os) {
@@ -418,13 +405,7 @@ OpsExecuter::execute_osd_op(OSDOp& osd_op)
       return backend.remove(os, txn);
     });
   case CEPH_OSD_OP_CALL:
-    return this->do_op_call(osd_op).safe_then(
-      [] {
-        return seastar::now();
-      }, call_errorator::all_same_way([] (const std::error_code& err) {
-        assert(err.value() > 0);
-        throw ceph::osd::make_error(err.value());
-      }));
+    return this->do_op_call(osd_op);
   case CEPH_OSD_OP_STAT:
     // note: stat does not require RD
     return do_const_op([&osd_op] (/* const */auto& backend, const auto& os) {
