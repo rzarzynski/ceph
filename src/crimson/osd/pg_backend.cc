@@ -478,7 +478,7 @@ seastar::future<> PGBackend::setxattr(
   //ctx->delta_stats.num_wr++;
 }
 
-seastar::future<> PGBackend::getxattr(
+PGBackend::get_attr_errorator::future<> PGBackend::getxattr(
   const ObjectState& os,
   OSDOp& osd_op) const
 {
@@ -497,11 +497,7 @@ seastar::future<> PGBackend::getxattr(
     osd_op.op.xattr.value_len = osd_op.outdata.length();
     return seastar::now();
     //ctx->delta_stats.num_rd_kb += shift_round_up(osd_op.outdata.length(), 10);
-  }, ceph::ct_error::enoent::handle([] {
-    return seastar::make_exception_future<>(ceph::osd::object_not_found{});
-  }), ceph::ct_error::enodata::handle([] {
-    return seastar::make_exception_future<>(ceph::osd::no_message_available{});
-  }));
+  }, get_attr_errorator::pass_further{});
   //ctx->delta_stats.num_rd++;
 }
 
