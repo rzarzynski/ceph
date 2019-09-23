@@ -4,8 +4,37 @@
 #pragma once
 
 #include <exception>
+#include <seastar/core/future-util.hh>
 
 namespace ceph {
+
+template<class Container, class AsyncAction>
+static inline auto do_for_each(Container& c, AsyncAction action) {
+  using ActionItem = typename Container::value_type;
+  using ActionReturn = std::result_of_t<AsyncAction(ActionItem&)>;
+  using Errorator = typename ActionReturn::errorator_type;
+  using Futurator = typename Errorator::template futurize<ActionReturn>;
+  return typename Futurator::type {
+    seastar::do_for_each(std::begin(c), std::end(c),
+      [action = std::move(action)] (auto& item) -> seastar::future<> {
+        return Errorator::plainify(action(item));
+      })
+  };
+}
+
+template<typename T, typename F>
+static inline auto do_with(T&& rvalue, F&& f) {
+  //using FuncReturn = std::result_of_t<F(T&)>;
+  using FuncReturn = decltype(std::move(f)(rvalue));
+  using Errorator = typename FuncReturn::errorator_type;
+  using Futurator = typename Errorator::template futurize<FuncReturn>;
+  return typename Futurator::type {
+    seastar::do_with(std::move(rvalue),
+      [f = std::move(f)] (T& moved_rvalue) mutable {
+        return Errorator::plainify(std::move(f)(moved_rvalue));
+      })
+  };
+}
 
 // define the interface between error types and errorator
 template <class ConcreteErrorT>
@@ -613,6 +642,12 @@ private:
   //  * conversion to `std::exception_ptr` in `future::future(ErrorT&&)`.
   template <class... ValueT>
   friend class future;
+
+  template<class Container, class AsyncAction>
+  friend inline auto ::ceph::do_for_each(Container&, AsyncAction);
+
+  template<typename T, typename F>
+  friend inline auto do_with(T&&, F&&);
 }; // class errorator, generic template
 
 // no errors? errorator<>::future is plain seastar::future then!

@@ -358,18 +358,12 @@ seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(Ref<MOSDOp> m)
   const auto oid = m->get_snapid() == CEPH_SNAPDIR ? m->get_hobj().get_head()
                                                    : m->get_hobj();
   return backend->get_object_state(oid).then([this, m](auto os) mutable {
-    return seastar::do_with(OpsExecuter{std::move(os), *this/* as const& */, m},
-                            [this, m] (auto& ox) {
-      return seastar::do_for_each(m->ops, [this, &ox](OSDOp& osd_op) {
+    return ceph::do_with(OpsExecuter{std::move(os), *this/* as const& */, m},
+                         [this, m] (auto& ox) {
+      return ceph::do_for_each(m->ops, [this, &ox](OSDOp& osd_op) {
         logger().debug("will be handling op {}", ceph_osd_op_name(osd_op.op.op));
-        return ox.execute_osd_op(osd_op).safe_then(
-          [] {
-            return seastar::now();
-          }, OpsExecuter::osd_op_errorator::all_same_way([] (const std::error_code& err) {
-            assert(err.value() > 0);
-            throw ceph::osd::make_error(err.value());
-          }));
-      }).then([this, m, &ox] {
+        return ox.execute_osd_op(osd_op);
+      }).safe_then([this, m, &ox] {
         logger().debug("all operations have been executed successfully");
         return std::move(ox).submit_changes([this, m] (auto&& txn, auto&& os) {
           // XXX: the entire lambda could be scheduled conditionally. ::if_then()?
@@ -380,13 +374,16 @@ seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(Ref<MOSDOp> m)
 	    return submit_transaction(std::move(os), std::move(txn), *m);
 	  }
         });
-      });
-    });
-  }).then([m,this] {
-    auto reply = make_message<MOSDOpReply>(m.get(), 0, get_osdmap_epoch(),
-                                           0, false);
-    reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
-    return seastar::make_ready_future<Ref<MOSDOpReply>>(std::move(reply));
+      }, OpsExecuter::osd_op_errorator::pass_further{});
+    }).safe_then([m,this] {
+      auto reply = make_message<MOSDOpReply>(m.get(), 0, get_osdmap_epoch(),
+                                             0, false);
+      reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
+      return seastar::make_ready_future<Ref<MOSDOpReply>>(std::move(reply));
+    }, OpsExecuter::osd_op_errorator::all_same_way([] (const std::error_code& err) {
+      assert(err.value() > 0);
+      throw ceph::osd::make_error(err.value());
+    }));
   }).handle_exception_type([=,&oid](const ceph::osd::error& e) {
     logger().debug("got ceph::osd::error while handling object {}: {} ({})",
                    oid, e.code(), e.what());
