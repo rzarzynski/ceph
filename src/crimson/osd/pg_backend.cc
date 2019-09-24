@@ -252,7 +252,7 @@ PGBackend::read(const object_info_t& oi,
     });
 }
 
-seastar::future<> PGBackend::stat(
+PGBackend::stat_errorator::future<> PGBackend::stat(
   const ObjectState& os,
   OSDOp& osd_op)
 {
@@ -262,7 +262,7 @@ seastar::future<> PGBackend::stat(
     encode(os.oi.mtime, osd_op.outdata);
   } else {
     logger().debug("stat object does not exist");
-    throw ceph::osd::object_not_found{};
+    return ceph::ct_error::enoent::make();
   }
   return seastar::now();
   // TODO: ctx->delta_stats.num_rd++;
