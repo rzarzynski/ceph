@@ -248,20 +248,8 @@ PGBackend::read(const object_info_t& oi,
       return _read_verify_data(oi, bl).safe_then(
         [bl = std::move(bl)] {
           return seastar::make_ready_future<bufferlist>(std::move(bl));
-        }, verify_data_errorator::pass_further{});
-    }, ll_read_errorator::pass_further{});
-    // NOTE: passing further errors from the errorated future we got from
-    // the call to `.safe_then()` would require `read_errorator` which is
-    // basically `verify_data_errorator` + `ll_read_errorator`. Example:
-    //
-    //   return _read(/* ... */).safe_then(/* ... */)
-    //   .safe_then(
-    //     [] (auto&& bl) {
-    //       return std::move(bl);
-    //     }, read_errorator::pass_further{});
-    //
-    // using weaker errorator (like `ll_read_errorator`) would lead to
-    // statical assertion failure because of being non-exhaustive.
+        });
+    });
 }
 
 seastar::future<> PGBackend::stat(
@@ -497,7 +485,7 @@ PGBackend::get_attr_errorator::future<> PGBackend::getxattr(
     osd_op.op.xattr.value_len = osd_op.outdata.length();
     return seastar::now();
     //ctx->delta_stats.num_rd_kb += shift_round_up(osd_op.outdata.length(), 10);
-  }, get_attr_errorator::pass_further{});
+  });
   //ctx->delta_stats.num_rd++;
 }
 

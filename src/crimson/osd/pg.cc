@@ -374,15 +374,14 @@ seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(Ref<MOSDOp> m)
 	    return submit_transaction(std::move(os), std::move(txn), *m);
 	  }
         });
-      }, OpsExecuter::osd_op_errorator::pass_further{});
+      });
     }).safe_then([m,this] {
       auto reply = make_message<MOSDOpReply>(m.get(), 0, get_osdmap_epoch(),
                                              0, false);
       reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
       return seastar::make_ready_future<Ref<MOSDOpReply>>(std::move(reply));
-    }, OpsExecuter::osd_op_errorator::pass_further{});
-  }, PGBackend::get_os_errorator::pass_further{})
-  .safe_then([] (auto&& m) {
+    });
+  }).safe_then([] (auto&& m) {
     return seastar::make_ready_future<Ref<MOSDOpReply>>(std::move(m));
   }, OpsExecuter::osd_op_errorator::all_same_way([=,&oid] (const std::error_code& e) {
     assert(e.value() > 0);
