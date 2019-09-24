@@ -57,7 +57,7 @@ PGBackend::PGBackend(shard_id_t shard,
     store{store}
 {}
 
-seastar::future<PGBackend::cached_os_t>
+PGBackend::get_os_errorator::future<PGBackend::cached_os_t>
 PGBackend::get_object_state(const hobject_t& oid)
 {
   // want the head?
@@ -75,8 +75,8 @@ PGBackend::get_object_state(const hobject_t& oid)
         auto clone = std::upper_bound(begin(ss->clones), end(ss->clones),
                                       oid.snap);
         if (clone == end(ss->clones)) {
-          return seastar::make_exception_future<PGBackend::cached_os_t>(
-            ceph::osd::object_not_found{});
+          return get_os_errorator::make_plain_exception_future<cached_os_t>(
+            ceph::ct_error::enoent::make());
         }
         // clone
         auto soid = oid;
@@ -86,16 +86,16 @@ PGBackend::get_object_state(const hobject_t& oid)
           assert(clone_snap != end(ss->clone_snaps));
           if (clone_snap->second.empty()) {
             logger().trace("find_object: {}@[] -- DNE", soid);
-            return seastar::make_exception_future<PGBackend::cached_os_t>(
-              ceph::osd::object_not_found{});
+            return get_os_errorator::make_plain_exception_future<cached_os_t>(
+              ceph::ct_error::enoent::make());
           }
           auto first = clone_snap->second.back();
           auto last = clone_snap->second.front();
           if (first > soid.snap) {
             logger().trace("find_object: {}@[{},{}] -- DNE",
                            soid, first, last);
-            return seastar::make_exception_future<PGBackend::cached_os_t>(
-              ceph::osd::object_not_found{});
+            return get_os_errorator::make_plain_exception_future<cached_os_t>(
+              ceph::ct_error::enoent::make());
           }
           logger().trace("find_object: {}@[{},{}] -- HIT",
                          soid, first, last);
