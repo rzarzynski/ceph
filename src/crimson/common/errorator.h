@@ -345,6 +345,18 @@ private:
 
     using base_t::base_t;
 
+    template <class Futurator, class ErrorVisitor>
+    [[gnu::noinline]]
+    static auto _safe_then_handle_errors(auto&& future,
+                                         ErrorVisitor&& errfunc) {
+      maybe_handle_error_t<ErrorVisitor, Futurator> maybe_handle_error(
+        std::forward<ErrorVisitor>(errfunc),
+        std::move(future).get_exception()
+      );
+      (maybe_handle_error.template handle<AllowedErrors>() , ...);
+      return std::move(maybe_handle_error).get_result();
+    }
+
   public:
     using errorator_type = ceph::errorator<AllowedErrors...>;
 
@@ -441,12 +453,8 @@ private:
           errfunc = std::forward<ErrorVisitorT>(errfunc)
         ] (auto&& future) mutable [[gnu::always_inline]] noexcept {
           if (__builtin_expect(future.failed(), false)) {
-            maybe_handle_error_t<ErrorVisitorT, Futurator> maybe_handle_error(
-              std::forward<ErrorVisitorT>(errfunc),
-              std::move(future).get_exception()
-            );
-            (maybe_handle_error.template handle<AllowedErrors>() , ...);
-            return std::move(maybe_handle_error).get_result();
+            return _safe_then_handle_errors<Futurator>(
+              std::move(future), std::forward<ErrorVisitorT>(errfunc));
           } else {
             // NOTE: using `seastar::future::get()` here is a bit bloaty
             // as the method rechecks availability of future's value and,
