@@ -66,7 +66,7 @@ PGBackend::get_object_state(const hobject_t& oid)
     return _load_os(oid);
   } else {
     // we want a snap
-    return get_os_errorator::errorize{_load_ss(oid)}.then(
+    return _load_ss(oid).then(
       [oid,this](cached_ss_t ss) -> get_os_errorator::future<cached_os_t> {
         // head?
         if (oid.snap > ss->seq) {
@@ -81,7 +81,7 @@ PGBackend::get_object_state(const hobject_t& oid)
           // clone
           auto soid = oid;
           soid.snap = *clone;
-          return get_os_errorator::errorize{_load_ss(soid)}.then(
+          return _load_ss(soid).then(
             [soid,this](cached_ss_t ss) -> get_os_errorator::future<cached_os_t> {
               auto clone_snap = ss->clone_snaps.find(soid.snap);
               assert(clone_snap != end(ss->clone_snaps));
