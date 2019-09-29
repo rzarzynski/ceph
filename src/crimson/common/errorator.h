@@ -352,7 +352,7 @@ struct errorator {
         typename ErroratedFuture<ValuesT...>::errorator_type;
       static_assert(DestErrorator::template contains_once_v<errorator_type>,
                     "conversion is possible to more-or-eq errorated future!");
-      return std::move(*this).as_plain_future();
+      return static_cast<base_t&&>(*this);
     }
 
     // initialize future as failed without throwing. `make_exception_future()`
@@ -475,9 +475,6 @@ struct errorator {
     template <class...>
     friend class errorator;
 
-    base_t&& as_plain_future() && {
-      return std::move(*this);
-    }
   };
 
   // the visitor that forwards handling of all errors to next continuation
@@ -574,7 +571,7 @@ private:
   }
   template <class Arg>
   static decltype(auto) plainify(Arg&& arg) {
-    return std::forward<Arg>(arg).as_plain_future();
+    return std::forward<typename Arg::base_t>(arg);
   }
 
   template <class T, class = std::void_t<T>>
