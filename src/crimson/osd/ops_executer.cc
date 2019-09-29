@@ -372,7 +372,7 @@ OpsExecuter::execute_osd_op(OSDOp& osd_op)
         [&osd_op](ceph::bufferlist&& bl) {
           osd_op.rval = bl.length();
           osd_op.outdata = std::move(bl);
-          return seastar::now();
+          return osd_op_errorator::now();
         });
     });
   case CEPH_OSD_OP_GETXATTR:
