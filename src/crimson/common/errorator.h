@@ -695,8 +695,13 @@ private:
   // needed because of:
   //  * ReturnErrorator::template futurize<...> in `safe_then()`,
   //  * conversion to `std::exception_ptr` in `future::future(ErrorT&&)`.
+  // the friendship with all errorators is an idea from Kefu to fix build
+  // issues on GCC 9. This version likely fixes some access violation bug
+  // we were exploiting before.
   template <class>
   friend class _future;
+  template <class...>
+  friend class errorator;
 
   template<class Container, class AsyncAction>
   friend inline auto ::ceph::do_for_each(Container&, AsyncAction);
