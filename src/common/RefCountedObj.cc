@@ -13,7 +13,7 @@ RefCountedObject::~RefCountedObject()
   ceph_assert(nref == 0);
 }
 
-void RefCountedObject::put() const {
+void RefCountedObject::_debug_put() const {
   CephContext *local_cct = cct;
   auto v = --nref;
   if (local_cct) {
@@ -30,7 +30,7 @@ void RefCountedObject::put() const {
   }
 }
 
-void RefCountedObject::_get() const {
+void RefCountedObject::_debug_get() const {
   auto v = ++nref;
   ceph_assert(v > 1); /* it should never happen that _get() sees nref == 0 */
   if (cct) {

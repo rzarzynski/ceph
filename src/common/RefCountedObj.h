@@ -51,14 +51,30 @@ public:
   }
 
   const RefCountedObject *get() const {
-    _get();
+#if defined(NDEBUG)
+    ++nref;
+#else
+    _debug_get();
+#endif
     return this;
   }
   RefCountedObject *get() {
-    _get();
+#if defined(NDEBUG)
+    ++nref;
+#else
+    _debug_get();
+#endif
     return this;
   }
-  void put() const;
+  void put() const {
+#if defined(NDEBUG)
+    if (--nref == 0) {
+      delete this;
+    }
+#else
+    _debug_put();
+#endif
+  }
 
 protected:
   RefCountedObject() = default;
@@ -71,7 +87,8 @@ protected:
   virtual ~RefCountedObject();
 
 private:
-  void _get() const;
+  void _debug_get() const;
+  void _debug_put() const;
 
 #ifndef WITH_SEASTAR
   mutable std::atomic<uint64_t> nref{1};
