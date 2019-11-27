@@ -35,6 +35,9 @@ public:
   ObjectState obs;
   std::optional<SnapSet> ss;
   bool loaded : 1;
+  using watch_key_t = std::pair<uint64_t, entity_name_t>;
+  std::map<watch_key_t, Watch> watchers;
+
   ObjectContext(const hobject_t &hoid) : obs(hoid), loaded(false) {}
 
   const hobject_t &get_oid() const {
