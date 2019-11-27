@@ -14,6 +14,7 @@
 #include "osd/object_state.h"
 #include "crimson/common/config_proxy.h"
 #include "crimson/osd/osd_operation.h"
+#include "crimson/osd/watch.h"
 
 namespace crimson::osd {
 
@@ -35,6 +36,9 @@ public:
   ObjectState obs;
   std::optional<SnapSet> ss;
   bool loaded : 1;
+  using watch_key_t = std::pair<uint64_t, entity_name_t>;
+  std::map<watch_key_t, crimson::osd::WatchRef> watchers;
+
   ObjectContext(const hobject_t &hoid) : obs(hoid), loaded(false) {}
 
   const hobject_t &get_oid() const {
