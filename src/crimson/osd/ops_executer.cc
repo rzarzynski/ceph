@@ -152,7 +152,16 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_watch(
       return seastar::now();
     },
     [] (auto&& ctx, ObjectContextRef obc) {
-      return seastar::now();
+      //dout(15) << "do_osd_op_effects applying watch connect on session "
+      //         << session.get() << " key " << key << dendl;
+      auto [it, emplaced] = obc->watchers.try_emplace(ctx.key, nullptr);
+      if (emplaced) {
+        it->second = crimson::osd::Watch::create();
+        logger().info("op_effect: added new watcher: {}", ctx.key);
+      } else {
+        logger().info("op_effect: found existing watcher: {}", ctx.key);
+      }
+      return it->second->connect(nullptr /* conn */, true /* will_ping */);
     });
 }
 
@@ -181,7 +190,14 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_unwatch(
       return seastar::now();
     },
     [] (auto&& ctx, ObjectContextRef obc) {
-      return seastar::now();
+      if (auto nh = obc->watchers.extract(ctx.key); !nh.empty()) {
+        logger().info("op_effect: disconnect watcher {}", ctx.key);
+        return nh.mapped()->remove(ctx.send_disconnect);
+      } else {
+        logger().info("op_effect: disconnect failed to find watcher {}",
+                      ctx.key);
+        return seastar::now();
+      }
     });
 }
 
