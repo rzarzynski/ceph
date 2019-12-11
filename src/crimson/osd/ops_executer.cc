@@ -131,10 +131,12 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_watch(
 {
   struct connect_ctx_t {
     std::pair<uint64_t, entity_name_t> key;
+    crimson::net::ConnectionRef conn;
     watch_info_t info;
 
     connect_ctx_t(const OSDOp& osd_op, const MOSDOp& msg)
       : key(std::make_pair(osd_op.op.watch.cookie, msg.get_reqid().name)),
+        conn(msg.get_connection()),
         info(create_watch_info(osd_op, msg)) {
     }
   };
@@ -161,7 +163,7 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_watch(
       } else {
         logger().info("op_effect: found existing watcher: {}", ctx.key);
       }
-      return it->second->connect(nullptr /* conn */, true /* will_ping */);
+      return it->second->connect(std::move(ctx.conn), true /* will_ping */);
     });
 }
 
