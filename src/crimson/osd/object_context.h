@@ -36,6 +36,9 @@ public:
   ObjectState obs;
   std::optional<SnapSet> ss;
   bool loaded : 1;
+  // watch/notify structure is actually optional. It is expected most
+  // of our objects won't need this part. Thus, to avoid extra burden
+  // on construction and destruction, we use memory indirection.
   using watch_key_t = std::pair<uint64_t, entity_name_t>;
   std::map<watch_key_t, crimson::osd::WatchRef> watchers;
 
