@@ -14,9 +14,10 @@
 #include "osd/object_state.h"
 #include "crimson/common/config_proxy.h"
 #include "crimson/osd/osd_operation.h"
-#include "crimson/osd/watch.h"
 
 namespace crimson::osd {
+
+class Watch;
 
 template <typename OBC>
 struct obc_to_hoid {
@@ -40,7 +41,7 @@ public:
   // of our objects won't need this part. Thus, to avoid extra burden
   // on construction and destruction, we use memory indirection.
   using watch_key_t = std::pair<uint64_t, entity_name_t>;
-  std::map<watch_key_t, crimson::osd::WatchRef> watchers;
+  std::map<watch_key_t, std::shared_ptr<crimson::osd::Watch>> watchers;
 
   ObjectContext(const hobject_t &hoid) : obs(hoid), loaded(false) {}
 
@@ -229,4 +230,4 @@ public:
                           const std::set <std::string> &changed) final;
 };
 
-}
+} // namespace crimson::osd
