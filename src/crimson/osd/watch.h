@@ -4,7 +4,9 @@
 #pragma once
 
 #include <iterator>
+//#include <list>
 #include <memory>
+#include <map>
 #include <set>
 
 #include "crimson/net/Connection.h"
@@ -24,6 +26,7 @@ class Watch : private std::enable_shared_from_this<Watch> {
   ::crimson::osd::ObjectContextRef obc;
 
   watch_info_t winfo;
+  entity_name_t entity_name;
 
   seastar::future<> start_notify(NotifyRef);
   seastar::future<> send_notify_msg(NotifyRef);
@@ -31,10 +34,12 @@ class Watch : private std::enable_shared_from_this<Watch> {
   friend Notify;
 public:
   // XXX: hack for make_shared
-  Watch(const watch_info_t& winfo,
-        ::crimson::osd::ObjectContextRef obc)
-    : winfo(winfo),
-      obc(std::move(obc)) {
+  Watch(::crimson::osd::ObjectContextRef obc,
+        const watch_info_t& winfo,
+        const entity_name_t& entity_name)
+    : obc(std::move(obc)),
+      winfo(winfo),
+      entity_name(entity_name) {
   }
 
 public:
@@ -56,9 +61,7 @@ public:
   /// Call when notify_ack received on notify_id
   seastar::future<> notify_ack(
     uint64_t notify_id, ///< [in] id of acked notify
-    const ceph::bufferlist& reply_bl) { ///< [in] notify reply buffer
-    return seastar::now();
-  }
+    const ceph::bufferlist& reply_bl); ///< [in] notify reply buffer
 
   // TODO: we don't need the atomical ref-counting but shared_from_this
   // will be useful. Maybe switch to something from boost later.
@@ -67,23 +70,51 @@ public:
   template <class... Args>
   static std::shared_ptr<Watch> create(Args&&... args) {
     return std::make_shared<Watch>(std::forward<Args>(args)...);
-  };
+  }
+
+  uint64_t get_watcher_gid() const {
+    return entity_name.num();
+  }
+  uint64_t get_cookie() const {
+    return winfo.cookie;
+  }
 };
 
 using WatchRef = Watch::Ref;
 
+#if 0
+  /// (gid,cookie) -> reply_bl for everyone who acked the notify
+  struct reply_t {
+    uint64_t watcher_gid;
+    uint64_t watcher_cookie;
+    ceph::bufferlist bl;
+
+    void encode(ceph::buffer::list& bl, uint64_t features) const;
+    void decode(ceph::buffer::list::const_iterator& bl);
+  };
+  WRITE_CLASS_ENCODER_FEATURES(reply_t)
+#endif
+
 class Notify {
   std::set<WatchRef> watchers;
   notify_info_t ninfo;
+  crimson::net::ConnectionRef conn;
   uint64_t client_gid;
   uint64_t user_version;
+  bool complete = false;
+  bool discarded = false;
+
+  //std::list<reply_t> notify_replies;
+  /// (gid,cookie) -> reply_bl for everyone who acked the notify
+  std::multimap<std::pair<uint64_t,uint64_t>, ceph::buffer::list> notify_replies;
 
   uint64_t get_id() { return ninfo.notify_id; }
-  seastar::future<> propagate() { return seastar::now(); }
+  seastar::future<> maybe_send_completion();
 
   template <class WatchIteratorT>
   Notify(WatchIteratorT begin,
          WatchIteratorT end,
+         crimson::net::ConnectionRef conn,
          const notify_info_t& ninfo,
          const uint64_t client_gid,
          const uint64_t user_version);
@@ -104,16 +135,21 @@ public:
     WatchIteratorT begin,
     WatchIteratorT end,
     Args&&... args);
+
+  seastar::future<> complete_watcher(WatchRef watch,
+                                     const ceph::bufferlist& reply_bl);
 };
 
 
 template <class WatchIteratorT>
 Notify::Notify(WatchIteratorT begin,
                WatchIteratorT end,
+               crimson::net::ConnectionRef conn,
                const notify_info_t& ninfo,
                const uint64_t client_gid,
                const uint64_t user_version)
-  : ninfo(ninfo),
+  : conn(std::move(conn)),
+    ninfo(ninfo),
     client_gid(client_gid),
     user_version(user_version)
 {
@@ -137,7 +173,7 @@ seastar::future<> Notify::create_n_propagate(
   return seastar::do_for_each(begin, end, [=] (auto& watchref) {
     return watchref->start_notify(notify);
   }).then([notify = std::move(notify)] {
-    return notify->propagate();
+    return notify->maybe_send_completion();
   });
 }
 

@@ -159,8 +159,8 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_watch(
       //         << session.get() << " key " << key << dendl;
       auto [it, emplaced] = obc->watchers.try_emplace(ctx.key, nullptr);
       if (emplaced) {
-        const auto& cookie = ctx.key.first;
-        it->second = crimson::osd::Watch::create(ctx.info, obc);
+        const auto& [cookie, entity] = ctx.key;
+        it->second = crimson::osd::Watch::create(obc, ctx.info, entity);
         logger().info("op_effect: added new watcher: {}", ctx.key);
       } else {
         logger().info("op_effect: found existing watcher: {}", ctx.key);
@@ -284,12 +284,14 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_notify(
   logger().debug("{}, msg epoch: {}", __func__, get_message().get_map_epoch());
 
   struct notify_ctx_t {
+    crimson::net::ConnectionRef conn;
     notify_info_t ninfo;
     const uint64_t client_gid;
     const epoch_t epoch;
 
     notify_ctx_t(const MOSDOp& msg)
-      : client_gid(msg.get_reqid().name.num()),
+      : conn(msg.get_connection()),
+        client_gid(msg.get_reqid().name.num()),
         epoch(msg.get_map_epoch()) {
     }
   };
@@ -325,6 +327,7 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_notify(
       return crimson::osd::Notify::create_n_propagate(
         std::begin(rng),
         std::end(rng),
+        std::move(ctx.conn),
         ctx.ninfo,
         ctx.client_gid,
         obc->obs.oi.user_version);
