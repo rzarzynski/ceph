@@ -353,8 +353,10 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_notify_ack(
     [&] (auto& ctx) {
       try {
         auto bp = osd_op.indata.cbegin();
+        uint64_t wc = 0;
         ceph::decode(ctx.notify_id, bp);
-        ceph::decode(ctx.watch_cookie, bp);
+        ceph::decode(wc, bp);
+        ctx.watch_cookie = wc;
         if (!bp.end()) {
           ceph::decode(ctx.reply_bl, bp);
         }
