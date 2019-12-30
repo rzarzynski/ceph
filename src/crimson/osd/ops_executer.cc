@@ -338,7 +338,7 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_notify_ack(
   logger().debug("{}", __func__);
 
   struct notifyack_ctx_t {
-    const entity_name_t& entity;
+    const entity_name_t entity;
     std::optional<uint64_t> watch_cookie;
     uint64_t notify_id;
     ceph::bufferlist reply_bl;
