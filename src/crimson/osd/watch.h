@@ -17,7 +17,13 @@ namespace crimson::osd {
 class Notify;
 using NotifyRef = std::shared_ptr<Notify>;
 
-class Watch : private std::enable_shared_from_this<Watch> {
+// NOTE: really need to have this public. Otherwise `shared_from_this()`
+// will abort. According to cppreference.com:
+//
+//   "The constructors of std::shared_ptr detect the presence
+//   of an unambiguous and accessible (ie. public inheritance
+//   is mandatory) (since C++17) enable_shared_from_this base".
+class Watch : public std::enable_shared_from_this<Watch> {
   struct NotifyCmp {
     inline bool operator()(NotifyRef lhs, NotifyRef rhs) const;
   };
