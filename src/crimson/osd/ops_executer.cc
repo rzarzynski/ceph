@@ -189,6 +189,8 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_unwatch(
   ObjectState& os,
   ceph::os::Transaction& txn)
 {
+  logger().info("{}", __func__);
+
   struct disconnect_ctx_t {
     std::pair<uint64_t, entity_name_t> key;
     bool send_disconnect{ false };
