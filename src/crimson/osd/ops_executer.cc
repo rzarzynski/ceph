@@ -282,7 +282,9 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_notify(
   const ObjectState& os)
 {
   logger().debug("{}, msg epoch: {}", __func__, get_message().get_map_epoch());
-
+  if (!os.exists) {
+    return crimson::ct_error::enoent::make();
+  }
   struct notify_ctx_t {
     crimson::net::ConnectionRef conn;
     notify_info_t ninfo;
