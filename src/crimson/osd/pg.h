@@ -189,12 +189,12 @@ public:
     unsigned priority,
     PGPeeringEventRef on_grant,
     PGPeeringEventRef on_preempt) final {
-    ceph_assert(0 == "Not implemented yet");
+    //ceph_assert(0 == "Not implemented yet");
   }
 
   void update_local_background_io_priority(
     unsigned priority) final {
-    ceph_assert(0 == "Not implemented yet");
+    //ceph_assert(0 == "Not implemented yet");
   }
 
   void cancel_local_background_io_reservation() final {
