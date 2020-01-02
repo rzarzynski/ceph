@@ -188,6 +188,14 @@ int OpInfo::set_from_op(
       // watch state (and may return early if the watch exists) or, in
       // the case of ping, is simply a read op.
       set_read();
+#ifdef WITH_SEASTAR
+      // impose RWState::RWEXCL for WATCH and NOTIFY implementation in
+      // crimson-osd. As the entire mechanism has per-object scope, we
+      // can leverage waiting on ObjectContext to preserve atomicity
+      // across the entire continuation chain when e.g. dispatching
+      // notifies.
+      set_force_rwordered();
+#endif
       // fall through
     case CEPH_OSD_OP_NOTIFY:
     case CEPH_OSD_OP_NOTIFY_ACK:
