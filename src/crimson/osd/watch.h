@@ -49,6 +49,7 @@ public:
       winfo(winfo),
       entity_name(entity_name) {
   }
+  ~Watch();
 
 public:
   seastar::future<> connect(crimson::net::ConnectionRef, bool);

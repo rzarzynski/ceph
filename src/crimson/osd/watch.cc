@@ -20,6 +20,10 @@ bool Watch::NotifyCmp::operator()(NotifyRef lhs, NotifyRef rhs) const
   return lhs->get_id() < rhs->get_id();
 }
 
+Watch::~Watch() {
+  logger().info("{}: destructing Watch (cookie={})", __func__, winfo.cookie);
+}
+
 seastar::future<> Watch::connect(crimson::net::ConnectionRef conn, bool)
 {
   if (this->conn == conn) {

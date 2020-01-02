@@ -125,21 +125,7 @@ private:
     if (unlockf() && wake) wake->set_value();
   }
 public:
-  seastar::future<> get_lock_type(Operation *op, RWState::State type) {
-    switch (type) {
-    case RWState::RWWRITE:
-      return get_lock(op, [this] { return rwstate.get_write_lock(); });
-    case RWState::RWREAD:
-      return get_lock(op, [this] { return rwstate.get_read_lock(); });
-    case RWState::RWEXCL:
-      return get_lock(op, [this] { return rwstate.get_excl_lock(); });
-    case RWState::RWNONE:
-      return seastar::now();
-    default:
-      ceph_abort_msg("invalid lock type");
-      return seastar::now();
-    }
-  }
+  seastar::future<> get_lock_type(Operation *op, RWState::State type);
 
   void put_lock_type(RWState::State type) {
     switch (type) {

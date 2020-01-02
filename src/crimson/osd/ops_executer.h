@@ -171,6 +171,7 @@ public:
   OpsExecuter(PG& pg, Ref<MOSDOp> msg)
     : OpsExecuter{ObjectContextRef(), pg, std::move(msg)}
   {}
+  ~OpsExecuter();
 
   osd_op_errorator::future<> execute_osd_op(class OSDOp& osd_op);
   seastar::future<> execute_pg_op(class OSDOp& osd_op);
@@ -180,6 +181,10 @@ public:
 
   const auto& get_message() const {
     return *msg;
+  }
+
+  size_t get_effects_num() {
+    return op_effects.size();
   }
 };
 

@@ -3,7 +3,30 @@
 
 #include "crimson/osd/object_context.h"
 
+namespace {
+  seastar::logger& logger() {
+    return crimson::get_logger(ceph_subsys_osd);
+  }
+}
+
 namespace crimson::osd {
+
+seastar::future<> ObjectContext::get_lock_type(Operation *op, RWState::State type) {
+  logger().info("{} for type={} on rwstate={}", __func__, type, rwstate);
+  switch (type) {
+  case RWState::RWWRITE:
+    return get_lock(op, [this] { return rwstate.get_write_lock(); });
+  case RWState::RWREAD:
+    return get_lock(op, [this] { return rwstate.get_read_lock(); });
+  case RWState::RWEXCL:
+    return get_lock(op, [this] { return rwstate.get_excl_lock(); });
+  case RWState::RWNONE:
+    return seastar::now();
+  default:
+    ceph_abort_msg("invalid lock type");
+    return seastar::now();
+  }
+}
 
 void ObjectContext::dump_detail(Formatter *f) const
 {

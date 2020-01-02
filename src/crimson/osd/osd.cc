@@ -517,7 +517,7 @@ seastar::future<> OSD::ms_dispatch(crimson::net::Connection* conn, MessageRef m)
   case MSG_OSD_REPOPREPLY:
     return handle_rep_op_reply(conn, boost::static_pointer_cast<MOSDRepOpReply>(m));
   default:
-    logger().info("{} unhandled message {}", __func__, *m);
+    logger().info("{} unhandled message (type={}): {}", __func__, m->get_type(), *m);
     return seastar::now();
   }
 }

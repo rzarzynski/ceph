@@ -459,9 +459,10 @@ seastar::future<Ref<MOSDOpReply>> PG::do_osd_ops(
     return ox->execute_osd_op(osd_op);
   }).safe_then([this, obc, m, ox = ox.get()] {
     logger().debug(
-      "do_osd_ops: {} - object {} all operations successful",
+      "do_osd_ops: {} - object {} all operations successful, #effects={}",
       *m,
-      obc->obs.oi.soid);
+      obc->obs.oi.soid,
+      ox->get_effects_num());
     return std::move(*ox).submit_changes(
       [this, m] (auto&& txn, auto&& obc) -> osd_op_errorator::future<> {
         // XXX: the entire lambda could be scheduled conditionally. ::if_then()?

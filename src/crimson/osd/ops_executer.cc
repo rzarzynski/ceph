@@ -27,6 +27,11 @@ namespace {
 
 namespace crimson::osd {
 
+OpsExecuter::~OpsExecuter() {
+  logger().debug("{} destructing OpsExecuter having {} effects",
+                 __func__, get_effects_num());
+}
+
 OpsExecuter::call_errorator::future<> OpsExecuter::do_op_call(OSDOp& osd_op)
 {
   std::string cname, mname;
@@ -157,6 +162,8 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_watch(
     [] (auto&& ctx, ObjectContextRef obc) {
       //dout(15) << "do_osd_op_effects applying watch connect on session "
       //         << session.get() << " key " << key << dendl;
+      logger().info("BUGDBG: adding watch effect obc->watchers.size()={}",
+                    obc->watchers.size());
       auto [it, emplaced] = obc->watchers.try_emplace(ctx.key, nullptr);
       if (emplaced) {
         const auto& [cookie, entity] = ctx.key;
@@ -201,6 +208,8 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_unwatch(
   };
   return with_effect_on_obc(disconnect_ctx_t{ osd_op, get_message() },
     [&] (auto& ctx) {
+      logger().info("BUGDBG: before effect obc->watchers.size()={}",
+                    obc->watchers.size());
       const auto& entity = ctx.key.second;
       if (auto nh = os.oi.watchers.extract(ctx.key); !nh.empty()) {
         logger().info("removed watch {} by {}", nh.mapped(), entity);
@@ -211,12 +220,17 @@ OpsExecuter::watch_errorator::future<> OpsExecuter::do_op_watch_subop_unwatch(
       return seastar::now();
     },
     [] (auto&& ctx, ObjectContextRef obc) {
+      logger().info("BUGDBG: effect obc->watchers.size()={}",
+                    obc->watchers.size());
       if (auto nh = obc->watchers.extract(ctx.key); !nh.empty()) {
         logger().info("op_effect: disconnect watcher {}", ctx.key);
         return nh.mapped()->remove(ctx.send_disconnect);
       } else {
         logger().info("op_effect: disconnect failed to find watcher {}",
                       ctx.key);
+      logger().info("BUGDBG: effect, after removing obc->watchers.size()={}",
+                    obc->watchers.size());
+        ceph_assert("this shouldn't happen" == nullptr);
         return seastar::now();
       }
     });
@@ -741,6 +755,7 @@ OpsExecuter::execute_osd_op(OSDOp& osd_op)
     });
   case CEPH_OSD_OP_NOTIFY_ACK:
     return do_read_op([this, &osd_op] (auto&, const auto& os) {
+      logger().warn("Yahooo! Got CEPH_OSD_OP_NOTIFY_ACK!");
       return do_op_notify_ack(osd_op, os);
     });
 
