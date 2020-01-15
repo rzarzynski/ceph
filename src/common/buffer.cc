@@ -890,6 +890,24 @@ static ceph::spinlock debug_lock;
     return crc;
   }
 
+  template<bool is_const>
+  bool buffer::list::iterator_impl<is_const>::is_coherent_with(
+    const bl_t* const ref_bl) const
+ {
+    if (bl != ref_bl) {
+      return false;
+    }
+    if (ls != &ref_bl->_buffers) {
+      return false;
+    }
+    for (const auto& buf : ref_bl->_buffers) {
+      if (std::addressof(*p) == std::addressof(buf)) {
+        return true;
+      }
+    }
+    return ref_bl->_buffers.before_begin() == p;
+  }
+
   // explicitly instantiate only the iterator types we need, so we can hide the
   // details in this compilation unit without introducing unnecessary link time
   // dependencies.
@@ -1335,6 +1353,7 @@ static ceph::spinlock debug_lock;
   {
     if (off + len > length())
       throw end_of_buffer();
+    ceph_assert(last_p.is_coherent_with(this));
     if (last_p.get_off() != off) 
       last_p.seek(off);
     last_p.copy(len, dest);
@@ -1344,6 +1363,7 @@ static ceph::spinlock debug_lock;
   {
     if (off + len > length())
       throw end_of_buffer();
+    ceph_assert(last_p.is_coherent_with(this));
     if (last_p.get_off() != off) 
       last_p.seek(off);
     last_p.copy(len, dest);
@@ -1351,6 +1371,7 @@ static ceph::spinlock debug_lock;
 
   void buffer::list::copy(unsigned off, unsigned len, std::string& dest) const
   {
+    ceph_assert(last_p.is_coherent_with(this));
     if (last_p.get_off() != off) 
       last_p.seek(off);
     return last_p.copy(len, dest);
@@ -1361,6 +1382,7 @@ static ceph::spinlock debug_lock;
     if (off + len > length())
       throw end_of_buffer();
     
+    ceph_assert(last_p.is_coherent_with(this));
     if (last_p.get_off() != off) 
       last_p.seek(off);
     last_p.copy_in(len, src, crc_reset);
@@ -1368,6 +1390,7 @@ static ceph::spinlock debug_lock;
 
   void buffer::list::copy_in(unsigned off, unsigned len, const list& src)
   {
+    ceph_assert(last_p.is_coherent_with(this));
     if (last_p.get_off() != off) 
       last_p.seek(off);
     last_p.copy_in(len, src);

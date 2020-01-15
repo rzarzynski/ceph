@@ -698,6 +698,10 @@ inline namespace v14_2_0 {
       friend class iterator_impl<true>;
 
     public:
+      // DEBUG ONLY
+      bool is_coherent_with(const bl_t* ref_bl) const;
+
+    public:
       using iterator_category = std::forward_iterator_tag;
       using value_type = typename std::conditional<is_const, const char, char>::type;
       using difference_type = std::ptrdiff_t;
