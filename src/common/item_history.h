@@ -54,14 +54,6 @@ public:
     current = &history.back();
     return *current;
   }
-
-  void prune() {
-    // note: this is not necessarily thread-safe wrt readers
-    std::lock_guard l(lock);
-    while (history.size() > 1) {
-      history.pop_front();
-    }
-  }
 };
 
 template<class T>
@@ -93,11 +85,4 @@ public:
     return *current;
   }
 
-  void prune() {
-    // note: this is not necessarily thread-safe wrt readers
-    std::lock_guard l(lock);
-    while (history.size() > 1) {
-      history.pop_front();
-    }
-  }
 };
