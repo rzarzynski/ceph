@@ -428,6 +428,17 @@ static ceph::spinlock debug_lock;
     _raw->nref.store(1, std::memory_order_release);
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
+
+  static bool is_hypercombined(buffer::ptr* const bp, buffer::raw* const raw) {
+    ceph_assert(bp);
+    if (!raw) {
+      // no raw means no hypercombining
+      return false;
+    }
+    auto* hc_storage = \
+      reinterpret_cast<buffer::ptr_node*>(&raw->bptr_storage);
+    return static_cast<buffer::ptr*>(hc_storage) == bp;
+  }
   buffer::ptr& buffer::ptr::operator= (const ptr& p)
   {
     if (p._raw) {
@@ -435,6 +446,7 @@ static ceph::spinlock debug_lock;
       bdout << "ptr " << this << " get " << _raw << bendl;
     }
     buffer::raw *raw = p._raw; 
+    ceph_assert(!is_hypercombined(this, _raw));
     release();
     if (raw) {
       _raw = raw;
@@ -447,6 +459,7 @@ static ceph::spinlock debug_lock;
   }
   buffer::ptr& buffer::ptr::operator= (ptr&& p) noexcept
   {
+    ceph_assert(!is_hypercombined(this, _raw));
     release();
     buffer::raw *raw = p._raw;
     if (raw) {
@@ -2160,9 +2173,10 @@ buffer::list buffer::list::static_from_string(string& s) {
 bool buffer::ptr_node::dispose_if_hypercombined(
   buffer::ptr_node* const delete_this)
 {
-  const bool is_hypercombined = static_cast<void*>(delete_this) == \
+  const bool is_hypercombined_ = static_cast<void*>(delete_this) == \
     static_cast<void*>(&delete_this->get_raw()->bptr_storage);
-  if (is_hypercombined) {
+  ceph_assert(is_hypercombined_ == is_hypercombined(this, _raw));
+  if (is_hypercombined_) {
     delete_this->~ptr_node();
   }
   return is_hypercombined;
@@ -2171,8 +2185,12 @@ bool buffer::ptr_node::dispose_if_hypercombined(
 std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>
 buffer::ptr_node::create_hypercombined(ceph::unique_leakable_ptr<buffer::raw> r)
 {
-  return std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>(
+  buffer::raw* rasrt = r.get();
+  std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer> out(
     new (&r->bptr_storage) ptr_node(std::move(r)));
+  buffer::ptr* bp = out.get();
+  ceph_assert(is_hypercombined(bp, rasrt));
+  return out;
 }
 
 std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>
