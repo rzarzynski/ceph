@@ -2175,7 +2175,7 @@ bool buffer::ptr_node::dispose_if_hypercombined(
 {
   const bool is_hypercombined_ = static_cast<void*>(delete_this) == \
     static_cast<void*>(&delete_this->get_raw()->bptr_storage);
-  ceph_assert(is_hypercombined_ == is_hypercombined(this, _raw));
+  ceph_assert(is_hypercombined_ == is_hypercombined(delete_this, delete_this->get_raw()));
   if (is_hypercombined_) {
     delete_this->~ptr_node();
   }
