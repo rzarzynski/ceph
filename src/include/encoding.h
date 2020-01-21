@@ -673,25 +673,19 @@ template<class T, class Alloc, typename traits>
 inline std::enable_if_t<!traits::supported>
   encode(const std::list<T,Alloc>& ls, bufferlist& bl, uint64_t features)
 {
-  // should i pre- or post- count?
-  if (!ls.empty()) {
-    unsigned pos = bl.length();
-    unsigned n = 0;
-    encode(n, bl);
-    for (auto p = ls.begin(); p != ls.end(); ++p) {
-      n++;
-      encode(*p, bl, features);
-    }
-    ceph_le32 en;
-    en = n;
-    bl.copy_in(pos, sizeof(en), (char*)&en);
-  } else {
-    __u32 n = (__u32)(ls.size());    // FIXME: this is slow on a list.
-    encode(n, bl);
-    for (auto p = ls.begin(); p != ls.end(); ++p)
-      encode(*p, bl, features);
+  ceph_le32 en;
+  unsigned n = 0;
+  auto filler = bl.append_hole(sizeof(ceph_le32));
+  for (const auto& item : ls) {
+    // we count on our own because of buggy std::list::size() implementation
+    // which doesn't follow the O(1) complexity constraint C++11 has brought.
+    ++n;
+    encode(item, bl, features);
   }
+  en = n;
+  filler.copy_in(sizeof(en), (char *)&en);
 }
+
 template<class T, class Alloc, typename traits>
 inline std::enable_if_t<!traits::supported>
   decode(std::list<T,Alloc>& ls, bufferlist::const_iterator& p)
