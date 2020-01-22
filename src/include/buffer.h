@@ -1137,11 +1137,11 @@ inline namespace v14_2_0 {
 
     // crope lookalikes.
     // **** WARNING: this are horribly inefficient for large bufferlists. ****
-    void copy(unsigned off, unsigned len, char *dest) const __attribute__((deprecated("BL HUNT: copyE")));
-    void copy(unsigned off, unsigned len, list &dest) const __attribute__((deprecated("BL HUNT: copyE")));
-    void copy(unsigned off, unsigned len, std::string& dest) const __attribute__((deprecated("BL HUNT: copyE")));
-    void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset = true) __attribute__((deprecated("BL HUNT: copy_inE")));
-    void copy_in(unsigned off, unsigned len, const list& src) __attribute__((deprecated("BL HUNT: copy_inE")));
+    void copy(unsigned off, unsigned len, char *dest) const;
+    void copy(unsigned off, unsigned len, list &dest) const;
+    void copy(unsigned off, unsigned len, std::string& dest) const;
+    void copy_in(unsigned off, unsigned len, const char *src, bool crc_reset = true);
+    void copy_in(unsigned off, unsigned len, const list& src);
 
     void append(char c);
     void append(const char *data, unsigned len);
