@@ -1165,6 +1165,16 @@ TEST(BufferListIterator, copy_in) {
     EXPECT_EQ((unsigned)3, bl.length());
   }
   //
+  // void copy_in(unsigned len, const char *src) via begin(size_t offset)
+  //
+  {
+    bufferlist bl;
+    bl.append("XXX");
+    EXPECT_THROW(bl.begin((unsigned)100).copy_in((unsigned)100, (char*)0), buffer::end_of_buffer);
+    bl.begin(1).copy_in(2, "AB");
+    EXPECT_EQ(0, ::memcmp("XAB", bl.c_str(), 3));
+  }
+  //
   // void buffer::list::iterator::copy_in(unsigned len, const list& otherl)
   //
   {
@@ -1181,6 +1191,18 @@ TEST(BufferListIterator, copy_in) {
     EXPECT_EQ('B', bl[1]);
     EXPECT_EQ('C', bl[2]);
     EXPECT_EQ((unsigned)3, bl.length());
+  }
+  //
+  // void copy_in(unsigned len, const list& src) via begin(size_t offset)
+  //
+  {
+    bufferlist bl;
+    bl.append("XXX");
+    bufferlist src;
+    src.append("ABC");
+    EXPECT_THROW(bl.begin((unsigned)100).copy_in((unsigned)100, src), buffer::end_of_buffer);
+    bl.begin(1).copy_in(2, src);
+    EXPECT_EQ(0, ::memcmp("XAB", bl.c_str(), 3));
   }
 }
 
@@ -1900,31 +1922,6 @@ TEST(BufferList, copy) {
     bl.append(expected);
     bl.copy(1, 2, dest);
     EXPECT_EQ(0, ::memcmp(expected + 1, dest.c_str(), 2));
-  }
-}
-
-TEST(BufferList, copy_in) {
-  //
-  // void copy_in(unsigned off, unsigned len, const char *src);
-  //
-  {
-    bufferlist bl;
-    bl.append("XXX");
-    EXPECT_THROW(bl.copy_in((unsigned)100, (unsigned)100, (char*)0), buffer::end_of_buffer);
-    bl.copy_in(1, 2, "AB");
-    EXPECT_EQ(0, ::memcmp("XAB", bl.c_str(), 3));
-  }
-  //
-  // void copy_in(unsigned off, unsigned len, const list& src);
-  //
-  {
-    bufferlist bl;
-    bl.append("XXX");
-    bufferlist src;
-    src.append("ABC");
-    EXPECT_THROW(bl.copy_in((unsigned)100, (unsigned)100, src), buffer::end_of_buffer);
-    bl.copy_in(1, 2, src);
-    EXPECT_EQ(0, ::memcmp("XAB", bl.c_str(), 3));    
   }
 }
 
@@ -2869,7 +2866,7 @@ TEST(BufferList, DanglingLastP) {
     EXPECT_EQ(0, ::memcmp("XXX", bl.c_str(), 3));
 
     // let `copy_in` to set `last_p` member of bufferlist
-    bl.copy_in(0, 2, "AB");
+    bl.begin().copy_in(2, "AB");
     EXPECT_EQ(0, ::memcmp("ABX", bl.c_str(), 3));
   }
 
@@ -2882,7 +2879,7 @@ TEST(BufferList, DanglingLastP) {
 
   // we must continue from where the previous copy_in had finished.
   // Otherwise `bl::copy_in` will call `seek()` and refresh `last_p`.
-  bl.copy_in(2, 1, "C");
+  bl.begin(2).copy_in(1, "C");
   EXPECT_EQ(0, ::memcmp("12C", bl.c_str(), 3));
 }
 
