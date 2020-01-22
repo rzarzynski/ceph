@@ -413,10 +413,23 @@ static ceph::spinlock debug_lock;
       bdout << "ptr " << this << " get " << _raw << bendl;
     }
   }
+
+  static bool is_hypercombined(buffer::ptr* const bp, buffer::raw* const raw) {
+    ceph_assert(bp);
+    if (!raw) {
+      // no raw means no hypercombining
+      return false;
+    }
+    auto* hc_storage = \
+      reinterpret_cast<buffer::ptr_node*>(&raw->bptr_storage);
+    return static_cast<buffer::ptr*>(hc_storage) == bp;
+  }
   buffer::ptr::ptr(ptr&& p) noexcept : _raw(p._raw), _off(p._off), _len(p._len)
   {
+    ceph_assert(!is_hypercombined(&p, p._raw));
     p._raw = nullptr;
     p._off = p._len = 0;
+    ceph_assert(!is_hypercombined(this, _raw));
   }
   buffer::ptr::ptr(const ptr& p, unsigned o, unsigned l)
     : _raw(p._raw), _off(p._off + o), _len(l)
@@ -435,16 +448,6 @@ static ceph::spinlock debug_lock;
     bdout << "ptr " << this << " get " << _raw << bendl;
   }
 
-  static bool is_hypercombined(buffer::ptr* const bp, buffer::raw* const raw) {
-    ceph_assert(bp);
-    if (!raw) {
-      // no raw means no hypercombining
-      return false;
-    }
-    auto* hc_storage = \
-      reinterpret_cast<buffer::ptr_node*>(&raw->bptr_storage);
-    return static_cast<buffer::ptr*>(hc_storage) == bp;
-  }
   buffer::ptr& buffer::ptr::operator= (const ptr& p)
   {
     if (p._raw) {
@@ -465,6 +468,7 @@ static ceph::spinlock debug_lock;
   }
   buffer::ptr& buffer::ptr::operator= (ptr&& p) noexcept
   {
+    ceph_assert(!is_hypercombined(&p, p._raw));
     ceph_assert(!is_hypercombined(this, _raw));
     release();
     buffer::raw *raw = p._raw;
@@ -487,6 +491,8 @@ static ceph::spinlock debug_lock;
 
   void buffer::ptr::swap(ptr& other) noexcept
   {
+    ceph_assert(!is_hypercombined(&other, other._raw));
+    ceph_assert(!is_hypercombined(this, _raw));
     raw *r = _raw;
     unsigned o = _off;
     unsigned l = _len;
