@@ -172,11 +172,11 @@ inline namespace v14_2_0 {
 #ifdef HAVE_SEASTAR
   /// create a raw buffer to wrap seastar cpu-local memory, using foreign_ptr to
   /// make it safe to share between cpus
-  raw* create_foreign(seastar::temporary_buffer<char>&& buf);
+  ceph::unique_leakable_ptr<buffer::raw> create_foreign(seastar::temporary_buffer<char>&& buf);
   /// create a raw buffer to wrap seastar cpu-local memory, without the safety
   /// of foreign_ptr. the caller must otherwise guarantee that the buffer ptr is
   /// destructed on this cpu
-  raw* create(seastar::temporary_buffer<char>&& buf);
+  ceph::unique_leakable_ptr<buffer::raw> create(seastar::temporary_buffer<char>&& buf);
 #endif
 
   /*
