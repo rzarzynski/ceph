@@ -673,17 +673,18 @@ template<class T, class Alloc, typename traits>
 inline std::enable_if_t<!traits::supported>
   encode(const std::list<T,Alloc>& ls, bufferlist& bl, uint64_t features)
 {
-  ceph_le32 en;
+  using counter_encode_t = ceph_le32;
   unsigned n = 0;
-  auto filler = bl.append_hole(sizeof(ceph_le32));
+  auto filler = bl.append_hole(sizeof(counter_encode_t));
   for (const auto& item : ls) {
     // we count on our own because of buggy std::list::size() implementation
     // which doesn't follow the O(1) complexity constraint C++11 has brought.
     ++n;
     encode(item, bl, features);
   }
+  counter_encode_t en;
   en = n;
-  filler.copy_in(sizeof(en), (char *)&en);
+  filler.copy_in(sizeof(en), reinterpret_cast<char*>(&en));
 }
 
 template<class T, class Alloc, typename traits>
