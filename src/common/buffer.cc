@@ -2166,7 +2166,7 @@ bool buffer::ptr_node::dispose_if_hypercombined(
   if (is_hypercombined_) {
     delete_this->~ptr_node();
   }
-  return is_hypercombined;
+  return is_hypercombined_;
 }
 
 std::unique_ptr<buffer::ptr_node, buffer::ptr_node::disposer>
