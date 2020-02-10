@@ -9050,6 +9050,7 @@ void OSD::handle_pg_create(OpRequestRef op)
 
 PeeringCtx OSD::create_context()
 {
+  std::shared_lock map_locker{map_lock};
   return PeeringCtx(get_osdmap()->require_osd_release);
 }
 
