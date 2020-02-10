@@ -9,6 +9,22 @@
 
 class MOSDPGLog;
 
+#define TrivialEvent(T) struct T : boost::statechart::event< T > { \
+    T() : boost::statechart::event< T >() {}			   \
+    void print(std::ostream *out) const {			   \
+      *out << #T;						   \
+    }								   \
+  };
+
+TrivialEvent(NullEvt)
+TrivialEvent(RemoteBackfillReserved)
+TrivialEvent(RemoteReservationRejectedTooFull)
+TrivialEvent(RemoteReservationRevokedTooFull)
+TrivialEvent(RemoteReservationRevoked)
+TrivialEvent(RemoteReservationCanceled)
+TrivialEvent(RemoteRecoveryReserved)
+TrivialEvent(RecoveryDone)
+
 /// what we need to instantiate a pg
 struct PGCreateInfo {
   spg_t pgid;
@@ -27,6 +43,7 @@ class PGPeeringEvent {
   epoch_t epoch_sent;
   epoch_t epoch_requested;
   std::string desc;
+  bool is_ref_counted = false;
 public:
   boost::intrusive_ptr< const boost::statechart::event_base > evt;
   bool requires_pg;
@@ -41,9 +58,26 @@ public:
     PGCreateInfo *ci = 0)
     : epoch_sent(epoch_sent),
       epoch_requested(epoch_requested),
+      // What will happen if evt is on stack? Well, this depends Boost:
+      //   inline intrusive_ptr< const event_base > event_base::intrusive_from_this() const
+      //   {
+      //     if ( base_type::ref_counted() )
+      //     {
+      //       return intrusive_ptr< const event_base >( this );
+      //     }
+      //     else
+      //     {
+      //       return clone();
+      //     }
+      //   }
+      is_ref_counted(evt_.is_ref_counted()),
       evt(evt_.intrusive_from_this()),
       requires_pg(req),
       create_info(ci) {
+    // we know NullEvt is always put on the stack
+    if constexpr (std::is_same_v<std::decay_t<T>, NullEvt>) {
+      ceph_assert_always(!is_ref_counted);
+    }
     std::stringstream out;
     out << "epoch_sent: " << epoch_sent
 	<< " epoch_requested: " << epoch_requested << " ";
@@ -184,22 +218,6 @@ struct RequestRecoveryPrio : boost::statechart::event< RequestRecoveryPrio > {
     *out << "RequestRecoveryPrio: priority " << priority;
   }
 };
-
-#define TrivialEvent(T) struct T : boost::statechart::event< T > { \
-    T() : boost::statechart::event< T >() {}			   \
-    void print(std::ostream *out) const {			   \
-      *out << #T;						   \
-    }								   \
-  };
-
-TrivialEvent(NullEvt)
-TrivialEvent(RemoteBackfillReserved)
-TrivialEvent(RemoteReservationRejectedTooFull)
-TrivialEvent(RemoteReservationRevokedTooFull)
-TrivialEvent(RemoteReservationRevoked)
-TrivialEvent(RemoteReservationCanceled)
-TrivialEvent(RemoteRecoveryReserved)
-TrivialEvent(RecoveryDone)
 
 struct DeferRecovery : boost::statechart::event<DeferRecovery> {
   float delay;
