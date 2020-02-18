@@ -18,6 +18,8 @@
 #ifndef PGBACKEND_H
 #define PGBACKEND_H
 
+#include <boost/smart_ptr/shared_ptr.hpp>
+
 #include "osd_types.h"
 #include "common/WorkQueue.h"
 #include "include/Context.h"
@@ -36,7 +38,7 @@ struct inconsistent_obj_wrapper;
 //forward declaration
 class OSDMap;
 class PGLog;
-typedef std::shared_ptr<const OSDMap> OSDMapRef;
+typedef boost::shared_ptr<const OSDMap> OSDMapRef;
 
  /**
   * PGBackend

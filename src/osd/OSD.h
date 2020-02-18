@@ -15,6 +15,8 @@
 #ifndef CEPH_OSD_H
 #define CEPH_OSD_H
 
+#include <boost/smart_ptr/atomic_shared_ptr.hpp>
+
 #include "PG.h"
 
 #include "msg/Dispatcher.h"
@@ -1338,7 +1340,7 @@ private:
 	 i != sessions_to_check.end();
 	 sessions_to_check.erase(i++)) {
       std::lock_guard l{(*i)->session_dispatch_lock};
-      dispatch_session_waiting(*i, osdmap);
+      dispatch_session_waiting(*i, get_osdmap());
     }
   }
   void session_handle_reset(const ceph::ref_t<Session>& session) {
@@ -1695,11 +1697,12 @@ protected:
  protected:
 
   // -- osd map --
-  OSDMapRef       osdmap;
-  OSDMapRef get_osdmap() {
-    return osdmap;
+  boost::atomic_shared_ptr<const OSDMap> _osdmap;
+  OSDMapRef get_osdmap() const {
+    return _osdmap.load();
   }
   epoch_t get_osdmap_epoch() const {
+    auto osdmap = get_osdmap();
     return osdmap ? osdmap->get_epoch() : 0;
   }
 

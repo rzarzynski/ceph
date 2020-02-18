@@ -1537,7 +1537,7 @@ WRITE_CLASS_ENCODER_FEATURES(OSDMap::Incremental)
 #ifdef WITH_SEASTAR
 using OSDMapRef = boost::local_shared_ptr<const OSDMap>;
 #else
-using OSDMapRef = std::shared_ptr<const OSDMap>;
+using OSDMapRef = boost::shared_ptr<const OSDMap>;
 #endif
 
 
