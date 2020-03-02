@@ -1370,10 +1370,7 @@ bool PeeringState::needs_backfill() const
 
   // We can assume that only possible osds that need backfill
   // are on the backfill_targets vector nodes.
-  set<pg_shard_t>::const_iterator end = backfill_targets.end();
-  set<pg_shard_t>::const_iterator a = backfill_targets.begin();
-  for (; a != end; ++a) {
-    pg_shard_t peer = *a;
+  for (const pg_shard_t& peer : backfill_targets) {
     map<pg_shard_t, pg_info_t>::const_iterator pi = peer_info.find(peer);
     if (!pi->second.last_backfill.is_max()) {
       psdout(10) << __func__ << " osd." << peer
