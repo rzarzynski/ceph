@@ -265,6 +265,7 @@ void PG::on_activate_complete()
       PeeringState::AllReplicasRecovered{});
   }
 }
+
 void PG::request_local_background_io_reservation(unsigned priority,
                                                  PGPeeringEventRef on_grant,
                                                  PGPeeringEventRef on_preempt)
