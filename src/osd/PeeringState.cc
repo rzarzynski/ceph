@@ -5278,6 +5278,9 @@ boost::statechart::result
 PeeringState::WaitRemoteRecoveryReserved::react(const RemoteRecoveryReserved &evt) {
   DECLARE_LOCALS;
 
+#ifdef WITH_SEASTAR
+  post_event(AllRemotesReserved());
+#else
   if (remote_recovery_reservation_it !=
       context< Active >().remote_shards_to_reserve_recovery.end()) {
     ceph_assert(*remote_recovery_reservation_it != ps->pg_whoami);
@@ -5294,6 +5297,7 @@ PeeringState::WaitRemoteRecoveryReserved::react(const RemoteRecoveryReserved &ev
   } else {
     post_event(AllRemotesReserved());
   }
+#endif // WITH_SEASTAR
   return discard_event();
 }
 

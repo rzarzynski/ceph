@@ -265,6 +265,21 @@ void PG::on_activate_complete()
       PeeringState::AllReplicasRecovered{});
   }
 }
+void PG::request_local_background_io_reservation(unsigned priority,
+                                                 PGPeeringEventRef on_grant,
+                                                 PGPeeringEventRef on_preempt)
+{
+  logger().debug("{}", __func__);
+  shard_services.start_operation<LocalPeeringEvent>(
+    this,
+    shard_services,
+    pg_whoami,
+    pgid,
+    get_osdmap_epoch(),
+    get_osdmap_epoch(),
+    PeeringState::LocalRecoveryReserved{});
+}
+
 
 void PG::prepare_write(pg_info_t &info,
 		       pg_info_t &last_written_info,
