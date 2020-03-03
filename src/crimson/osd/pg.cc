@@ -236,6 +236,8 @@ void PG::on_activate_complete()
   wait_for_active_blocker.on_active();
 
   if (peering_state.needs_recovery()) {
+    logger().info("{}: requesting recovery",
+                  __func__);
     shard_services.start_operation<LocalPeeringEvent>(
       this,
       shard_services,
@@ -245,6 +247,8 @@ void PG::on_activate_complete()
       get_osdmap_epoch(),
       PeeringState::DoRecovery{});
   } else if (peering_state.needs_backfill()) {
+    logger().info("{}: requesting backfill",
+                  __func__);
     shard_services.start_operation<LocalPeeringEvent>(
       this,
       shard_services,
