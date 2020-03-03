@@ -276,11 +276,8 @@ void PG::request_local_background_io_reservation(unsigned priority,
     shard_services,
     pg_whoami,
     pgid,
-    get_osdmap_epoch(),
-    get_osdmap_epoch(),
-    PeeringState::LocalRecoveryReserved{});
+    std::move(*on_grant));
 }
-
 
 void PG::prepare_write(pg_info_t &info,
 		       pg_info_t &last_written_info,
