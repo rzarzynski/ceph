@@ -280,8 +280,8 @@ void PG::on_recovery_reserved() {
 }
 
 void PG::request_local_background_io_reservation(unsigned priority,
-                                                 PGPeeringEventRef on_grant,
-                                                 PGPeeringEventRef on_preempt)
+                                                 PGPeeringEventURef on_grant,
+                                                 PGPeeringEventURef on_preempt)
 {
   logger().debug("{}", __func__);
   shard_services.start_operation<LocalPeeringEvent>(
@@ -289,7 +289,7 @@ void PG::request_local_background_io_reservation(unsigned priority,
     shard_services,
     pg_whoami,
     pgid,
-    std::move(*on_grant));
+    std::move(*on_grant.release()));
 }
 
 void PG::prepare_write(pg_info_t &info,

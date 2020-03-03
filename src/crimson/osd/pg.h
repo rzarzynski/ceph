@@ -182,8 +182,8 @@ public:
 
   void request_local_background_io_reservation(
     unsigned priority,
-    PGPeeringEventRef on_grant,
-    PGPeeringEventRef on_preempt) final;
+    PGPeeringEventURef on_grant,
+    PGPeeringEventURef on_preempt) final;
 
   void update_local_background_io_priority(
     unsigned priority) final {
