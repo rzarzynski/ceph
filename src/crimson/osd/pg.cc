@@ -266,6 +266,19 @@ void PG::on_activate_complete()
   }
 }
 
+void PG::on_recovery_reserved() {
+  // XXX: solely for development of backfill / pg scanning.
+  // ceph-osd schedules here PG::do_recovery().
+  shard_services.start_operation<LocalPeeringEvent>(
+    this,
+    shard_services,
+    pg_whoami,
+    pgid,
+    get_osdmap_epoch(),
+    get_osdmap_epoch(),
+    PeeringState::RequestBackfill{});
+}
+
 void PG::request_local_background_io_reservation(unsigned priority,
                                                  PGPeeringEventRef on_grant,
                                                  PGPeeringEventRef on_preempt)

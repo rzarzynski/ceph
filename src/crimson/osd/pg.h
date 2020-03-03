@@ -312,9 +312,7 @@ public:
   void on_backfill_canceled() final {
     ceph_assert(0 == "Not implemented");
   }
-  void on_recovery_reserved() final {
-    ceph_assert(0 == "Not implemented");
-  }
+  void on_recovery_reserved() final;
 
 
   bool try_reserve_recovery_space(

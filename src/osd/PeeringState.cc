@@ -5327,6 +5327,7 @@ PeeringState::Recovering::Recovering(my_context ctx)
 void PeeringState::Recovering::release_reservations(bool cancel)
 {
   DECLARE_LOCALS;
+#ifndef WITH_SEASTAR
   ceph_assert(cancel || !ps->pg_log.get_missing().have_missing());
 
   // release remote reservations
@@ -5344,6 +5345,7 @@ void PeeringState::Recovering::release_reservations(bool cancel)
 	ps->get_osdmap_epoch()),
       ps->get_osdmap_epoch());
   }
+#endif // not WITH_SEASTAR
 }
 
 boost::statechart::result
