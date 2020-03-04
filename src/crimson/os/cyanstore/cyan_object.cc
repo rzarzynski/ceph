@@ -86,4 +86,33 @@ void Object::decode(bufferlist::const_iterator& p) {
   DECODE_FINISH(p);
 }
 
+seastar::future<int> Object::OmapIterator::seek_to_first()
+{
+  iter = obj->omap.begin();
+  return seastar::make_ready_future<int>(0);
+}
+
+seastar::future<int> Object::OmapIterator::upper_bound(const std::string& after)
+{
+  iter = obj->omap.upper_bound(after);
+  return seastar::make_ready_future<int>(0);
+}
+
+seastar::future<int> Object::OmapIterator::lower_bound(const std::string &to)
+{
+  iter = obj->omap.lower_bound(to);
+  return seastar::make_ready_future<int>(0);
+}
+
+bool Object::OmapIterator::valid()
+{
+  return iter != obj->omap.end();
+}
+
+seastar::future<int> Object::OmapIterator::next()
+{
+  ++iter;
+  return seastar::make_ready_future<int>(0);
+}
+
 }

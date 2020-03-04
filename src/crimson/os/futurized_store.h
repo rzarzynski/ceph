@@ -16,6 +16,8 @@
 #include "include/uuid.h"
 #include "osd/osd_types.h"
 
+#include "crimson/os/cyanstore/cyan_object.h" // this is temporaril, to be removed
+
 namespace ceph::os {
 class Transaction;
 }
@@ -59,9 +61,12 @@ public:
     std::string_view name) const = 0;
 
   using get_attrs_ertr = crimson::errorator<
-    crimson::ct_error::enoent>;
+        crimson::ct_error::enoent>;
   using attrs_t = std::map<std::string, ceph::bufferptr, std::less<>>;
   virtual get_attrs_ertr::future<attrs_t> get_attrs(
+    CollectionRef c,
+    const ghobject_t& oid) = 0;
+  virtual seastar::future<struct stat> stat(
     CollectionRef c,
     const ghobject_t& oid) = 0;
 
@@ -82,12 +87,24 @@ public:
     const std::optional<std::string> &start ///< [in] start, empty for begin
     ) = 0; ///< @return <done, values> values.empty() iff done
 
+  virtual seastar::future<bufferlist> omap_get_header(
+    CollectionRef c,
+    const ghobject_t& oid) = 0;
+
   virtual seastar::future<CollectionRef> create_new_collection(const coll_t& cid) = 0;
   virtual seastar::future<CollectionRef> open_collection(const coll_t& cid) = 0;
   virtual seastar::future<std::vector<coll_t>> list_collections() = 0;
 
   virtual seastar::future<> do_transaction(CollectionRef ch,
 					   ceph::os::Transaction&& txn) = 0;
+  virtual seastar::future<Object::OmapIterator> get_omap_iterator(
+    CollectionRef ch,
+    const ghobject_t& oid) = 0;
+  virtual seastar::future<std::map<uint64_t, uint64_t>> fiemap(
+    CollectionRef ch,
+    const ghobject_t& oid,
+    uint64_t off,
+    uint64_t len) = 0;
 
   virtual seastar::future<> write_meta(const std::string& key,
 				       const std::string& value) = 0;

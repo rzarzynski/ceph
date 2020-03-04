@@ -1,10 +1,14 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
+#pragma once
+
 #include <cstddef>
 #include <map>
 #include <string>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
+#include <seastar/core/future.hh>
+
 #include "include/buffer.h"
 
 namespace crimson::os {
@@ -13,6 +17,33 @@ struct Object : public boost::intrusive_ref_counter<
   Object,
   boost::thread_unsafe_counter>
 {
+  class OmapIterator {
+    std::map<std::string, bufferlist>::const_iterator iter;
+    Object* obj;
+  public:
+    OmapIterator() {}
+    OmapIterator(Object* obj) : obj(obj) {
+      iter = obj->omap.begin();
+    };
+    virtual seastar::future<int> seek_to_first();
+    virtual seastar::future<int> upper_bound(const std::string &after);
+    virtual seastar::future<int> lower_bound(const std::string &to);
+    virtual bool valid();
+    virtual seastar::future<int> next();
+    virtual std::string key() {
+      return iter->first;
+    }
+    virtual seastar::future<std::string> tail_key() {
+      return seastar::make_ready_future<std::string>((++obj->omap.end())->first);
+    }
+    virtual ceph::buffer::list value() {
+      return iter->second;
+    }
+    virtual int status() {
+      return iter != obj->omap.end() ? 0 : -1;
+    }
+    virtual ~OmapIterator() {}
+  };
   using bufferlist = ceph::bufferlist;
 
   bufferlist data;
@@ -36,5 +67,10 @@ struct Object : public boost::intrusive_ref_counter<
 
   void encode(bufferlist& bl) const;
   void decode(bufferlist::const_iterator& p);
+
+  seastar::future<OmapIterator> get_iterator() {
+    return seastar::make_ready_future<OmapIterator>
+      (std::move(OmapIterator(this)));
+  }
 };
 }

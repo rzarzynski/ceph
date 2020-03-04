@@ -15,6 +15,7 @@
 #include "osd/osd_types.h"
 #include "include/uuid.h"
 
+#include "crimson/os/cyanstore/cyan_object.h"
 #include "crimson/os/futurized_store.h"
 
 namespace ceph::os {
@@ -43,6 +44,9 @@ public:
 
   seastar::future<> mkfs(uuid_d new_osd_fsid) final;
   store_statfs_t stat() const final;
+  seastar::future<struct stat> stat(
+    CollectionRef c,
+    const ghobject_t& oid) final;
 
   read_errorator::future<ceph::bufferlist> read(
     CollectionRef c,
@@ -76,6 +80,10 @@ public:
     const std::optional<std::string> &start ///< [in] start, empty for begin
     ) final; ///< @return <done, values> values.empty() iff done
 
+  seastar::future<ceph::bufferlist> omap_get_header(
+    CollectionRef c,
+    const ghobject_t& oid) final;
+
   seastar::future<CollectionRef> create_new_collection(const coll_t& cid) final;
   seastar::future<CollectionRef> open_collection(const coll_t& cid) final;
   seastar::future<std::vector<coll_t>> list_collections() final;
@@ -88,6 +96,14 @@ public:
   seastar::future<int, std::string> read_meta(const std::string& key) final;
   uuid_d get_fsid() const final;
   unsigned get_max_attr_name_length() const final;
+
+  seastar::future<Object::OmapIterator> get_omap_iterator(CollectionRef c,
+							   const ghobject_t& oid);
+
+  seastar::future<std::map<uint64_t, uint64_t>> fiemap(CollectionRef c,
+							    const ghobject_t& oid,
+							    uint64_t off,
+							    uint64_t len);
 
 private:
   int _remove(const coll_t& cid, const ghobject_t& oid);
