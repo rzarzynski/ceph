@@ -196,8 +196,8 @@ public:
 
   void request_remote_recovery_reservation(
     unsigned priority,
-    PGPeeringEventRef on_grant,
-    PGPeeringEventRef on_preempt) final {
+    PGPeeringEventURef on_grant,
+    PGPeeringEventURef on_preempt) final {
     ceph_assert(0 == "Not implemented yet");
   }
 
