@@ -15,7 +15,6 @@
 #include "os/Transaction.h"
 #include "common/Clock.h"
 
-#include "crimson/os/cyanstore/cyan_object.h"
 #include "crimson/os/futurized_collection.h"
 #include "crimson/os/futurized_store.h"
 #include "crimson/osd/osd_operation.h"
@@ -37,14 +36,16 @@ PGBackend::create(pg_t pgid,
 		  const pg_pool_t& pool,
 		  crimson::os::CollectionRef coll,
 		  crimson::osd::ShardServices& shard_services,
-		  const ec_profile_t& ec_profile)
+		  const ec_profile_t& ec_profile,
+		  crimson::osd::PG& pg)
 {
   switch (pool.type) {
   case pg_pool_t::TYPE_REPLICATED:
     return std::make_unique<ReplicatedBackend>(pgid, pg_shard,
-					       coll, shard_services);
+					       coll, shard_services, pg);
   case pg_pool_t::TYPE_ERASURE:
     return std::make_unique<ECBackend>(pg_shard.shard, coll, shard_services,
+				       pg,
                                        std::move(ec_profile),
                                        pool.stripe_width);
   default:
@@ -55,10 +56,12 @@ PGBackend::create(pg_t pgid,
 
 PGBackend::PGBackend(shard_id_t shard,
                      CollectionRef coll,
-                     crimson::os::FuturizedStore* store)
+                     crimson::os::FuturizedStore* store,
+		     crimson::osd::PG& pg)
   : shard{shard},
     coll{coll},
-    store{store}
+    store{store},
+    pg{pg}
 {}
 
 PGBackend::load_metadata_ertr::future<PGBackend::loaded_object_md_t::ref>
@@ -181,6 +184,8 @@ PGBackend::read(const object_info_t& oi,
                 const uint32_t flags)
 {
   logger().trace("read: {} {}~{}", oi.soid, offset, length);
+  logger().debug("read: {} {}~{}", oi.soid, offset, length);
+
   // are we beyond truncate_size?
   size_t size = oi.size;
   if ((truncate_seq > oi.truncate_seq) &&
@@ -199,6 +204,7 @@ PGBackend::read(const object_info_t& oi,
   return _read(oi.soid, offset, length, flags).safe_then(
     [&oi](auto&& bl) -> read_errorator::future<ceph::bufferlist> {
       if (const bool is_fine = _read_verify_data(oi, bl); is_fine) {
+	logger().debug("read: data length: {}", bl.length());
         return read_errorator::make_ready_future<bufferlist>(std::move(bl));
       } else {
         return crimson::ct_error::object_corrupted::make();
@@ -480,6 +486,13 @@ maybe_get_omap_vals(
   }
 }
 
+seastar::future<ceph::bufferlist> PGBackend::omap_get_header(
+  crimson::os::CollectionRef& c,
+  const ghobject_t& oid)
+{
+  return store->omap_get_header(c, oid);
+}
+
 seastar::future<> PGBackend::omap_get_keys(
   const ObjectState& os,
   OSDOp& osd_op) const
@@ -621,4 +634,33 @@ seastar::future<> PGBackend::omap_set_vals(
   os.oi.set_flag(object_info_t::FLAG_OMAP);
   os.oi.clear_omap_digest();
   return seastar::now();
+}
+
+seastar::future<struct stat> PGBackend::stat(
+  CollectionRef c,
+  const ghobject_t& oid) const
+{
+  return store->stat(c, oid);
+}
+
+seastar::future<std::map<uint64_t, uint64_t>>
+PGBackend::fiemap(
+  CollectionRef c,
+  const ghobject_t& oid,
+  uint64_t off,
+  uint64_t len)
+{
+  return store->fiemap(c, oid, off, len);
+}
+
+hobject_t PGBackend::get_temp_recovery_object(
+  const hobject_t& target,
+  eversion_t version)
+{
+  ostringstream ss;
+  ss << "temp_recovering_" << pg.get_info().pgid << "_" << version
+    << "_" << pg.get_info().history.same_interval_since << "_" << target.snap;
+  hobject_t hoid = target.make_temp_hobject(ss.str());
+  logger().debug("{} {}", __func__, hoid);
+  return hoid;
 }
