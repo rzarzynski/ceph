@@ -41,27 +41,8 @@ class AES128GCM_OnWireTxHandler : public ceph::crypto::onwire::TxHandler {
 public:
   AES128GCM_OnWireTxHandler(CephContext* const cct,
 			    const key_t& key,
-			    const nonce_t& nonce)
-    : cct(cct),
-      ectx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free),
-      nonce(nonce) {
-    ceph_assert_always(ectx);
-    ceph_assert_always(key.size() * CHAR_BIT == 128);
-
-    if (1 != EVP_EncryptInit_ex(ectx.get(), EVP_aes_128_gcm(),
-			        nullptr, nullptr, nullptr)) {
-      throw std::runtime_error("EVP_EncryptInit_ex failed");
-    }
-
-    if(1 != EVP_EncryptInit_ex(ectx.get(), nullptr, nullptr,
-			       key.data(), nullptr)) {
-      throw std::runtime_error("EVP_EncryptInit_ex failed");
-    }
-  }
-
-  ~AES128GCM_OnWireTxHandler() override {
-    ::ceph::crypto::zeroize_for_security(&nonce, sizeof(nonce));
-  }
+			    const nonce_t& nonce);
+  ~AES128GCM_OnWireTxHandler() override;
 
   std::uint32_t calculate_segment_size(std::uint32_t size) override
   {
@@ -74,6 +55,33 @@ public:
   void authenticated_encrypt_update(const ceph::bufferlist& plaintext) override;
   ceph::bufferlist authenticated_encrypt_final() override;
 };
+
+AES128GCM_OnWireTxHandler::AES128GCM_OnWireTxHandler(
+  CephContext* const cct,
+  const key_t& key,
+  const nonce_t& nonce)
+  : cct(cct),
+    ectx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free),
+    nonce(nonce)
+{
+  ceph_assert_always(ectx);
+  ceph_assert_always(key.size() * CHAR_BIT == 128);
+
+  if (1 != EVP_EncryptInit_ex(ectx.get(), EVP_aes_128_gcm(),
+      		        nullptr, nullptr, nullptr)) {
+    throw std::runtime_error("EVP_EncryptInit_ex failed");
+  }
+
+  if(1 != EVP_EncryptInit_ex(ectx.get(), nullptr, nullptr,
+      		       key.data(), nullptr)) {
+    throw std::runtime_error("EVP_EncryptInit_ex failed");
+  }
+}
+
+AES128GCM_OnWireTxHandler::~AES128GCM_OnWireTxHandler()
+{
+  ::ceph::crypto::zeroize_for_security(&nonce, sizeof(nonce));
+}
 
 void AES128GCM_OnWireTxHandler::reset_tx_handler(
   std::initializer_list<std::uint32_t> update_size_sequence)
@@ -150,28 +158,8 @@ class AES128GCM_OnWireRxHandler : public ceph::crypto::onwire::RxHandler {
 public:
   AES128GCM_OnWireRxHandler(CephContext* const cct,
 			    const key_t& key,
-			    const nonce_t& nonce)
-    : cct(cct),
-      ectx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free),
-      nonce(nonce)
-  {
-    ceph_assert_always(ectx);
-    ceph_assert_always(key.size() * CHAR_BIT == 128);
-
-    if (1 != EVP_DecryptInit_ex(ectx.get(), EVP_aes_128_gcm(),
-			        nullptr, nullptr, nullptr)) {
-      throw std::runtime_error("EVP_DecryptInit_ex failed");
-    }
-
-    if(1 != EVP_DecryptInit_ex(ectx.get(), nullptr, nullptr,
-			       key.data(), nullptr)) {
-      throw std::runtime_error("EVP_DecryptInit_ex failed");
-    }
-  }
-
-  ~AES128GCM_OnWireRxHandler() override {
-    ::ceph::crypto::zeroize_for_security(&nonce, sizeof(nonce));
-  }
+			    const nonce_t& nonce);
+  ~AES128GCM_OnWireRxHandler() override;
 
   std::uint32_t get_extra_size_at_final() override {
     return AESGCM_TAG_LEN;
@@ -184,6 +172,32 @@ public:
     ceph::bufferlist&& ciphertext,
     std::uint32_t alignment) override;
 };
+
+AES128GCM_OnWireRxHandler::AES128GCM_OnWireRxHandler(
+  CephContext* const cct,
+  const key_t& key,
+  const nonce_t& nonce)
+  : cct(cct),
+    ectx(EVP_CIPHER_CTX_new(), EVP_CIPHER_CTX_free),
+    nonce(nonce)
+{
+  ceph_assert_always(ectx);
+  ceph_assert_always(key.size() * CHAR_BIT == 128);
+
+  if (1 != EVP_DecryptInit_ex(ectx.get(), EVP_aes_128_gcm(),
+      		        nullptr, nullptr, nullptr)) {
+    throw std::runtime_error("EVP_DecryptInit_ex failed");
+  }
+
+  if(1 != EVP_DecryptInit_ex(ectx.get(), nullptr, nullptr,
+      		       key.data(), nullptr)) {
+    throw std::runtime_error("EVP_DecryptInit_ex failed");
+  }
+}
+
+AES128GCM_OnWireRxHandler::~AES128GCM_OnWireRxHandler() {
+  ::ceph::crypto::zeroize_for_security(&nonce, sizeof(nonce));
+}
 
 void AES128GCM_OnWireRxHandler::reset_rx_handler()
 {
