@@ -93,6 +93,24 @@ static ceph::bufferlist to_bl(const std::string_view& sv)
   return bl;
 }
 
+static std::pair<ceph::bufferlist, ceph::bufferlist> split2ciphertext_and_tag(
+  ceph::bufferlist&& ciphertext_with_tag)
+{
+  ceph_assert_always(
+    ciphertext_with_tag.length() > ceph::crypto::onwire::AESGCM_TAG_LEN);
+  const std::size_t ciphertext_size = \
+    ciphertext_with_tag.length() - ceph::crypto::onwire::AESGCM_TAG_LEN;
+
+  ceph::bufferlist ciphertext;
+  ceph::bufferlist tag;
+  ciphertext_with_tag.splice(0, ciphertext_size, &ciphertext);
+
+  // ciphertext has been moved out; the remaning is tag.
+  tag = std::move(ciphertext_with_tag);
+
+  return std::make_pair(ciphertext, tag);
+}
+
 using AES128GCM_OnWireTxHandler = \
   ceph::crypto::onwire::AES128GCM_OnWireTxHandler;
 using AES128GCM_OnWireRxHandler = \
@@ -113,14 +131,11 @@ struct ciphertext_generator_t {
   }
 };
 
-TEST(AESGCMTxHandler, encrypt_sample)
+TEST(AESGCMTxHandler, fits_recording)
 {
-  auto tx = create_crypto_handler<AES128GCM_OnWireTxHandler>(g_ceph_context);
+  ciphertext_generator_t ctg;
+  auto ciphertext_with_tag = ctg.generate_cipherchunk_with_tag();
   auto plaintext = to_bl(aes_gcm_sample_t::plaintext);
-
-  tx->reset_tx_handler({ plaintext.length() });
-  tx->authenticated_encrypt_update(plaintext);
-  auto ciphertext_with_tag = tx->authenticated_encrypt_final();
 
   using ceph::crypto::onwire::AESGCM_TAG_LEN;
   const auto plaintext_size = aes_gcm_sample_t::plaintext.size();
@@ -132,14 +147,38 @@ TEST(AESGCMTxHandler, encrypt_sample)
   ASSERT_EQ(0, ::memcmp(ciphertext_with_tag.c_str() + plaintext_size,
                         aes_gcm_sample_t::tag.data(),
                         aes_gcm_sample_t::tag.size()));
-
-  // let's ensure the input bufferlist is untoched.
+  // let's ensure the input bufferlist is untouched.
   ASSERT_TRUE(plaintext.contents_equal(aes_gcm_sample_t::plaintext.data(),
                                        aes_gcm_sample_t::plaintext.size()));
 }
 
+TEST(AESGCMTxHandler, nonce_is_being_updated)
+{
+  // we want to ensure that two ciphertexts (and their tags!) from same
+  // plaintext are truly different across two final'led rounds. This is
+  // expected because each reset() should trigger nonce update.
+  ciphertext_generator_t ctg;
+  auto [ ciphertext1, tag1 ] = \
+    split2ciphertext_and_tag(ctg.generate_cipherchunk_with_tag());
+  auto [ ciphertext2, tag2 ] = \
+    split2ciphertext_and_tag(ctg.generate_cipherchunk_with_tag());
 
-TEST(AESGCMRxHandler, single_chunk)
+  ASSERT_FALSE(ciphertext1.contents_equal(ciphertext2));
+  ASSERT_FALSE(tag1.contents_equal(tag2));
+
+  // extra assertions. Just to ensure that split2ciphertext_and_tag()
+  // hasn't messed up.
+  ASSERT_EQ(ciphertext1.length(), aes_gcm_sample_t::ciphertext.size());
+  ASSERT_EQ(tag1.length(), aes_gcm_sample_t::tag.size());
+  ASSERT_EQ(0, ::memcmp(ciphertext1.c_str(),
+                        aes_gcm_sample_t::ciphertext.data(),
+                        aes_gcm_sample_t::ciphertext.size()));
+  ASSERT_EQ(0, ::memcmp(tag1.c_str(),
+                        aes_gcm_sample_t::tag.data(),
+                        aes_gcm_sample_t::tag.size()));
+}
+
+TEST(AESGCMRxHandler, singly_chunked_fits_recording)
 {
   // decrypt and authenticate at once – using the authenticated_decrypt_update_final
   auto rx = create_crypto_handler<AES128GCM_OnWireRxHandler>(g_ceph_context);
@@ -157,6 +196,7 @@ TEST(AESGCMRxHandler, single_chunk)
   // If tag doesn't match, exception will be thrown.
   auto plaintext = rx->authenticated_decrypt_update_final(
     std::move(ciphertext_with_tag), 16);
+  ASSERT_EQ(plaintext.length(), aes_gcm_sample_t::plaintext.size());
   ASSERT_TRUE(plaintext.contents_equal(aes_gcm_sample_t::plaintext.data(),
                                        aes_gcm_sample_t::plaintext.size()));
 }
@@ -251,18 +291,8 @@ TEST(AESGCMRxHandler, reset_with_multiple_chunks)
   for (std::size_t i = 0; i < 5; i++) {
     rx->reset_rx_handler();
 
-    ceph::bufferlist ciphertext;
-    ceph::bufferlist tag;
-    {
-      auto ciphertext_with_tag = ctg.generate_cipherchunk_with_tag();
-      const std::size_t ciphertext_size = \
-        ciphertext_with_tag.length() - ceph::crypto::onwire::AESGCM_TAG_LEN;
-      ciphertext_with_tag.splice(0, ciphertext_size, &ciphertext);
-
-      // ciphertext has been moved out; the remaning is tag.
-      tag = std::move(ciphertext_with_tag);
-    }
-
+    auto [ ciphertext, tag ] = \
+      split2ciphertext_and_tag(ctg.generate_cipherchunk_with_tag());
     ceph::bufferlist plaintext;
     EXPECT_NO_THROW({
       plaintext = rx->authenticated_decrypt_update(
