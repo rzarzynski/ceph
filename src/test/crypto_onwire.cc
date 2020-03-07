@@ -122,7 +122,7 @@ struct ciphertext_generator_t {
     : tx(create_crypto_handler<AES128GCM_OnWireTxHandler>(g_ceph_context)) {
   }
 
-  ceph::bufferlist generate_cipherchunk_with_tag() {
+  ceph::bufferlist from_recorded_plaintext() {
     auto plainchunk = to_bl(aes_gcm_sample_t::plaintext);
     tx->reset_tx_handler({ plainchunk.length() });
     tx->authenticated_encrypt_update(std::move(plainchunk));
@@ -133,7 +133,7 @@ struct ciphertext_generator_t {
 TEST(AESGCMTxHandler, fits_recording)
 {
   ciphertext_generator_t ctg;
-  auto ciphertext_with_tag = ctg.generate_cipherchunk_with_tag();
+  auto ciphertext_with_tag = ctg.from_recorded_plaintext();
   auto plaintext = to_bl(aes_gcm_sample_t::plaintext);
 
   using ceph::crypto::onwire::AESGCM_TAG_LEN;
@@ -158,9 +158,9 @@ TEST(AESGCMTxHandler, nonce_is_being_updated)
   // expected because each reset() should trigger nonce update.
   ciphertext_generator_t ctg;
   auto [ ciphertext1, tag1 ] = \
-    split2ciphertext_and_tag(ctg.generate_cipherchunk_with_tag());
+    split2ciphertext_and_tag(ctg.from_recorded_plaintext());
   auto [ ciphertext2, tag2 ] = \
-    split2ciphertext_and_tag(ctg.generate_cipherchunk_with_tag());
+    split2ciphertext_and_tag(ctg.from_recorded_plaintext());
 
   ASSERT_FALSE(ciphertext1.contents_equal(ciphertext2));
   ASSERT_FALSE(tag1.contents_equal(tag2));
@@ -269,7 +269,7 @@ TEST(AESGCMRxHandler, reset_is_compatible_with_tx)
   for (std::size_t i = 0; i < 5; i++) {
     rx->reset_rx_handler();
 
-    auto ciphertext_with_tag = ctg.generate_cipherchunk_with_tag();
+    auto ciphertext_with_tag = ctg.from_recorded_plaintext();
 
     // If tag doesn't match, exception will be thrown.
     ceph::bufferlist plaintext;
@@ -291,7 +291,7 @@ TEST(AESGCMRxHandler, reset_with_cipertext_and_tag_separated)
     rx->reset_rx_handler();
 
     auto [ ciphertext, tag ] = \
-      split2ciphertext_and_tag(ctg.generate_cipherchunk_with_tag());
+      split2ciphertext_and_tag(ctg.from_recorded_plaintext());
     ceph::bufferlist plaintext;
     EXPECT_NO_THROW({
       plaintext = rx->authenticated_decrypt_update(
