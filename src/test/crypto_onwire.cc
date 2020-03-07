@@ -5,7 +5,6 @@
 #include <iostream>
 #include <string_view>
 
-#include "auth/Crypto.h"
 #include "include/buffer.h"
 #include "gtest/gtest.h"
 #include "common/ceph_crypto.h"
@@ -223,7 +222,7 @@ TEST(AESGCMRxHandler, mismatched_tag)
     ceph::crypto::onwire::MsgAuthError);
 }
 
-TEST(AESGCMRxHandler, multi_chunk)
+TEST(AESGCMRxHandler, multi_chunked_fits_recording)
 {
   // verify whether the ciphertext matches plaintext over the entire
   // space of chunk sizes. by chunk we understood the fragment passed
@@ -262,7 +261,7 @@ TEST(AESGCMRxHandler, multi_chunk)
   }
 }
 
-TEST(AESGCMRxHandler, reset)
+TEST(AESGCMRxHandler, reset_is_compatible_with_tx)
 {
   ciphertext_generator_t ctg;
   auto rx = create_crypto_handler<AES128GCM_OnWireRxHandler>(g_ceph_context);
@@ -283,7 +282,7 @@ TEST(AESGCMRxHandler, reset)
   }
 }
 
-TEST(AESGCMRxHandler, reset_with_multiple_chunks)
+TEST(AESGCMRxHandler, reset_with_cipertext_and_tag_separated)
 {
   ciphertext_generator_t ctg;
   auto rx = create_crypto_handler<AES128GCM_OnWireRxHandler>(g_ceph_context);
