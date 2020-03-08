@@ -353,3 +353,7 @@ TEST(AESGCMRxHandler, reset_in_multi_chunked)
     }
   }
 }
+
+TEST(AESGCMRxHandler, do_more_at_final)
+{
+}
