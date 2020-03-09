@@ -35,6 +35,8 @@ seastar::future<> RecoverySubRequest::start() {
       case MSG_OSD_PG_RECOVERY_DELETE_REPLY:
 	return pgref->handle_recovery_delete_reply(
 	    boost::static_pointer_cast<MOSDPGRecoveryDeleteReply>(m));
+      case MSG_OSD_PG_SCAN:
+	return pgref->handle_scan(*boost::static_pointer_cast<MOSDPGScan>(m));
       default:
 	return seastar::make_exception_future<>(
 	    std::runtime_error(fmt::format("invalid request type: {}",

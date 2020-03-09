@@ -1237,6 +1237,14 @@ void PG::_committed_pushed_object(epoch_t epoch,
   }
 }
 
+seastar::future<> PG::handle_scan(
+  MOSDPGScan& m)
+{
+  logger().debug("{}",
+                 __func__);
+  return seastar::now();
+}
+
 seastar::future<> PG::handle_pull(
   Ref<MOSDPGPull> m)
 {

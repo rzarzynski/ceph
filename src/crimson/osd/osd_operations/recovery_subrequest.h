@@ -7,6 +7,7 @@
 #include "crimson/net/Connection.h"
 #include "crimson/osd/osd_operation.h"
 #include "crimson/common/type_helpers.h"
+#include "messages/MOSDPGScan.h"
 #include "messages/MOSDPGPull.h"
 #include "messages/MOSDPGPush.h"
 #include "messages/MOSDPGPushReply.h"
@@ -21,6 +22,7 @@ class OSD;
 class RecoverySubRequest final : public OperationT<RecoverySubRequest> {
   OSD& osd;
   crimson::net::ConnectionRef conn;
+  // MOSDPGScan subclasses MOSDFastDispatchOp
   Ref<MOSDFastDispatchOp> m;
 
 public:

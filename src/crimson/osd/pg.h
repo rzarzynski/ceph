@@ -527,6 +527,7 @@ public:
   seastar::future<> handle_rep_op(Ref<MOSDRepOp> m);
   void handle_rep_op_reply(crimson::net::Connection* conn,
 			   const MOSDRepOpReply& m);
+  seastar::future<> handle_scan(MOSDPGScan& m);
   seastar::future<> handle_pull(Ref<MOSDPGPull> m);
   seastar::future<> handle_push(Ref<MOSDPGPush> m);
   seastar::future<> handle_push_reply(Ref<MOSDPGPushReply> m);
