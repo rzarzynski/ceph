@@ -8,6 +8,7 @@
 
 #include "crimson/osd/pg.h"
 #include "crimson/osd/pg_backend.h"
+#include "crimson/osd/object_context.h"
 #include "replicated_recovery_backend.h"
 
 #include "msg/Message.h"

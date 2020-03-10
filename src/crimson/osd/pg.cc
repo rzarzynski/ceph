@@ -16,6 +16,7 @@
 
 #include "messages/MOSDOp.h"
 #include "messages/MOSDOpReply.h"
+#include "messages/MOSDPGScan.h"
 #include "messages/MOSDPGInfo.h"
 #include "messages/MOSDPGLog.h"
 #include "messages/MOSDPGNotify.h"
