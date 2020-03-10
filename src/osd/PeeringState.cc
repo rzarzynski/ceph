@@ -125,6 +125,17 @@ void PGPool::update(OSDMapRef map)
   cached_epoch = map->get_epoch();
 }
 
+ostream& operator<<(ostream& out, const BackfillInterval& bi)
+{
+  out << "BackfillInfo(" << bi.begin << "-" << bi.end
+      << " " << bi.objects.size() << " objects";
+  if (!bi.objects.empty())
+    out << " " << bi.objects;
+  out << ")";
+  return out;
+}
+
+
 /*-------------Peering State Helpers----------------*/
 #undef dout_prefix
 #define dout_prefix (dpp->gen_prefix(*_dout))
