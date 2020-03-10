@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include <fmt/format.h>
+
 #include "crimson/osd/recovery_backend.h"
 #include "crimson/osd/pg.h"
 
@@ -42,3 +44,13 @@ void RecoveryBackend::clean_up(ceph::os::Transaction& t,
   recovering.clear();
 }
 
+seastar::future<> RecoveryBackend::handle_recovery_op(
+  Ref<MOSDFastDispatchOp> m)
+{
+  switch (m->get_header().type) {
+  default:
+    return seastar::make_exception_future<>(
+	std::invalid_argument(fmt::format("invalid request type: {}",
+					  m->get_header().type)));
+  }
+}
