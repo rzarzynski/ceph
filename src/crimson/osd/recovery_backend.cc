@@ -42,3 +42,13 @@ void RecoveryBackend::clean_up(ceph::os::Transaction& t,
   recovering.clear();
 }
 
+seastar::future<> RecoveryBackend::handle_recovery_op(
+  Ref<MOSDFastDispatchOp> m)
+{
+  switch (m->get_header().type) {
+  default:
+    return seastar::make_exception_future<>(
+	std::invalid_argument(fmt::format("invalid request type: {}",
+					  m->get_header().type)));
+  }
+}
