@@ -16,6 +16,7 @@
 
 #include "messages/MOSDOp.h"
 #include "messages/MOSDOpReply.h"
+#include "messages/MOSDPGScan.h"
 #include "messages/MOSDPGInfo.h"
 #include "messages/MOSDPGLog.h"
 #include "messages/MOSDPGNotify.h"
@@ -1237,12 +1238,114 @@ void PG::_committed_pushed_object(epoch_t epoch,
   }
 }
 
+seastar::future<BackfillInterval> PG::scan_for_backfill(
+  const hobject_t& start,
+  const std::int64_t min,
+  const std::int64_t max)
+{
+  logger().debug("{} starting from {}",
+                 __func__, start);
+  return seastar::do_with(
+    std::map<hobject_t, eversion_t>{},
+    [this, &start, limit=std::max(min, max)] (auto& version_map) {
+      return backend->list_objects(start, limit).then(
+        [this, &start, &version_map] (auto objects, auto next) {
+          return seastar::parallel_for_each(
+            objects,
+            [this, &version_map] (const hobject_t& object) {
+              ObjectContextRef obc;
+              if (is_primary()) {
+                obc = shard_services.obc_registry.maybe_get_cached_obc(object);
+              }
+              if (obc) {
+                if (obc->obs.exists) {
+                  logger().debug("  found primary: {}  {}",
+                                 object, obc->obs.oi.version);
+                  version_map[object] = obc->obs.oi.version;
+                } else {
+                  // if the object does not exist here, it must have been removed
+                  // between the collection_list_partial and here.  This can happen
+                  // for the first item in the range, which is usually last_backfill.
+                }
+                return seastar::now();
+              } else {
+                return backend->load_metadata(object).safe_then(
+                  [&version_map, object] (auto md) {
+                    if (md->os.exists) {
+                      logger().debug("  found: {}  {}",
+                                     object, md->os.oi.version);
+                      version_map[object] = md->os.oi.version;
+                    }
+                    return seastar::now();
+                  }, /* FIXME */ PGBackend::load_metadata_ertr::discard_all{});
+              }
+          }).then(
+            [&version_map, &start, next=std::move(next)] {
+              BackfillInterval bi;
+              bi.begin = start;
+              bi.end = std::move(next);
+              bi.objects = std::move(version_map);
+              return seastar::make_ready_future<BackfillInterval>(std::move(bi));
+            });
+        });
+    });
+}
+
+seastar::future<> PG::handle_scan_get_digest(
+  MOSDPGScan& m)
+{
+  if (false /* FIXME: check for backfill too full */) {
+    std::ignore = shard_services.start_operation<LocalPeeringEvent>(
+      this,
+      shard_services,
+      pg_whoami,
+      pgid,
+      get_osdmap_epoch(),
+      get_osdmap_epoch(),
+      PeeringState::BackfillTooFull());
+    return seastar::now();
+  }
+  return scan_for_backfill(
+    std::move(m.begin),
+    local_conf().get_val<std::int64_t>("osd_backfill_scan_min"),
+    local_conf().get_val<std::int64_t>("osd_backfill_scan_max")
+  ).then([this,
+          query_epoch=m.query_epoch,
+          conn=m.get_connection()] (auto backfill_interval) {
+    auto reply = make_message<MOSDPGScan>(
+      MOSDPGScan::OP_SCAN_DIGEST,
+      pg_whoami,
+      get_osdmap_epoch(),
+      query_epoch,
+      spg_t(get_info().pgid.pgid, get_primary().shard),
+      backfill_interval.begin,
+      backfill_interval.end);
+    encode(backfill_interval.objects, reply->get_data());
+    return conn->send(std::move(reply));
+  });
+}
+
+static seastar::future<> handle_scan_digest(
+  MOSDPGScan& m)
+{
+  return seastar::now();
+}
+
 seastar::future<> PG::handle_scan(
   MOSDPGScan& m)
 {
   logger().debug("{}",
                  __func__);
-  return seastar::now();
+  switch (m.op) {
+    case MOSDPGScan::OP_SCAN_GET_DIGEST:
+      return handle_scan_get_digest(m);
+    case MOSDPGScan::OP_SCAN_DIGEST:
+      return handle_scan_digest(m);
+    default:
+      // FIXME: move to errorator
+      ceph_assert("unknown op type for pg scan");
+      return seastar::now();
+  }
 }
 
 seastar::future<> PG::handle_pull(
