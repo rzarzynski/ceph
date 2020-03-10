@@ -459,6 +459,9 @@ public:
   const auto& get_pool() const {
     return peering_state.get_pool();
   }
+  pg_shard_t get_primary() const {
+    return peering_state.get_primary();
+  }
 
   /// initialize created PG
   void init(
@@ -503,6 +506,13 @@ public:
     Operation *op,
     const hobject_t &oid,
     RWState::State type);
+
+  seastar::future<BackfillInterval> scan_for_backfill(
+    const hobject_t& from,
+    std::int64_t min,
+    std::int64_t max);
+  seastar::future<> handle_scan_get_digest(
+    MOSDPGScan& m);
 public:
   template <typename F>
   auto with_locked_obc(
