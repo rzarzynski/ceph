@@ -2220,13 +2220,9 @@ public:
 
   hobject_t earliest_backfill() const {
     hobject_t e = hobject_t::get_max();
-    for (set<pg_shard_t>::const_iterator i = get_backfill_targets().begin();
-	 i != get_backfill_targets().end();
-	 ++i) {
-      pg_shard_t bt = *i;
+    for (const pg_shard_t& bt : get_backfill_targets()) {
       const pg_info_t &pi = get_peer_info(bt);
-      if (pi.last_backfill < e)
-	e = pi.last_backfill;
+      e = std::min(pi.last_backfill, e);
     }
     return e;
   }
