@@ -51,9 +51,9 @@ seastar::future<> Heartbeat::start(entity_addrvec_t front_addrs,
 
   using crimson::net::SocketPolicy;
   front_msgr->set_policy(entity_name_t::TYPE_OSD,
-                         SocketPolicy::stateless_server(0));
+                         SocketPolicy::lossless_peer(0));
   back_msgr->set_policy(entity_name_t::TYPE_OSD,
-                        SocketPolicy::stateless_server(0));
+                        SocketPolicy::lossless_peer(0));
   return seastar::when_all_succeed(start_messenger(*front_msgr, front_addrs),
                                    start_messenger(*back_msgr, back_addrs))
     .then([this] {
