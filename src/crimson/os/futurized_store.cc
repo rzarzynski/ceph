@@ -11,8 +11,6 @@ FuturizedStore::create(const std::string& type,
 {
   if (type == "memstore") {
     return std::make_unique<crimson::os::CyanStore>(data);
-  } else if (type == "bluestore") {
-    return std::make_unique<crimson::os::AlienStore>(data, values);
   } else {
     ceph_abort_msgf("unsupported objectstore type: %s", type.c_str());
     return {};

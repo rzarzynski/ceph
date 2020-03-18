@@ -95,6 +95,11 @@ public:
   seastar::future<int, std::string> read_meta(const std::string& key) final;
   uuid_d get_fsid() const final;
   seastar::future<store_statfs_t> stat() const final;
+  seastar::future<struct stat> stat(
+    CollectionRef c,
+    const ghobject_t& oid) final {
+    ceph_assert_always("not implemented yet" == nullptr);
+  }
   unsigned get_max_attr_name_length() const final;
   seastar::future<struct stat> stat(
     CollectionRef,
