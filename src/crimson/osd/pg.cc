@@ -509,6 +509,7 @@ seastar::future<> PG::submit_transaction(ObjectContextRef&& obc,
 		    obc->obs.oi.soid, osd_op_p.at_version, obc->obs.oi.version,
 		    osd_op_p.user_modify ? osd_op_p.at_version.version : 0,
 		    osd_op_p.req->get_reqid(), osd_op_p.req->get_mtime(), 0);
+  log_entries.back().clean_regions = std::move(osd_op_p.clean_regions);
   peering_state.append_log_with_trim_to_updated(std::move(log_entries), osd_op_p.at_version,
 						txn, true, false);
 

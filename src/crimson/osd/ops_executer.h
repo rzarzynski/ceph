@@ -82,6 +82,7 @@ private:
   PG& pg;
   PGBackend& backend;
   Ref<MOSDOp> msg;
+  osd_op_params_t osd_op_params;
   bool user_modify = false;
   ceph::os::Transaction txn;
 
@@ -148,7 +149,7 @@ private:
   auto do_write_op(Func&& f, bool um) {
     ++num_write;
     user_modify = um;
-    return std::forward<Func>(f)(backend, obc->obs, txn);
+    return std::forward<Func>(f)(backend, obc->obs, txn, osd_op_params);
   }
 
   // PG operations are being provided with pg instead of os.
@@ -222,7 +223,7 @@ auto OpsExecuter::with_effect_on_obc(
 template <typename Func>
 OpsExecuter::osd_op_errorator::future<> OpsExecuter::submit_changes(Func&& f) && {
   assert(obc);
-  osd_op_params_t osd_op_params(std::move(msg));
+  osd_op_params.req = std::move(msg);
   eversion_t at_version = pg.next_version();
 
   osd_op_params.at_version = at_version;
