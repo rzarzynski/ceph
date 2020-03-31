@@ -565,8 +565,7 @@ seastar::future<ObjectRecoveryProgress> ReplicatedBackend::build_push_op(
       }
     }).then([this, &recovery_info, &progress, &oi, pop] {
       //TODO: there's no readv in cyan_store yet, use read temporarily.
-      return read(oi, 0, pop->data_included.range_end(),
-		  0, 0, 0);
+      return store->readv(coll, ghobject_t{oi.soid}, pop->data_included, 0);
     }).safe_then([this, &recovery_info, &progress,
       &new_progress, &oi, stat, pop, &v]
       (auto bl) {
