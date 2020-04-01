@@ -46,8 +46,7 @@ class OSDMapGate {
   // so we can access all the waiters expecting a map whose epoch is less
   // than a given epoch
   using waiting_peering_t = std::map<epoch_t,
-				     OSDMapBlocker,
-				     std::greater<epoch_t>>;
+				     OSDMapBlocker>;
   const char *blocker_type;
   waiting_peering_t waiting_peering;
   epoch_t current = 0;
