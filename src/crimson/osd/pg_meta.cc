@@ -24,7 +24,7 @@ namespace {
   {
     auto found = values.find(key);
     if (found == values.end()) {
-      return {};
+      return std::nullopt;
     }
     auto p = found->second.cbegin();
     T value;
