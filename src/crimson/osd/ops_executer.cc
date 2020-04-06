@@ -86,6 +86,7 @@ OpsExecuter::call_errorator::future<> OpsExecuter::do_op_call(OSDOp& osd_op)
     [prev_rd = num_read, prev_wr = num_write, this, &osd_op, flags]
     (auto outcome) -> call_errorator::future<> {
       auto& [ret, outdata] = outcome;
+      osd_op.rval = ret;
 
       if (num_read > prev_rd && !(flags & CLS_METHOD_RD)) {
         logger().error("method tried to read object but is not marked RD");

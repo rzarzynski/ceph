@@ -882,16 +882,23 @@ EOF
         key = $OSD_SECRET
 EOF
         fi
-        echo start osd.$osd
-        local osd_pid
-        run 'osd' $osd $SUDO $CEPH_BIN/$ceph_osd \
-            $extra_seastar_args $extra_osd_args \
-            -i $osd $ARGS $COSD_ARGS &
-        osd_pid=$!
-        if $parallel; then
-            osds_wait=$osd_pid
+        if [ $osd -eq $start ]; then
+            echo pospoting starting osd.$osd\; command
+            echo $CEPH_BIN/$ceph_osd \
+                $extra_seastar_args $extra_osd_args \
+                -i $osd $ARGS $COSD_ARGS &
         else
-            wait $osd_pid
+            echo start osd.$osd
+            local osd_pid
+            run 'osd' $osd $SUDO $CEPH_BIN/$ceph_osd \
+                $extra_seastar_args $extra_osd_args \
+                -i $osd $ARGS $COSD_ARGS &
+            osd_pid=$!
+            if $parallel; then
+                osds_wait=$osd_pid
+            else
+                wait $osd_pid
+            fi
         fi
     done
     if $parallel; then
