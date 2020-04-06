@@ -129,7 +129,7 @@ TEST(ClsHello, WriteReturnData) {
   // more likely to resend a request and hit the dup op handling path.
   char buf[4096];
   memset(buf, 1, sizeof(buf));
-  for (unsigned i=0; i<1000; ++i) {
+  for (unsigned i=0; i<500; ++i) {
     std::cout << i << std::endl;
     in.clear();
     in.append(buf, sizeof(buf));

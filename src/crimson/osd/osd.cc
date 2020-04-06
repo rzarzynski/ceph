@@ -819,7 +819,7 @@ seastar::future<Ref<PG>> OSD::handle_pg_create_info(
           acting_primary,
           info->history,
           info->past_intervals,
-          false,
+          false, // CHECKME: backfill == false
           rctx.transaction);
 
         return shard_services.start_operation<PGAdvanceMap>(
