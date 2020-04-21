@@ -76,6 +76,8 @@ seastar::future<> PeeringEvent::start()
                                : seastar::now();
       });
     }
+  }).then([this] {
+    return shard_services.send_pg_temp();
   }).then([this, ref=std::move(ref)] {
     logger().debug("{}: complete", *this);
   });
