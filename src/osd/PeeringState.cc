@@ -6481,6 +6481,7 @@ boost::statechart::result PeeringState::GetInfo::react(const QueryState& q)
 void PeeringState::GetInfo::exit()
 {
   context< PeeringMachine >().log_exit(state_name, enter_time);
+  ceph_assert(peer_info_requested.empty());
 
   DECLARE_LOCALS;
   utime_t dur = ceph_clock_now() - enter_time;
