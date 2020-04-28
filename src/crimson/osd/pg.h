@@ -20,6 +20,7 @@
 
 #include "crimson/common/type_helpers.h"
 #include "crimson/os/futurized_collection.h"
+#include "crimson/osd/backfill_state.h"
 #include "crimson/osd/osd_operations/client_request.h"
 #include "crimson/osd/osd_operations/peering_event.h"
 #include "crimson/osd/osd_operations/replicated_request.h"
@@ -459,6 +460,9 @@ public:
   bool get_need_up_thru() const {
     return peering_state.get_need_up_thru();
   }
+  epoch_t get_same_interval_since() const {
+    return get_info().history.same_interval_since;
+  }
 
   const auto& get_pool() const {
     return peering_state.get_pool();
@@ -670,6 +674,7 @@ private:
   friend class PGAdvanceMap;
   friend class PeeringEvent;
   friend class RepRequest;
+  friend struct BackfillState::PGFacade;
 public:
   crimson::osd::blocking_future<bool> start_recovery_ops(size_t max_to_start);
 private:

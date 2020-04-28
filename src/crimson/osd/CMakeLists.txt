@@ -1,4 +1,5 @@
 add_executable(crimson-osd
+  backfill_state.cc
   chained_dispatchers.cc
   ec_backend.cc
   heartbeat.cc
