@@ -17,9 +17,6 @@ namespace crimson::osd {
 
 namespace sc = boost::statechart;
 
-// FIXME
-class NamedState {};
-
 struct BackfillState {
   struct BackfillListener;
   struct PeeringFacade;
