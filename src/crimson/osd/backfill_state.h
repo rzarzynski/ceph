@@ -176,7 +176,7 @@ public:
   };
 
   struct Flushing : sc::simple_state<Flushing, BackfillMachine>,
-                    StateHelper<ReplicasScanning> {
+                    StateHelper<Flushing> {
     using reactions = boost::mpl::list<
       sc::transition<Flushed, Enqueuing>,
       sc::transition<sc::event_base, Crashed>>;
