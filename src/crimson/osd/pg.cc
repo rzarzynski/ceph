@@ -865,4 +865,50 @@ void PG::handle_rep_op_reply(crimson::net::Connection* conn,
   backend->got_rep_op_reply(m);
 }
 
+void PG::request_replica_scan(
+  const pg_shard_t& target,
+  const hobject_t& begin,
+  const hobject_t& end)
+{
+  ceph_assert(0 == "Not implemented");
+}
+
+void PG::request_primary_scan(
+  const hobject_t& begin)
+{
+  ceph_assert(0 == "Not implemented");
+}
+
+void PG::enqueue_push(
+  const pg_shard_t& target,
+  const hobject_t& obj,
+  const eversion_t& v)
+{
+  ceph_assert(0 == "Not implemented");
+}
+
+void PG::enqueue_drop(
+  const pg_shard_t& target,
+  const hobject_t& obj,
+  const eversion_t& v)
+{
+  ceph_assert(0 == "Not implemented");
+}
+
+void PG::update_peers_last_backfill(
+  const hobject_t& new_last_backfill)
+{
+  ceph_assert(0 == "Not implemented");
+}
+
+bool PG::budget_available() const
+{
+  ceph_assert(0 == "Not implemented");
+}
+
+void PG::backfilled()
+{
+  ceph_assert(0 == "Not implemented");
+}
+
 }

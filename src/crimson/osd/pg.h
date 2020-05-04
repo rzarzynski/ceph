@@ -58,6 +58,7 @@ class PG : public boost::intrusive_ref_counter<
   boost::thread_unsafe_counter>,
   public PGRecoveryListener,
   PeeringState::PeeringListener,
+  public BackfillState::BackfillListener,
   DoutPrefixProvider
 {
   using ec_profile_t = std::map<std::string,std::string>;
@@ -343,12 +344,35 @@ public:
     return 0;
   }
 
+  // backfill begin
   void on_backfill_reserved() final {
     ceph_assert(0 == "Not implemented");
   }
   void on_backfill_canceled() final {
     ceph_assert(0 == "Not implemented");
   }
+  void request_replica_scan(
+    const pg_shard_t& target,
+    const hobject_t& begin,
+    const hobject_t& end) final;
+  void request_primary_scan(
+    const hobject_t& begin) final;
+  void enqueue_push(
+    const pg_shard_t& target,
+    const hobject_t& obj,
+    const eversion_t& v) final;
+  void enqueue_drop(
+    const pg_shard_t& target,
+    const hobject_t& obj,
+    const eversion_t& v) final;
+  void update_peers_last_backfill(
+    const hobject_t& new_last_backfill) final;
+  bool budget_available() const final;
+  void backfilled() final;
+  // backfill end
+
+
+
   void on_recovery_reserved() final {
     recovery_handler->start_background_recovery();
   }
