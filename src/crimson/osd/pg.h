@@ -354,8 +354,7 @@ public:
   }
 
   void on_backfill_reserved() final {
-    start_background_recovery(
-      crimson::osd::scheduler::scheduler_class_t::background_best_effort);
+    ceph_assert(0 == "Not implemented");
   }
   void on_backfill_canceled() final {
     ceph_assert(0 == "Not implemented");
@@ -689,9 +688,6 @@ private:
     size_t max_to_start,
     std::vector<crimson::osd::blocking_future<>> *out);
   size_t start_replica_recovery_ops(
-    size_t max_to_start,
-    std::vector<crimson::osd::blocking_future<>> *out);
-  size_t start_backfill_ops(
     size_t max_to_start,
     std::vector<crimson::osd::blocking_future<>> *out);
 
