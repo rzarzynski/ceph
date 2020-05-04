@@ -71,7 +71,13 @@ BackfillState::Initial::react(const BackfillState::Trigerred& evt)
   bs().backfill_info.reset(bs().last_backfill_started);
   bs().backfills_in_flight.clear();
   bs().pending_backfill_updates.clear();
-  return transit<BackfillState::Enqueuing>();
+  if (Enqueuing::all_enqueued(ps(),
+                              bs().backfill_info,
+                              bs().peer_backfill_info)) {
+    return transit<BackfillState::Done>();
+  } else {
+    return transit<BackfillState::Enqueuing>();
+  }
 }
 
 
@@ -135,12 +141,11 @@ void BackfillState::Enqueuing::trim_backfill_infos()
   bs().backfill_info.trim_to(bs().last_backfill_started);
 }
 
-bool BackfillState::Enqueuing::all_peer_done(
-  const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info) const
+/* static */ bool BackfillState::Enqueuing::all_peer_enqueued(
+  const PeeringFacade& ps,
+  const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info)
 {
-  // Primary hasn't got any more objects
-  ceph_assert(bs().backfill_info.empty());
-  for (const auto& bt : ps().get_backfill_targets()) {
+  for (const auto& bt : ps.get_backfill_targets()) {
     const auto piter = peer_backfill_info.find(bt);
     ceph_assert(piter != peer_backfill_info.end());
     const BackfillInterval& pbi = piter->second;
@@ -150,6 +155,26 @@ bool BackfillState::Enqueuing::all_peer_done(
     }
   }
   return true;
+}
+
+bool BackfillState::Enqueuing::all_peer_enqueued(
+  const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info) const
+{
+  // Primary hasn't got any more objects
+  ceph_assert(bs().backfill_info.empty());
+  return all_peer_enqueued(ps(), peer_backfill_info);
+}
+
+/* static */ bool BackfillState::Enqueuing::all_enqueued(
+  const PeeringFacade& ps,
+  const BackfillInterval& backfill_info,
+  const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info)
+{
+  const bool all_local_enqueued = \
+    backfill_info.extends_to_end() && backfill_info.empty();
+  const bool all_peer_enqueued =  \
+    Enqueuing::all_peer_enqueued(ps, peer_backfill_info);
+  return all_local_enqueued && all_peer_enqueued;
 }
 
 hobject_t BackfillState::Enqueuing::earliest_peer_backfill(
@@ -248,6 +273,8 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
 
 BackfillState::Enqueuing::Enqueuing()
 {
+  ceph_assert(!all_peer_enqueued(bs().peer_backfill_info));
+
   // update our local interval to cope with recent changes
   bs().backfill_info.begin = bs().last_backfill_started;
   if (bs().backfill_info.version < ps().get_info().log_tail) {
@@ -261,8 +288,11 @@ BackfillState::Enqueuing::Enqueuing()
   trim_backfill_infos();
 
   while (!bs().backfill_info.empty()) {
-    if (should_rescan_replicas(bs().peer_backfill_info,
-                               bs().backfill_info)) {
+    if (!ls().budget_available()) {
+      post_event(RequestWaiting{});
+      return;
+    } else if (should_rescan_replicas(bs().peer_backfill_info,
+                                      bs().backfill_info)) {
       // Count simultaneous scans as a single op and let those complete
       post_event(RequestReplicasScanning{});
       return;
@@ -284,25 +314,17 @@ BackfillState::Enqueuing::Enqueuing()
     }
   }
 
-#if 0
-  if (ls().maybe_flush_and_notify(new_last_backfill)) {
-    logger().info("{}: flush in progress, waiting on end",
-                  __func__);
-    post_event(RequestFlushing{});
-  } else
-#endif
-  if (all_peer_done(bs().peer_backfill_info)) {
-    logger().info("{}: reached end for both local and all peers",
-                  __func__);
-  } else if (should_rescan_primary(bs().peer_backfill_info,
-                                   bs().backfill_info)) {
+  if (should_rescan_primary(bs().peer_backfill_info,
+                            bs().backfill_info)) {
     // need to grab one another chunk of the object namespace and  restart
     // the queueing.
     logger().debug("{}: reached end for current local chunk",
                    __func__);
     post_event(RequestPrimaryScanning{});
   } else {
-    ceph_assert("should not be there" == nullptr);
+    logger().info("{}: reached end for both local and all peers.",
+                  __func__);
+    post_event(RequestWaiting{});
   }
 }
 
@@ -324,6 +346,11 @@ BackfillState::PrimaryScanning::react(PrimaryScanned evt)
   return transit<Enqueuing>();
 }
 
+boost::statechart::result
+BackfillState::PrimaryScanning::react(ObjectPushed evt)
+{
+  return discard_event();
+}
 
 // -- ReplicasScanning
 bool BackfillState::ReplicasScanning::replica_needs_scan(
@@ -381,8 +408,37 @@ BackfillState::ReplicasScanning::react(ReplicaScanned evt)
   return discard_event();
 }
 
-BackfillState::Flushing::Flushing()
+boost::statechart::result
+BackfillState::ReplicasScanning::react(ObjectPushed evt)
 {
+  return discard_event();
+}
+
+// -- Waiting
+BackfillState::Waiting::Waiting()
+{
+  logger().debug("{}: entered Waiting", __func__);
+}
+
+boost::statechart::result
+BackfillState::Waiting::react(ObjectPushed evt)
+{
+  if (Enqueuing::all_enqueued(ps(),
+                              bs().backfill_info,
+                              bs().peer_backfill_info)) {
+    return transit<Enqueuing>();
+  } else {
+    return transit<Done>();
+  }
+}
+
+// -- Done
+BackfillState::Done::Done()
+{
+  logger().debug("{}: signalling backfill is done", __func__);
+  ls().backfilled();
+}
+
 }
 
 } // namespace crimson::osd

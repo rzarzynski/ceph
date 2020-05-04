@@ -128,13 +128,22 @@ public:
       sc::transition<RequestWaiting, Waiting>,
       sc::transition<sc::event_base, Crashed>>;
     explicit Enqueuing();
+
+    static bool all_peer_enqueued(
+      const PeeringFacade& ps,
+      const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info);
+    static bool all_enqueued(
+      const PeeringFacade& ps,
+      const BackfillInterval& backfill_info,
+      const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info);
+
   private:
     void maybe_update_range();
     void trim_backfill_infos();
 
     // these methods take BackfillIntervals instead of extracting them from
     // the state to emphasize the relationships across the main loop.
-    bool all_peer_done(
+    bool all_peer_enqueued(
       const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info) const;
     hobject_t earliest_peer_backfill(
       const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info) const;
