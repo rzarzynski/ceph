@@ -58,6 +58,8 @@ private:
   struct RequestDone : sc::event<RequestDone> {
   };
 
+  class ProgressTracker;
+
 public:
 
   struct Initial;
@@ -214,9 +216,12 @@ private:
   hobject_t last_backfill_started;
   BackfillInterval backfill_info;
   std::map<pg_shard_t, BackfillInterval> peer_backfill_info;
+  // TODO: drop in favor of ProgressTracker
   std::set<hobject_t> backfills_in_flight;
   std::map<hobject_t, pg_stat_t> pending_backfill_updates;
+  // TODO: move into ReplicasScanning
   std::set<pg_shard_t> waiting_on_backfill;
+  ProgressTracker& progress_tracker;
 };
 
 struct BackfillState::BackfillListener {
@@ -243,6 +248,35 @@ struct BackfillState::BackfillListener {
     const hobject_t& new_last_backfill) = 0;
 
   virtual ~BackfillListener() = default;
+};
+
+class BackfillState::ProgressTracker {
+  // TODO: apply_stat,
+  enum class op_source_t {
+    enqueued_push,
+    enqueued_drop,
+  };
+
+  BackfillMachine& backfill_machine;
+  std::map<hobject_t, op_source_t> registry;
+
+  BackfillState& bs() {
+    return backfill_machine.backfill_state;
+  }
+  PeeringFacade& ps() {
+    return backfill_machine.peering_state;
+  }
+  void update_peers_last_backfill(const hobject_t& new_last_backfill);
+
+public:
+  ProgressTracker(BackfillListener&);
+  ~ProgressTracker();
+
+  bool tracked_objects_completed() const;
+
+  void enqueue_push(const hobject_t&);
+  void enqueue_drop(const hobject_t&);
+  void complete_to(const hobject_t&, const pg_stat_t&);
 };
 
 } // namespace crimson::osd
