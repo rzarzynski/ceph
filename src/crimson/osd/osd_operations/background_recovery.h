@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <boost/statechart/event_base.hpp>
+
 #include "crimson/net/Connection.h"
 #include "crimson/osd/osd_operation.h"
 #include "crimson/common/type_helpers.h"
@@ -13,7 +15,7 @@ namespace crimson::osd {
 class PG;
 class ShardServices;
 
-class BackgroundRecovery final : public OperationT<BackgroundRecovery> {
+class BackgroundRecovery : public OperationT<BackgroundRecovery> {
 public:
   static constexpr OperationTypeCode type = OperationTypeCode::background_recovery;
 
@@ -26,7 +28,7 @@ public:
   void print(std::ostream &) const final;
   void dump_detail(Formatter *f) const final;
   seastar::future<> start();
-private:
+protected:
   Ref<PG> pg;
   ShardServices &ss;
   epoch_t epoch_started;
@@ -40,7 +42,17 @@ private:
     };
   }
 
-  seastar::future<bool> do_recovery();
+  virtual seastar::future<bool> do_recovery() = 0;
+};
+
+class PglogBasedRecovery final : public BackgroundRecovery {
+  seastar::future<bool> do_recovery() override;
+
+public:
+  PglogBasedRecovery(
+    Ref<PG> pg,
+    ShardServices &ss,
+    epoch_t epoch_started);
 };
 
 }
