@@ -247,6 +247,10 @@ struct BackfillState::BackfillListener {
   virtual bool maybe_flush_and_notify(
     const hobject_t& new_last_backfill) = 0;
 
+  virtual bool budget_available() const = 0;
+
+  virtual void backfilled() = 0;
+
   virtual ~BackfillListener() = default;
 };
 
