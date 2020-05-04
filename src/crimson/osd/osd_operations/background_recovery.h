@@ -13,7 +13,8 @@ namespace crimson::osd {
 class PG;
 class ShardServices;
 
-class BackgroundRecovery final : public OperationT<BackgroundRecovery> {
+class BackgroundRecovery : public OperationT<BackgroundRecovery> {
+protected:
   Ref<PG> pg;
   ShardServices &ss;
   epoch_t epoch_started;
@@ -27,7 +28,7 @@ class BackgroundRecovery final : public OperationT<BackgroundRecovery> {
     };
   }
 
-  seastar::future<bool> do_recovery();
+  virtual seastar::future<bool> do_recovery() = 0;
 
 public:
   static constexpr OperationTypeCode type = OperationTypeCode::background_recovery;
@@ -41,6 +42,16 @@ public:
   void print(std::ostream &) const final;
   void dump_detail(Formatter *f) const final;
   seastar::future<> start();
+};
+
+class PglogBasedRecovery final : public BackgroundRecovery {
+  seastar::future<bool> do_recovery() override;
+
+public:
+  PglogBasedRecovery(
+    Ref<PG> pg,
+    ShardServices &ss,
+    epoch_t epoch_started);
 };
 
 }

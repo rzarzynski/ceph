@@ -344,15 +344,6 @@ public:
     return 0;
   }
 
-  void start_background_recovery(
-    crimson::osd::scheduler::scheduler_class_t klass) {
-    shard_services.start_operation<BackgroundRecovery>(
-      this,
-      shard_services,
-      get_osdmap_epoch(),
-      klass);
-  }
-
   void on_backfill_reserved() final {
     ceph_assert(0 == "Not implemented");
   }
@@ -360,8 +351,10 @@ public:
     ceph_assert(0 == "Not implemented");
   }
   void on_recovery_reserved() final {
-    start_background_recovery(
-      crimson::osd::scheduler::scheduler_class_t::background_recovery);
+    shard_services.start_operation<PglogBasedRecovery>(
+      this,
+      shard_services,
+      get_osdmap_epoch());
   }
 
 
