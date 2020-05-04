@@ -35,6 +35,10 @@ struct BackfillState::PeeringFacade {
   decltype(auto) get_pg_log() const {
     return peering_state.get_pg_log();
   }
+  void update_complete_backfill_object_stats(const hobject_t &hoid,
+                                             const pg_stat_t &stats) {
+    return peering_state.update_complete_backfill_object_stats(hoid, stats);
+  }
 };
 
 struct BackfillState::PGFacade {
@@ -230,6 +234,7 @@ BackfillState::Enqueuing::remove_on_peers(const hobject_t& check)
     if (pbi.begin == check) {
       result.pbi_targets.insert(bt);
       const auto& version = pbi.objects.begin()->second;
+      bs().progress_tracker.enqueue_drop(pbi.begin);
       ls().enqueue_drop(bt, pbi.begin, version);
     }
   }
@@ -251,7 +256,7 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
     // Find all check peers that have the wrong version
     if (check == bs().backfill_info.begin && check == pbi.begin) {
       if (pbi.objects.begin()->second != obj_v) {
-        bs().backfills_in_flight.insert(bs().backfill_info.begin);
+        bs().progress_tracker.enqueue_push(bs().backfill_info.begin);
         ls().enqueue_push(bt, bs().backfill_info.begin, obj_v);
       } else {
         // it's fine, keep it!
@@ -263,7 +268,7 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
       // otherwise, they only appear to be missing this object
       // because their pbi.begin > backfill_info.begin.
       if (bs().backfill_info.begin > pinfo.last_backfill) {
-        bs().backfills_in_flight.insert(bs().backfill_info.begin);
+        bs().progress_tracker.enqueue_push(bs().backfill_info.begin);
         ls().enqueue_push(bt, bs().backfill_info.begin, obj_v);
       }
     }
@@ -323,6 +328,7 @@ BackfillState::Enqueuing::Enqueuing()
   } else {
     logger().info("{}: reached end for both local and all peers.",
                   __func__);
+    ceph_assert(!bs().progress_tracker.tracked_objects_completed());
     post_event(RequestWaiting{});
   }
 }
@@ -344,6 +350,7 @@ BackfillState::PrimaryScanning::react(PrimaryScanned evt)
 boost::statechart::result
 BackfillState::PrimaryScanning::react(ObjectPushed evt)
 {
+  bs().progress_tracker.complete_to(evt.object, evt.stat);
   return discard_event();
 }
 
@@ -406,6 +413,7 @@ BackfillState::ReplicasScanning::react(ReplicaScanned evt)
 boost::statechart::result
 BackfillState::ReplicasScanning::react(ObjectPushed evt)
 {
+  bs().progress_tracker.complete_to(evt.object, evt.stat);
   return discard_event();
 }
 
@@ -420,12 +428,17 @@ BackfillState::Waiting::react(ObjectPushed evt)
 {
   logger().debug("Waiting::react() on ObjectPushed; evt.object={}",
                  evt.object);
+  bs().progress_tracker.complete_to(evt.object, evt.stat);
   if (!Enqueuing::all_enqueued(ps(),
                                bs().backfill_info,
                                bs().peer_backfill_info)) {
     return transit<Enqueuing>();
-  } else {
+  } else if (bs().progress_tracker.tracked_objects_completed()) {
     return transit<Done>();
+  } else {
+    // we still something to wait on
+    logger().debug("Waiting::react() on ObjectPushed; still waiting");
+    return discard_event();
   }
 }
 
@@ -436,6 +449,53 @@ BackfillState::Done::Done()
   ls().backfilled();
 }
 
+
+// -- ProgressTracker
+bool BackfillState::ProgressTracker::tracked_objects_completed() const
+{
+  return registry.empty();
+}
+
+void BackfillState::ProgressTracker::enqueue_push(const hobject_t& obj)
+{
+  ceph_assert(registry.find(obj) == std::end(registry));
+  registry[obj] = op_source_t::enqueued_push;
+}
+
+void BackfillState::ProgressTracker::enqueue_drop(const hobject_t& obj)
+{
+  ceph_assert(registry.find(obj) == std::end(registry));
+  registry[obj] = op_source_t::enqueued_drop;
+}
+
+void BackfillState::ProgressTracker::complete_to(
+  const hobject_t& obj,
+  const pg_stat_t&)
+{
+  if (auto completion_boundary = registry.find(obj);
+      completion_boundary != std::end(registry)) {
+    for (auto it = std::begin(registry);
+         it->first < completion_boundary->first;
+         it = registry.erase(it)) {
+      const auto& [ key, state ] = *it;
+      ceph_assert(state == op_source_t::enqueued_drop);
+      ps().update_complete_backfill_object_stats(
+        key,
+        pg_stat_t{}); // add empty stat
+    }
+    registry.erase(completion_boundary);
+  } else {
+    ceph_assert("completing untracked object shall not happen" == nullptr);
+  }
+  if (Enqueuing::all_enqueued(ps(),
+                              bs().backfill_info,
+                              bs().peer_backfill_info) &&
+      tracked_objects_completed()) {
+    bs().last_backfill_started = hobject_t::get_max();
+    ls().update_peers_last_backfill(hobject_t::get_max());
+  } else {
+    ls().update_peers_last_backfill(obj);
+  }
 }
 
 } // namespace crimson::osd
