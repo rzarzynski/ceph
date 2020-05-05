@@ -37,6 +37,7 @@
 #include "crimson/net/Messenger.h"
 #include "crimson/os/cyanstore/cyan_store.h"
 #include "crimson/os/futurized_collection.h"
+#include "crimson/osd/backfill_facades.h"
 #include "crimson/osd/exceptions.h"
 #include "crimson/osd/pg_meta.h"
 #include "crimson/osd/pg_backend.h"
@@ -1228,6 +1229,16 @@ void PG::_committed_pushed_object(epoch_t epoch,
     logger().debug("{} pg has changed, not touching last_complete_ondisk",
 		   __func__);
   }
+}
+
+void PG::on_backfill_reserved()
+{
+  // PIMP and depedency injection for the sake unittestability.
+  // I'm not afraid about the performance here.
+  backfill_state = std::make_unique<BackfillState>(
+    *this,
+    std::make_unique<BackfillState::PeeringFacade>(peering_state),
+    std::make_unique<BackfillState::PGFacade>(*this));
 }
 
 void PG::request_replica_scan(

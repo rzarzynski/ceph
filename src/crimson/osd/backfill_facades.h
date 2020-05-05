@@ -35,6 +35,10 @@ struct BackfillState::PeeringFacade {
                                              const pg_stat_t &stats) {
     return peering_state.update_complete_backfill_object_stats(hoid, stats);
   }
+
+  PeeringFacade(PeeringState& peering_state)
+    : peering_state(peering_state) {
+  }
 };
 
 struct BackfillState::PGFacade {
@@ -43,6 +47,8 @@ struct BackfillState::PGFacade {
   decltype(auto) get_projected_last_update() const {
     return pg.projected_last_update;
   }
+
+  PGFacade(PG& pg) : pg(pg) {}
 };
 
 } // namespace crimson::osd
