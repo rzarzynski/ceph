@@ -23,6 +23,9 @@ public:
 
   crimson::osd::blocking_future<bool> start_recovery_ops(size_t max_to_start);
 
+  void on_backfill_reserved();
+  void dispatch_backfill_event(
+    boost::intrusive_ptr<const boost::statechart::event_base> evt);
 private:
   PGRecoveryListener* pg;
   size_t start_primary_recovery_ops(
@@ -76,6 +79,8 @@ private:
   seastar::future<> handle_scan(MOSDPGScan& m);
 
   // backfill begin
+  std::unique_ptr<crimson::osd::BackfillState> backfill_state;
+
   void request_replica_scan(
     const pg_shard_t& target,
     const hobject_t& begin,
