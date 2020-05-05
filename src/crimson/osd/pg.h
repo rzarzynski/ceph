@@ -346,6 +346,8 @@ public:
   }
 
   // backfill begin
+  void dispatch_backfill_event(
+    boost::intrusive_ptr<const boost::statechart::event_base> evt);
   void on_backfill_reserved() final;
   void on_backfill_canceled() final {
     ceph_assert(0 == "Not implemented");

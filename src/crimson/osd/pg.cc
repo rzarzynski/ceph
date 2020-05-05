@@ -1231,6 +1231,12 @@ void PG::_committed_pushed_object(epoch_t epoch,
   }
 }
 
+void PG::dispatch_backfill_event(
+  boost::intrusive_ptr<const boost::statechart::event_base> evt)
+{
+  backfill_state->process_event(evt);
+}
+
 void PG::on_backfill_reserved()
 {
   // PIMP and depedency injection for the sake unittestability.
@@ -1239,6 +1245,11 @@ void PG::on_backfill_reserved()
     *this,
     std::make_unique<BackfillState::PeeringFacade>(peering_state),
     std::make_unique<BackfillState::PGFacade>(*this));
+  shard_services.start_operation<BackfillRecovery>(
+    this,
+    shard_services,
+    get_osdmap_epoch(),
+    BackfillState::Trigerred{});
 }
 
 void PG::request_replica_scan(
