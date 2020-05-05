@@ -53,7 +53,7 @@ class PG : public boost::intrusive_ref_counter<
   PG,
   boost::thread_unsafe_counter>,
   PeeringState::PeeringListener,
-  BackfillState::BackfillListener,
+  public BackfillState::BackfillListener,
   DoutPrefixProvider
 {
   using ec_profile_t = std::map<std::string,std::string>;
@@ -355,37 +355,25 @@ public:
   void request_replica_scan(
     const pg_shard_t& target,
     const hobject_t& begin,
-    const hobject_t& end) override {
-    ceph_assert(0 == "Not implemented");
-  }
+    const hobject_t& end) final;
   void request_primary_scan(
     const hobject_t& begin,
-    const hobject_t& end) override {
-    ceph_assert(0 == "Not implemented");
-  }
+    const hobject_t& end) final;
   void enqueue_push(
     const pg_shard_t& target,
     const hobject_t& obj,
-    const eversion_t& v) override {
-    ceph_assert(0 == "Not implemented");
-  }
+    const eversion_t& v) final;
   void enqueue_drop(
     const pg_shard_t& target,
     const hobject_t& obj,
-    const eversion_t& v) override {
-    ceph_assert(0 == "Not implemented");
-  }
+    const eversion_t& v) final;
   bool maybe_flush_and_notify(
-    const hobject_t& new_last_backfill) override {
-    ceph_assert(0 == "Not implemented");
-  }
-  bool budget_available() const override {
-    ceph_assert(0 == "Not implemented");
-  }
-  void backfilled() override {
-    ceph_assert(0 == "Not implemented");
-  }
+    const hobject_t& new_last_backfill) final;
+  bool budget_available() const final;
+  void backfilled() final;
   // backfill end
+
+
 
   void on_recovery_reserved() final {
     shard_services.start_operation<PglogBasedRecovery>(
