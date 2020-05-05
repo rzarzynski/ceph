@@ -329,12 +329,8 @@ BackfillState::Enqueuing::Enqueuing()
 // -- PrimaryScanning
 BackfillState::PrimaryScanning::PrimaryScanning()
 {
-  using crimson::common::local_conf;
-  const auto local_min = local_conf()->osd_backfill_scan_min;
-  const auto local_max = local_conf()->osd_backfill_scan_max;
-
   bs().backfill_info.version = ps().get_info().last_update;
-  ls().request_primary_scan(bs().backfill_info.begin, bs().backfill_info.end);
+  ls().request_primary_scan(bs().backfill_info.begin);
 }
 
 boost::statechart::result
