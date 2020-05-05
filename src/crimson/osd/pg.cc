@@ -898,7 +898,18 @@ void PG::request_replica_scan(
 void PG::request_primary_scan(
   const hobject_t& begin)
 {
-  ceph_assert(0 == "Not implemented");
+  using crimson::common::local_conf;
+  get_recovery_backend()->scan_for_backfill(
+    begin,
+    local_conf()->osd_backfill_scan_min,
+    local_conf()->osd_backfill_scan_max
+  ).then([this] (BackfillInterval bi) {
+    shard_services.start_operation<BackfillRecovery>(
+      this,
+      shard_services,
+      get_osdmap_epoch(),
+      BackfillState::PrimaryScanned{ std::move(bi) });
+  });
 }
 
 void PG::enqueue_push(
