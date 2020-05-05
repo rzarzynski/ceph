@@ -14,6 +14,32 @@ namespace {
 
 namespace crimson::osd {
 
+BackfillState::BackfillState(
+  BackfillState::BackfillListener& backfill_listener,
+  std::unique_ptr<BackfillState::PeeringFacade> peering_state,
+  std::unique_ptr<BackfillState::PGFacade> pg)
+  : backfill_machine(*this,
+                     backfill_listener,
+                     std::move(peering_state),
+                     std::move(pg)),
+    progress_tracker(
+      std::make_unique<BackfillState::ProgressTracker>(backfill_machine))
+{}
+
+BackfillState::~BackfillState() = default;
+
+BackfillState::BackfillMachine::BackfillMachine(
+  BackfillState& backfill_state,
+  BackfillState::BackfillListener& backfill_listener,
+  std::unique_ptr<BackfillState::PeeringFacade> peering_state,
+  std::unique_ptr<BackfillState::PGFacade> pg)
+  : backfill_state(backfill_state),
+    backfill_listener(backfill_listener),
+    peering_state(std::move(peering_state)),
+    pg(std::move(pg))
+{}
+
+BackfillState::BackfillMachine::~BackfillMachine() = default;
 
 BackfillState::Initial::Initial()
 {
@@ -200,7 +226,7 @@ BackfillState::Enqueuing::remove_on_peers(const hobject_t& check)
     if (pbi.begin == check) {
       result.pbi_targets.insert(bt);
       const auto& version = pbi.objects.begin()->second;
-      bs().progress_tracker.enqueue_drop(pbi.begin);
+      bs().progress_tracker->enqueue_drop(pbi.begin);
       ls().enqueue_drop(bt, pbi.begin, version);
     }
   }
@@ -222,7 +248,7 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
     // Find all check peers that have the wrong version
     if (check == bs().backfill_info.begin && check == pbi.begin) {
       if (pbi.objects.begin()->second != obj_v) {
-        bs().progress_tracker.enqueue_push(check);
+        bs().progress_tracker->enqueue_push(check);
         ls().enqueue_push(bt, check, obj_v);
       } else {
         // it's fine, keep it!
@@ -234,7 +260,7 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
       // otherwise, they only appear to be missing this object
       // because their pbi.begin > backfill_info.begin.
       if (bs().backfill_info.begin > pinfo.last_backfill) {
-        bs().progress_tracker.enqueue_push(check);
+        bs().progress_tracker->enqueue_push(check);
         ls().enqueue_push(bt, check, obj_v);
       }
     }
@@ -295,7 +321,7 @@ BackfillState::Enqueuing::Enqueuing()
   } else {
     logger().info("{}: reached end for both local and all peers.",
                   __func__);
-    ceph_assert(!bs().progress_tracker.tracked_objects_completed());
+    ceph_assert(!bs().progress_tracker->tracked_objects_completed());
     post_event(RequestWaiting{});
   }
 }
@@ -321,7 +347,7 @@ BackfillState::PrimaryScanning::react(PrimaryScanned evt)
 boost::statechart::result
 BackfillState::PrimaryScanning::react(ObjectPushed evt)
 {
-  bs().progress_tracker.complete_to(evt.object, evt.stat);
+  bs().progress_tracker->complete_to(evt.object, evt.stat);
   return discard_event();
 }
 
@@ -384,7 +410,7 @@ BackfillState::ReplicasScanning::react(ReplicaScanned evt)
 boost::statechart::result
 BackfillState::ReplicasScanning::react(ObjectPushed evt)
 {
-  bs().progress_tracker.complete_to(evt.object, evt.stat);
+  bs().progress_tracker->complete_to(evt.object, evt.stat);
   return discard_event();
 }
 
@@ -397,12 +423,12 @@ BackfillState::Waiting::Waiting()
 boost::statechart::result
 BackfillState::Waiting::react(ObjectPushed evt)
 {
-  bs().progress_tracker.complete_to(evt.object, evt.stat);
+  bs().progress_tracker->complete_to(evt.object, evt.stat);
   if (Enqueuing::all_enqueued(ps(),
                               bs().backfill_info,
                               bs().peer_backfill_info)) {
     return transit<Enqueuing>();
-  } else if (bs().progress_tracker.tracked_objects_completed()) {
+  } else if (bs().progress_tracker->tracked_objects_completed()) {
     return transit<Done>();
   } else {
     // we still something to wait on

@@ -69,10 +69,15 @@ public:
   struct Waiting;
 
   struct BackfillMachine : sc::state_machine<BackfillMachine, Initial> {
+    BackfillMachine(BackfillState& backfill_state,
+                    BackfillListener& backfill_listener,
+                    std::unique_ptr<PeeringFacade> peering_state,
+                    std::unique_ptr<PGFacade> pg);
+    ~BackfillMachine();
     BackfillState& backfill_state;
     BackfillListener& backfill_listener;
-    PeeringFacade& peering_state;
-    PGFacade& pg;
+    std::unique_ptr<PeeringFacade> peering_state;
+    std::unique_ptr<PGFacade> pg;
   };
 
 private:
@@ -87,15 +92,15 @@ private:
         ->template context<BackfillMachine>().backfill_listener;
     }
     PeeringFacade& ps() {
-      return static_cast<S*>(this) \
+      return *static_cast<S*>(this) \
         ->template context<BackfillMachine>().peering_state;
     }
     PGFacade& pg() {
-      return static_cast<S*>(this)->template context<BackfillMachine>().pg;
+      return *static_cast<S*>(this)->template context<BackfillMachine>().pg;
     }
 
     const PeeringFacade& ps() const {
-      return static_cast<const S*>(this) \
+      return *static_cast<const S*>(this) \
         ->template context<BackfillMachine>().peering_state;
     }
     const BackfillState& bs() const {
@@ -212,6 +217,11 @@ public:
     explicit Done();
   };
 
+  BackfillState(BackfillListener& backfill_listener,
+                std::unique_ptr<PeeringFacade> peering_state,
+                std::unique_ptr<PGFacade> pg);
+  ~BackfillState();
+
 private:
   hobject_t last_backfill_started;
   BackfillInterval backfill_info;
@@ -221,7 +231,8 @@ private:
   std::map<hobject_t, pg_stat_t> pending_backfill_updates;
   // TODO: move into ReplicasScanning
   std::set<pg_shard_t> waiting_on_backfill;
-  ProgressTracker& progress_tracker;
+  BackfillMachine backfill_machine;
+  std::unique_ptr<ProgressTracker> progress_tracker;
 };
 
 struct BackfillState::BackfillListener {
@@ -268,13 +279,14 @@ class BackfillState::ProgressTracker {
     return backfill_machine.backfill_state;
   }
   PeeringFacade& ps() {
-    return backfill_machine.peering_state;
+    return *backfill_machine.peering_state;
   }
   void update_peers_last_backfill(const hobject_t& new_last_backfill);
 
 public:
-  ProgressTracker(BackfillListener&);
-  ~ProgressTracker();
+  ProgressTracker(BackfillMachine& backfill_machine)
+    : backfill_machine(backfill_machine) {
+  }
 
   bool tracked_objects_completed() const;
 
