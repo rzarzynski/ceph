@@ -345,9 +345,9 @@ public:
   }
 
   // backfill begin
-  void on_backfill_reserved() final {
-    ceph_assert(0 == "Not implemented");
-  }
+  void dispatch_backfill_event(
+    boost::intrusive_ptr<const boost::statechart::event_base> evt);
+  void on_backfill_reserved() final;
   void on_backfill_canceled() final {
     ceph_assert(0 == "Not implemented");
   }
@@ -686,6 +686,9 @@ private:
   const set<pg_shard_t> &get_actingset() const {
     return peering_state.get_actingset();
   }
+
+private:
+  std::unique_ptr<crimson::osd::BackfillState> backfill_state;
 };
 
 std::ostream& operator<<(std::ostream&, const PG& pg);

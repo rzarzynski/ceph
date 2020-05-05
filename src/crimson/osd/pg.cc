@@ -32,6 +32,7 @@
 #include "crimson/net/Messenger.h"
 #include "crimson/os/cyanstore/cyan_store.h"
 #include "crimson/os/futurized_collection.h"
+#include "crimson/osd/backfill_facades.h"
 #include "crimson/osd/exceptions.h"
 #include "crimson/osd/pg_meta.h"
 #include "crimson/osd/pg_backend.h"
@@ -863,6 +864,27 @@ void PG::handle_rep_op_reply(crimson::net::Connection* conn,
 			     const MOSDRepOpReply& m)
 {
   backend->got_rep_op_reply(m);
+}
+
+void PG::dispatch_backfill_event(
+  boost::intrusive_ptr<const boost::statechart::event_base> evt)
+{
+  backfill_state->process_event(evt);
+}
+
+void PG::on_backfill_reserved()
+{
+  // PIMP and depedency injection for the sake unittestability.
+  // I'm not afraid about the performance here.
+  backfill_state = std::make_unique<BackfillState>(
+    *this,
+    std::make_unique<BackfillState::PeeringFacade>(peering_state),
+    std::make_unique<BackfillState::PGFacade>(*this));
+  shard_services.start_operation<BackfillRecovery>(
+    this,
+    shard_services,
+    get_osdmap_epoch(),
+    BackfillState::Trigerred{});
 }
 
 void PG::request_replica_scan(
