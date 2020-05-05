@@ -355,8 +355,7 @@ public:
     const hobject_t& begin,
     const hobject_t& end) final;
   void request_primary_scan(
-    const hobject_t& begin,
-    const hobject_t& end) final;
+    const hobject_t& begin) final;
   void enqueue_push(
     const pg_shard_t& target,
     const hobject_t& obj,

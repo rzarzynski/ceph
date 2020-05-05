@@ -1250,8 +1250,7 @@ void PG::request_replica_scan(
 }
 
 void PG::request_primary_scan(
-  const hobject_t& begin,
-  const hobject_t& end)
+  const hobject_t& begin)
 {
   ceph_assert(0 == "Not implemented");
 }
