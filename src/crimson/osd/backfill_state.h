@@ -242,8 +242,7 @@ struct BackfillState::BackfillListener {
     const hobject_t& end) = 0;
 
   virtual void request_primary_scan(
-    const hobject_t& begin,
-    const hobject_t& end) = 0;
+    const hobject_t& begin) = 0;
 
   virtual void enqueue_push(
     const pg_shard_t& target,
