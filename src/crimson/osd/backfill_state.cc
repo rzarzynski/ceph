@@ -41,7 +41,8 @@ BackfillState::BackfillMachine::BackfillMachine(
 
 BackfillState::BackfillMachine::~BackfillMachine() = default;
 
-BackfillState::Initial::Initial()
+BackfillState::Initial::Initial(my_context ctx)
+  : my_base(ctx)
 {
   bs().last_backfill_started = ps().earliest_backfill();
   logger().debug("{}: bft={} from {}",
@@ -268,7 +269,8 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
   return result;
 }
 
-BackfillState::Enqueuing::Enqueuing()
+BackfillState::Enqueuing::Enqueuing(my_context ctx)
+  : my_base(ctx)
 {
 
   // update our local interval to cope with recent changes
@@ -326,7 +328,8 @@ BackfillState::Enqueuing::Enqueuing()
 }
 
 // -- PrimaryScanning
-BackfillState::PrimaryScanning::PrimaryScanning()
+BackfillState::PrimaryScanning::PrimaryScanning(my_context ctx)
+  : my_base(ctx)
 {
   bs().backfill_info.version = ps().get_info().last_update;
   ls().request_primary_scan(bs().backfill_info.begin);
@@ -356,7 +359,8 @@ bool BackfillState::ReplicasScanning::replica_needs_scan(
          replica_backfill_info.extends_to_end() == false;
 }
 
-BackfillState::ReplicasScanning::ReplicasScanning()
+BackfillState::ReplicasScanning::ReplicasScanning(my_context ctx)
+  : my_base(ctx)
 {
   for (const auto& bt : ps().get_backfill_targets()) {
     if (const auto& pbi = bs().peer_backfill_info.at(bt);
@@ -410,7 +414,8 @@ BackfillState::ReplicasScanning::react(ObjectPushed evt)
 }
 
 // -- Waiting
-BackfillState::Waiting::Waiting()
+BackfillState::Waiting::Waiting(my_context ctx)
+  : my_base(ctx)
 {
   logger().debug("{}: entered Waiting", __func__);
 }
@@ -435,7 +440,8 @@ BackfillState::Waiting::react(ObjectPushed evt)
 }
 
 // -- Done
-BackfillState::Done::Done()
+BackfillState::Done::Done(my_context ctx)
+  : my_base(ctx)
 {
   logger().debug("{}: signalling backfill is done", __func__);
   ls().backfilled();

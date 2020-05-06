@@ -119,25 +119,25 @@ public:
                    StateHelper<Crashed> {
   };
 
-  struct Initial : sc::simple_state<Initial, BackfillMachine>,
+  struct Initial : sc::state<Initial, BackfillMachine>,
                    StateHelper<Initial> {
     using reactions = boost::mpl::list<
       sc::transition<Trigerred, Enqueuing>,
       sc::transition<sc::event_base, Crashed>>;
-    explicit Initial();
+    explicit Initial(my_context);
     // initialize after triggering backfill by on_activate_complete().
     // transit to Enqueuing.
     sc::result react(const Trigerred&);
   };
 
-  struct Enqueuing : sc::simple_state<Enqueuing, BackfillMachine>,
+  struct Enqueuing : sc::state<Enqueuing, BackfillMachine>,
                      StateHelper<Enqueuing> {
     using reactions = boost::mpl::list<
       sc::transition<RequestPrimaryScanning, PrimaryScanning>,
       sc::transition<RequestReplicasScanning, ReplicasScanning>,
       sc::transition<RequestWaiting, Waiting>,
       sc::transition<sc::event_base, Crashed>>;
-    explicit Enqueuing();
+    explicit Enqueuing(my_context);
 
     static bool all_peer_enqueued(
       const PeeringFacade& ps,
@@ -175,25 +175,25 @@ public:
     loop_advancer_t update_on_peers(const hobject_t& check);
   };
 
-  struct PrimaryScanning : sc::simple_state<PrimaryScanning, BackfillMachine>,
+  struct PrimaryScanning : sc::state<PrimaryScanning, BackfillMachine>,
                            StateHelper<PrimaryScanning> {
     using reactions = boost::mpl::list<
       sc::custom_reaction<ObjectPushed>,
       sc::custom_reaction<PrimaryScanned>,
       sc::transition<sc::event_base, Crashed>>;
-    explicit PrimaryScanning();
+    explicit PrimaryScanning(my_context);
     sc::result react(ObjectPushed);
     // collect scanning result and transit to Enqueuing.
     sc::result react(PrimaryScanned);
   };
 
-  struct ReplicasScanning : sc::simple_state<ReplicasScanning, BackfillMachine>,
+  struct ReplicasScanning : sc::state<ReplicasScanning, BackfillMachine>,
                             StateHelper<ReplicasScanning> {
     using reactions = boost::mpl::list<
       sc::custom_reaction<ObjectPushed>,
       sc::custom_reaction<ReplicaScanned>,
       sc::transition<sc::event_base, Crashed>>;
-    explicit ReplicasScanning();
+    explicit ReplicasScanning(my_context);
     // collect scanning result; if all results are collected, transition
     // to Enqueuing will happen.
     sc::result react(ObjectPushed);
@@ -204,20 +204,20 @@ public:
       const BackfillInterval& local_backfill_info);
   };
 
-  struct Waiting : sc::simple_state<Waiting, BackfillMachine>,
+  struct Waiting : sc::state<Waiting, BackfillMachine>,
                    StateHelper<Waiting> {
     using reactions = boost::mpl::list<
       sc::custom_reaction<ObjectPushed>,
       sc::transition<sc::event_base, Crashed>>;
-    explicit Waiting();
+    explicit Waiting(my_context);
     sc::result react(ObjectPushed);
   };
 
-  struct Done : sc::simple_state<Done, BackfillMachine>,
+  struct Done : sc::state<Done, BackfillMachine>,
                 StateHelper<Done> {
     using reactions = boost::mpl::list<
       sc::transition<sc::event_base, Crashed>>;
-    explicit Done();
+    explicit Done(my_context);
   };
 
   BackfillState(BackfillListener& backfill_listener,
