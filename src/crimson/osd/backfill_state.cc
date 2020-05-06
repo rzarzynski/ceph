@@ -24,7 +24,10 @@ BackfillState::BackfillState(
                      std::move(pg)),
     progress_tracker(
       std::make_unique<BackfillState::ProgressTracker>(backfill_machine))
-{}
+{
+  logger().debug("{}:{}", __func__, __LINE__);
+  backfill_machine.initiate();
+}
 
 BackfillState::~BackfillState() = default;
 
