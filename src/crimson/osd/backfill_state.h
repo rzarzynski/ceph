@@ -121,6 +121,7 @@ public:
   // states
   struct Crashed : sc::simple_state<Crashed, BackfillMachine>,
                    StateHelper<Crashed> {
+    explicit Crashed();
   };
 
   struct Initial : sc::state<Initial, BackfillMachine>,
