@@ -87,3 +87,5 @@ seastar::future<bool> BackfillRecovery::do_recovery()
   pg->dispatch_backfill_event(std::move(evt));
   return seastar::make_ready_future<bool>(false);
 }
+
+} // namespace crimson::osd
