@@ -869,11 +869,13 @@ void PG::handle_rep_op_reply(crimson::net::Connection* conn,
 void PG::dispatch_backfill_event(
   boost::intrusive_ptr<const boost::statechart::event_base> evt)
 {
+  logger().debug("{}", __func__);
   backfill_state->process_event(evt);
 }
 
 void PG::on_backfill_reserved()
 {
+  logger().debug("{}", __func__);
   // PIMP and depedency injection for the sake unittestability.
   // I'm not afraid about the performance here.
   backfill_state = std::make_unique<BackfillState>(
@@ -910,12 +912,14 @@ void PG::request_replica_scan(
 void PG::request_primary_scan(
   const hobject_t& begin)
 {
+  logger().debug("{}", __func__);
   using crimson::common::local_conf;
   get_recovery_backend()->scan_for_backfill(
     begin,
     local_conf()->osd_backfill_scan_min,
     local_conf()->osd_backfill_scan_max
   ).then([this] (BackfillInterval bi) {
+    logger().debug("request_primary_scan:{}", __func__);
     shard_services.start_operation<BackfillRecovery>(
       this,
       shard_services,

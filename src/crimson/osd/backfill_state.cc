@@ -62,6 +62,7 @@ BackfillState::Initial::Initial(my_context ctx)
 boost::statechart::result
 BackfillState::Initial::react(const BackfillState::Trigerred& evt)
 {
+  logger().debug("{}: backfill triggered", __func__);
   ceph_assert(bs().last_backfill_started == ps().earliest_backfill());
   // initialize BackfillIntervals
   for (const auto& bt : ps().get_backfill_targets()) {
@@ -74,8 +75,10 @@ BackfillState::Initial::react(const BackfillState::Trigerred& evt)
   if (Enqueuing::all_enqueued(ps(),
                               bs().backfill_info,
                               bs().peer_backfill_info)) {
+    logger().debug("{}: switching to Done state", __func__);
     return transit<BackfillState::Done>();
   } else {
+    logger().debug("{}: switching to Enqueuing state", __func__);
     return transit<BackfillState::Enqueuing>();
   }
 }
@@ -275,6 +278,7 @@ BackfillState::Enqueuing::update_on_peers(const hobject_t& check)
 BackfillState::Enqueuing::Enqueuing(my_context ctx)
   : my_base(ctx)
 {
+  logger().debug("{}", __func__);
 
   // update our local interval to cope with recent changes
   bs().backfill_info.begin = bs().last_backfill_started;
@@ -334,6 +338,7 @@ BackfillState::Enqueuing::Enqueuing(my_context ctx)
 BackfillState::PrimaryScanning::PrimaryScanning(my_context ctx)
   : my_base(ctx)
 {
+  logger().debug("{}", __func__);
   bs().backfill_info.version = ps().get_info().last_update;
   ls().request_primary_scan(bs().backfill_info.begin);
 }
@@ -341,6 +346,7 @@ BackfillState::PrimaryScanning::PrimaryScanning(my_context ctx)
 boost::statechart::result
 BackfillState::PrimaryScanning::react(PrimaryScanned evt)
 {
+  logger().debug("{}", __func__);
   bs().backfill_info = std::move(evt.result);
   return transit<Enqueuing>();
 }
@@ -348,6 +354,8 @@ BackfillState::PrimaryScanning::react(PrimaryScanned evt)
 boost::statechart::result
 BackfillState::PrimaryScanning::react(ObjectPushed evt)
 {
+  logger().debug("PrimaryScanning::react() on ObjectPushed; evt.object={}",
+                 evt.object);
   bs().progress_tracker->complete_to(evt.object, evt.stat);
   return discard_event();
 }
@@ -365,6 +373,7 @@ bool BackfillState::ReplicasScanning::replica_needs_scan(
 BackfillState::ReplicasScanning::ReplicasScanning(my_context ctx)
   : my_base(ctx)
 {
+  logger().debug("{}", __func__);
   for (const auto& bt : ps().get_backfill_targets()) {
     if (const auto& pbi = bs().peer_backfill_info.at(bt);
         replica_needs_scan(pbi, bs().backfill_info)) {
@@ -412,9 +421,12 @@ BackfillState::ReplicasScanning::react(ReplicaScanned evt)
 boost::statechart::result
 BackfillState::ReplicasScanning::react(ObjectPushed evt)
 {
+  logger().debug("ReplicasScanning::react() on ObjectPushed; evt.object={}",
+                 evt.object);
   bs().progress_tracker->complete_to(evt.object, evt.stat);
   return discard_event();
 }
+
 
 // -- Waiting
 BackfillState::Waiting::Waiting(my_context ctx)
