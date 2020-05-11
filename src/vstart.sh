@@ -873,7 +873,7 @@ EOF
         key = $OSD_SECRET
 EOF
         fi
-        if [ $osd -eq $start ]; then
+        if [ $osd -eq 1 ]; then
             echo pospoting starting osd.$osd\; command
             echo $CEPH_BIN/$ceph_osd \
                 $extra_seastar_args $extra_osd_args \
