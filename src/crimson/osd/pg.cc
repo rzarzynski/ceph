@@ -952,7 +952,8 @@ void PG::update_peers_last_backfill(
 
 bool PG::budget_available() const
 {
-  ceph_assert(0 == "Not implemented");
+  // TODO: the limits!
+  return true;
 }
 
 void PG::backfilled()
