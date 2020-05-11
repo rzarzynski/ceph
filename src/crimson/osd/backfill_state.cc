@@ -452,6 +452,11 @@ BackfillState::Done::Done(my_context ctx)
   ls().backfilled();
 }
 
+// -- Crashed
+BackfillState::Crashed::Crashed()
+{
+  ceph_assert("{}: this should not happen" == nullptr);
+}
 
 // -- ProgressTracker
 bool BackfillState::ProgressTracker::tracked_objects_completed() const
