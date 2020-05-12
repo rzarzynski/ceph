@@ -4196,6 +4196,8 @@ void PrimaryLogPG::do_scan(
       // take care to preserve ordering!
       bi.clear_objects();
       decode_noclear(bi.objects, p);
+      dout(10) << __func__ << " bi.begin=" << bi.begin << " bi.end=" << bi.end
+               << " bi.objects.size()=" << bi.objects.size() << dendl;
 
       if (waiting_on_backfill.erase(from)) {
 	if (waiting_on_backfill.empty()) {
