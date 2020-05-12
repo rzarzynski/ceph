@@ -183,12 +183,16 @@ bool BackfillState::Enqueuing::all_peer_enqueued(
 hobject_t BackfillState::Enqueuing::earliest_peer_backfill(
   const std::map<pg_shard_t, BackfillInterval>& peer_backfill_info) const
 {
+  logger().debug("{}", __func__);
   hobject_t e = hobject_t::get_max();
   for (const pg_shard_t& bt : ps().get_backfill_targets()) {
     const auto iter = peer_backfill_info.find(bt);
     ceph_assert(iter != peer_backfill_info.end());
+    logger().debug("{}: BackfillInterval.begin={} for peer {}",
+                   __func__, iter->second.begin, bt);
     e = std::min(e, iter->second.begin);
   }
+  logger().debug("{}:{}", __func__, __LINE__);
   return e;
 }
 
