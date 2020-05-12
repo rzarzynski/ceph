@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <optional>
+
 #include <boost/statechart/custom_reaction.hpp>
 #include <boost/statechart/event.hpp>
 #include <boost/statechart/simple_state.hpp>
@@ -282,13 +284,19 @@ struct BackfillState::BackfillListener {
 
 class BackfillState::ProgressTracker {
   // TODO: apply_stat,
-  enum class op_source_t {
+  enum class op_stage_t {
     enqueued_push,
     enqueued_drop,
+    completed_push,
+  };
+
+  struct registry_item_t {
+    op_stage_t stage;
+    std::optional<pg_stat_t> stats;
   };
 
   BackfillMachine& backfill_machine;
-  std::map<hobject_t, op_source_t> registry;
+  std::map<hobject_t, registry_item_t> registry;
 
   BackfillState& bs() {
     return backfill_machine.backfill_state;
