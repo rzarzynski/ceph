@@ -970,7 +970,14 @@ bool PG::budget_available() const
 
 void PG::backfilled()
 {
-  ceph_assert(0 == "Not implemented");
+  shard_services.start_operation<LocalPeeringEvent>(
+    this,
+    shard_services,
+    pg_whoami,
+    pgid,
+    get_osdmap_epoch(),
+    get_osdmap_epoch(),
+    PeeringState::Backfilled{});
 }
 
 }
