@@ -404,11 +404,18 @@ BackfillState::ReplicasScanning::~ReplicasScanning()
 boost::statechart::result
 BackfillState::ReplicasScanning::react(ReplicaScanned evt)
 {
+  logger().debug("react() on ReplicaScanned; evt.from={} "
+                 "evt.result.begin={} evt.result.end={} "
+                 "evt.result.objects.size()={}",
+                 evt.from, evt.result.begin, evt.result.end,
+                 evt.result.objects.size());
   // TODO: maybe we'll be able to move waiting_on_backfill from
   // the machine to the state.
   //ceph_assert(ps().is_backfill_target(evt.from));
   if (bs().waiting_on_backfill.erase(evt.from)) {
     bs().peer_backfill_info[evt.from] = std::move(evt.result);
+    logger().debug("react() on ReplicaScanned; peer_backfill_info[{}].begin={}",
+                   evt.from, bs().peer_backfill_info[evt.from].begin);
     if (bs().waiting_on_backfill.empty()) {
       ceph_assert(
         bs().peer_backfill_info.size() == ps().get_backfill_targets().size());
