@@ -477,33 +477,37 @@ bool BackfillState::ProgressTracker::tracked_objects_completed() const
 void BackfillState::ProgressTracker::enqueue_push(const hobject_t& obj)
 {
   ceph_assert(registry.find(obj) == std::end(registry));
-  registry[obj] = op_source_t::enqueued_push;
+  registry[obj] = registry_item_t{ op_stage_t::enqueued_push, std::nullopt };
 }
 
 void BackfillState::ProgressTracker::enqueue_drop(const hobject_t& obj)
 {
   ceph_assert(registry.find(obj) == std::end(registry));
-  registry[obj] = op_source_t::enqueued_drop;
+  registry[obj] = registry_item_t{ op_stage_t::enqueued_drop, pg_stat_t{} };
 }
 
 void BackfillState::ProgressTracker::complete_to(
   const hobject_t& obj,
-  const pg_stat_t&)
+  const pg_stat_t& stats)
 {
-  if (auto completion_boundary = registry.find(obj);
-      completion_boundary != std::end(registry)) {
-    for (auto it = std::begin(registry);
-         it->first < completion_boundary->first;
-         it = registry.erase(it)) {
-      const auto& [ key, state ] = *it;
-      ceph_assert(state == op_source_t::enqueued_drop);
-      ps().update_complete_backfill_object_stats(
-        key,
-        pg_stat_t{}); // add empty stat
-    }
-    registry.erase(completion_boundary);
+  logger().debug("{}: obj={}",
+                 __func__, obj);
+  if (auto completion_iter = registry.find(obj);
+      completion_iter != std::end(registry)) {
+    completion_iter->second = \
+      registry_item_t{ op_stage_t::completed_push, stats };
   } else {
     ceph_assert("completing untracked object shall not happen" == nullptr);
+  }
+  for (auto it = std::begin(registry);
+       it != std::end(registry) &&
+         it->second.stage != op_stage_t::enqueued_push;
+       it = registry.erase(it)) {
+    auto& [soid, item] = *it;
+    assert(item.stats);
+    ps().update_complete_backfill_object_stats(
+      soid,
+      *item.stats);
   }
   if (Enqueuing::all_enqueued(ps(),
                               bs().backfill_info,
