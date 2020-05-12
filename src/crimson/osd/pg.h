@@ -669,6 +669,7 @@ private:
   friend class PGAdvanceMap;
   friend class PeeringEvent;
   friend class RepRequest;
+  friend class BackfillRecovery;
   friend struct BackfillState::PGFacade;
 private:
   seastar::future<bool> find_unfound() {
@@ -689,6 +690,7 @@ private:
 
 private:
   std::unique_ptr<crimson::osd::BackfillState> backfill_state;
+  BackfillRecovery::BackfillRecoveryPipeline backfill_pipeline;
 };
 
 std::ostream& operator<<(std::ostream&, const PG& pg);
