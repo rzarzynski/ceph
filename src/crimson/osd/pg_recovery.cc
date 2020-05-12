@@ -452,7 +452,17 @@ void PGRecovery::enqueue_push(
   const hobject_t& obj,
   const eversion_t& v)
 {
-  ceph_assert(0 == "Not implemented");
+  logger().debug("{}: target={} obj={} v={}",
+                 __func__, target, obj, v);
+  std::ignore = pg->get_recovery_backend()->recover_object(obj, v).\
+  handle_exception([] (auto) {
+    ceph_assert("got exception on backfill's push" == nullptr);
+    return seastar::make_ready_future<>();
+  }).then([this, obj] {
+    logger().debug("enqueue_push:{}", __func__);
+    using BackfillState = crimson::osd::BackfillState;
+    start_backfill_recovery(BackfillState::ObjectPushed(std::move(obj)));
+  });
 }
 
 void PGRecovery::enqueue_drop(
