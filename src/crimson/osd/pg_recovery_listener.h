@@ -31,4 +31,5 @@ public:
   virtual bool has_reset_since(epoch_t) const = 0;
   virtual std::vector<pg_shard_t> get_replica_recovery_order() const = 0;
   virtual epoch_t get_last_peering_reset() const = 0;
+  virtual const pg_info_t& get_info() const= 0;
 };
