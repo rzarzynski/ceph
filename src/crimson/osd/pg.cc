@@ -17,6 +17,7 @@
 #include "messages/MOSDOp.h"
 #include "messages/MOSDOpReply.h"
 #include "messages/MOSDPGScan.h"
+#include "messages/MOSDPGBackfill.h"
 #include "messages/MOSDPGInfo.h"
 #include "messages/MOSDPGLog.h"
 #include "messages/MOSDPGNotify.h"
@@ -959,7 +960,35 @@ void PG::enqueue_drop(
 void PG::update_peers_last_backfill(
   const hobject_t& new_last_backfill)
 {
-  ceph_assert(0 == "Not implemented");
+  logger().debug("{}: new_last_backfill={}",
+                 __func__, new_last_backfill);
+  // If new_last_backfill == MAX, then we will send OP_BACKFILL_FINISH to
+  // all the backfill targets.  Otherwise, we will move last_backfill up on
+  // those targets need it and send OP_BACKFILL_PROGRESS to them.
+  for (const auto& bt : peering_state.get_backfill_targets()) {
+    if (const pg_info_t& pinfo = peering_state.get_peer_info(bt);
+        new_last_backfill > pinfo.last_backfill) {
+      peering_state.update_peer_last_backfill(bt, new_last_backfill);
+      auto m = make_message<MOSDPGBackfill>(
+        pinfo.last_backfill.is_max() ? MOSDPGBackfill::OP_BACKFILL_FINISH
+                                     : MOSDPGBackfill::OP_BACKFILL_PROGRESS,
+        get_osdmap_epoch(),
+        get_last_peering_reset(),
+        spg_t(get_info().pgid.pgid, bt.shard));
+      // Use default priority here, must match sub_op priority
+      // TODO: if pinfo.last_backfill.is_max(), then
+      //       start_recovery_op(hobject_t::get_max());
+      m->last_backfill = pinfo.last_backfill;
+      m->stats = pinfo.stats;
+      (void)shard_services.send_to_osd(
+        bt.osd, std::move(m), get_osdmap_epoch());
+      logger().info("{}: peer {} num_objects now {} / {}",
+                    __func__,
+                    bt,
+                    pinfo.stats.stats.sum.num_objects,
+                    get_info().stats.stats.sum.num_objects);
+    }
+  }
 }
 
 bool PG::budget_available() const
