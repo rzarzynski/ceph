@@ -548,7 +548,7 @@ prepare_conf() {
         heartbeat file = $CEPH_OUT_DIR/\$name.heartbeat
 "
 
-    local mgr_modules="restful iostat"
+    local mgr_modules="iostat"
     if $with_mgr_dashboard; then
         mgr_modules="dashboard $mgr_modules"
     fi
@@ -973,10 +973,6 @@ EOF
             fi
         fi
 
-        while ! ceph_adm -h | grep -c -q ^restful ; do
-            debug echo 'waiting for mgr restful module to start'
-            sleep 1
-        done
         if ceph_adm restful create-self-signed-cert; then
             SF=`mktemp`
             ceph_adm restful create-key admin -o $SF
