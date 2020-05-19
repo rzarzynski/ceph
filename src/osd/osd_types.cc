@@ -3750,6 +3750,7 @@ public:
     --plast;
     for (auto cur = intervals.begin(); cur != plast; ) {
       if (plast->supersedes(*cur)) {
+        // XXX: is this erase safe taking account potential iterator invalidation?
 	intervals.erase(cur++);
       } else {
 	++cur;

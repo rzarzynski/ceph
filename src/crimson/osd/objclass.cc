@@ -402,13 +402,13 @@ uint64_t cls_get_client_features(cls_method_context_t hctx)
 ceph_release_t cls_get_required_osd_release(cls_method_context_t hctx)
 {
   // FIXME
-  return ceph_release_t::nautilus;
+  return ceph_release_t::octopus;
 }
 
 ceph_release_t cls_get_min_compatible_client(cls_method_context_t hctx)
 {
   // FIXME
-  return ceph_release_t::nautilus;
+  return ceph_release_t::octopus;
 }
 
 int cls_get_snapset_seq(cls_method_context_t hctx, uint64_t *snap_seq)
