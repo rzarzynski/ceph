@@ -63,7 +63,7 @@ seastar::future<> ReplicatedRecoveryBackend::recover_object(
 	      // obc is loaded with excl lock
 	      recovery_waiter.obc->put_lock_type(RWState::RWEXCL);
 	    }
-	    assert(recovery_waiter.obc->get_recovery_read());
+	    ceph_assert_always(recovery_waiter.obc->get_recovery_read());
 	    return seastar::make_ready_future<>();
 	  }, crimson::osd::PG::load_obc_ertr::all_same_way(
 	      [this, &recovery_waiter, soid](const std::error_code& e) {
@@ -74,7 +74,7 @@ seastar::future<> ReplicatedRecoveryBackend::recover_object(
 	      recovery_waiter.obc = obc;
 	      // obc is loaded with excl lock
 	      recovery_waiter.obc->put_lock_type(RWState::RWEXCL);
-	      assert(recovery_waiter.obc->get_recovery_read());
+	      ceph_assert_always(recovery_waiter.obc->get_recovery_read());
 	      return seastar::make_ready_future<>();
 	    })
 	  );
