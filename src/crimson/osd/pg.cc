@@ -883,6 +883,13 @@ void PG::on_backfill_reserved()
     *this,
     std::make_unique<BackfillState::PeeringFacade>(peering_state),
     std::make_unique<BackfillState::PGFacade>(*this));
+  // yes, it's **not** backfilling yet. The PG_STATE_BACKFILLING
+  // will be set after on_backfill_reserved() returns.
+  // Backfill needs to take this into consideration when scheduling
+  // events -- they must be mutually exclusive with PeeringEvent
+  // instances. Otherwise the execution might begin without having
+  // the state updated.
+  ceph_assert(!peering_state.is_backfilling());
   shard_services.start_operation<BackfillRecovery>(
     this,
     shard_services,
