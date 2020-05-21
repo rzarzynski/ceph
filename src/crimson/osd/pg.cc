@@ -922,13 +922,13 @@ void PG::request_primary_scan(
 {
   logger().debug("{}", __func__);
   using crimson::common::local_conf;
-  get_recovery_backend()->scan_for_backfill(
+  std::ignore = get_recovery_backend()->scan_for_backfill(
     begin,
     local_conf()->osd_backfill_scan_min,
     local_conf()->osd_backfill_scan_max
   ).then([this] (BackfillInterval bi) {
     logger().debug("request_primary_scan:{}", __func__);
-    shard_services.start_operation<BackfillRecovery>(
+    std::ignore = shard_services.start_operation<BackfillRecovery>(
       this,
       shard_services,
       get_osdmap_epoch(),
