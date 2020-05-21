@@ -53,7 +53,7 @@ struct BackfillState {
     }
   };
 
-  struct Trigerred : sc::event<Trigerred> {
+  struct Triggered : sc::event<Triggered> {
   };
 
 private:
@@ -132,12 +132,12 @@ public:
   struct Initial : sc::state<Initial, BackfillMachine>,
                    StateHelper<Initial> {
     using reactions = boost::mpl::list<
-      sc::transition<Trigerred, Enqueuing>,
+      sc::custom_reaction<Triggered>,
       sc::transition<sc::event_base, Crashed>>;
     explicit Initial(my_context);
     // initialize after triggering backfill by on_activate_complete().
     // transit to Enqueuing.
-    sc::result react(const Trigerred&);
+    sc::result react(const Triggered&);
   };
 
   struct Enqueuing : sc::state<Enqueuing, BackfillMachine>,
