@@ -122,16 +122,16 @@ seastar::future<> RecoveryBackend::handle_backfill(
 
 seastar::future<BackfillInterval> RecoveryBackend::scan_for_backfill(
   const hobject_t& start,
-  const std::int64_t min,
+  [[maybe_unused]] const std::int64_t min,
   const std::int64_t max)
 {
   logger().debug("{} starting from {}",
                  __func__, start);
   return seastar::do_with(
     std::map<hobject_t, eversion_t>{},
-    [this, &start, limit=std::max(min, max)] (auto& version_map) {
-      return backend->list_objects(start, limit).then(
-        [this, &start, &version_map] (auto ret) {
+    [this, &start, max] (auto& version_map) {
+      return backend->list_objects(start, max).then(
+        [this, &start, &version_map] (auto&& ret) {
           auto& [objects, next] = ret;
           return seastar::parallel_for_each(
             objects,
