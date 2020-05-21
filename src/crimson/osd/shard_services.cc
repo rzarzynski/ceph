@@ -309,8 +309,8 @@ seastar::future<> ShardServices::send_alive(const epoch_t want)
   } if (const epoch_t up_thru = osdmap->get_up_thru(whoami);
         up_thru_wanted > up_thru) {
     logger().debug("{} up_thru_wanted={} up_thru={}", __func__, want, up_thru);
-    auto m = make_message<MOSDAlive>(osdmap->get_epoch(), want);
-    return monc.send_message(std::move(m));
+    return monc.send_message(
+      make_message<MOSDAlive>(osdmap->get_epoch(), want));
   } else {
     logger().debug("{} {} <= {}", __func__, want, osdmap->get_up_thru(whoami));
     return seastar::now();
