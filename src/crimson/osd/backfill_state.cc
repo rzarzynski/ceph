@@ -1,6 +1,8 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#include <algorithm>
+
 #include "crimson/osd/backfill_state.h"
 #include "crimson/osd/backfill_facades.h"
 #include "crimson/osd/pg.h"
