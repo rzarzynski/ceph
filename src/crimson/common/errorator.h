@@ -728,6 +728,15 @@ public:
     }
   };
 
+  struct assert_all {
+    template <class ErrorT, EnableIf<ErrorT>...>
+    decltype(auto) operator()(ErrorT&&) {
+      static_assert(contains_once_v<std::decay_t<ErrorT>>,
+                    "discarding disallowed ErrorT");
+      ceph_abort("This shouldn't happen");
+    }
+  };
+
   template <class ErrorFunc>
   static decltype(auto) all_same_way(ErrorFunc&& error_func) {
     return all_same_way_t<ErrorFunc>{std::forward<ErrorFunc>(error_func)};
@@ -948,6 +957,13 @@ namespace ct_error {
   struct discard_all {
     template <class ErrorT>
     decltype(auto) operator()(ErrorT&&) {
+    }
+  };
+
+  struct assert_all {
+    template <class ErrorT>
+    decltype(auto) operator()(ErrorT&&) {
+      ceph_abort("This shouldn't happen");
     }
   };
 
