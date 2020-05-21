@@ -290,7 +290,7 @@ HeartbeatStampsRef ShardServices::get_hb_stamps(int peer)
 seastar::future<> ShardServices::send_alive(const epoch_t want)
 {
   logger().info(
-    "{} want {}",
+    "{} want={} up_thru_wanted={}",
     __func__,
     want,
     up_thru_wanted);
