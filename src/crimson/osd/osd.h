@@ -145,11 +145,6 @@ private:
   seastar::future<Ref<PG>> load_pg(spg_t pgid);
   seastar::future<> load_pgs();
 
-  // DROPME
-  seastar::future<> _send_alive(epoch_t want) {
-    return get_shard_services().send_alive(want);
-  }
-
   // OSDMapService methods
   epoch_t get_up_epoch() const final {
     return up_epoch;
