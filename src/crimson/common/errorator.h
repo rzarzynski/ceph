@@ -8,6 +8,8 @@
 
 #include <seastar/core/future-util.hh>
 
+#include "include/ceph_assert.h"
+
 namespace crimson {
 
 template<typename Iterator, typename AsyncAction>
@@ -733,7 +735,7 @@ public:
     decltype(auto) operator()(ErrorT&&) {
       static_assert(contains_once_v<std::decay_t<ErrorT>>,
                     "discarding disallowed ErrorT");
-      ceph_abort("This shouldn't happen");
+      ceph_abort();
     }
   };
 
@@ -963,7 +965,7 @@ namespace ct_error {
   struct assert_all {
     template <class ErrorT>
     decltype(auto) operator()(ErrorT&&) {
-      ceph_abort("This shouldn't happen");
+      ceph_abort();
     }
   };
 
