@@ -66,6 +66,7 @@ BackfillState::Initial::react(const BackfillState::Triggered& evt)
 {
   logger().debug("{}: backfill triggered", __func__);
   ceph_assert(bs().last_backfill_started == ps().earliest_backfill());
+  ceph_assert(ps().is_backfilling());
   // initialize BackfillIntervals
   for (const auto& bt : ps().get_backfill_targets()) {
     bs().peer_backfill_info[bt].reset(
