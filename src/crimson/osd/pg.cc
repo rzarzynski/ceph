@@ -894,7 +894,7 @@ void PG::on_backfill_reserved()
     this,
     shard_services,
     get_osdmap_epoch(),
-    BackfillState::Trigerred{});
+    BackfillState::Triggered{});
 }
 
 void PG::request_replica_scan(
