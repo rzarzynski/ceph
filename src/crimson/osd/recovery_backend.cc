@@ -142,7 +142,7 @@ seastar::future<BackfillInterval> RecoveryBackend::scan_for_backfill(
               }
               if (obc) {
                 if (obc->obs.exists) {
-                  logger().debug("  found primary: {}  {}",
+                  logger().debug("scan_for_backfill found (primary): {}  {}",
                                  object, obc->obs.oi.version);
                   version_map[object] = obc->obs.oi.version;
                 } else {
@@ -155,7 +155,7 @@ seastar::future<BackfillInterval> RecoveryBackend::scan_for_backfill(
                 return backend->load_metadata(object).safe_then(
                   [&version_map, object] (auto md) {
                     if (md->os.exists) {
-                      logger().debug("  found: {}  {}",
+                      logger().debug("scan_for_backfill found: {}  {}",
                                      object, md->os.oi.version);
                       version_map[object] = md->os.oi.version;
                     }
@@ -169,7 +169,8 @@ seastar::future<BackfillInterval> RecoveryBackend::scan_for_backfill(
               bi.end = std::move(next);
               bi.version = pg.get_info().last_update;
               bi.objects = std::move(version_map);
-              logger().debug("BackfillInterval filled, leaving");
+              logger().debug("{} BackfillInterval filled, leaving",
+                             "scan_for_backfill");
               return seastar::make_ready_future<BackfillInterval>(std::move(bi));
             });
         });
