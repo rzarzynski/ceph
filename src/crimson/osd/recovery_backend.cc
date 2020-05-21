@@ -160,7 +160,7 @@ seastar::future<BackfillInterval> RecoveryBackend::scan_for_backfill(
                       version_map[object] = md->os.oi.version;
                     }
                     return seastar::now();
-                  }, /* FIXME */ PGBackend::load_metadata_ertr::discard_all{});
+                  }, PGBackend::load_metadata_ertr::assert_all{});
               }
           }).then(
             [&version_map, &start, next=std::move(next), this] {
