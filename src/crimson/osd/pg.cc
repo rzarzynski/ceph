@@ -943,12 +943,12 @@ void PG::enqueue_push(
 {
   logger().debug("{}: target={} obj={} v={}",
                  __func__, target, obj, v);
-  get_recovery_backend()->recover_object(obj, v).handle_exception([] (auto) {
+  std::ignore = get_recovery_backend()->recover_object(obj, v).handle_exception([] (auto) {
     ceph_assert("got exception on backfill's push" == nullptr);
     return seastar::make_ready_future<>();
   }).then([this, obj] {
     logger().debug("enqueue_push:{}", __func__);
-    shard_services.start_operation<BackfillRecovery>(
+    std::ignore = shard_services.start_operation<BackfillRecovery>(
       this,
       shard_services,
       get_osdmap_epoch(),
