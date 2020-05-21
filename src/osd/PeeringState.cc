@@ -4638,13 +4638,15 @@ PeeringState::Backfilling::Backfilling(my_context ctx)
 {
   context< PeeringMachine >().log_enter(state_name);
 
-
   DECLARE_LOCALS;
   ps->backfill_reserved = true;
-  pl->on_backfill_reserved();
   ps->state_clear(PG_STATE_BACKFILL_TOOFULL);
   ps->state_clear(PG_STATE_BACKFILL_WAIT);
   ps->state_set(PG_STATE_BACKFILLING);
+  // TODO: consider the alternative -- BackgroundRecovery waits just
+  // like in the case of clasical OSD which uses single pipeline
+  // for all operations.
+  pl->on_backfill_reserved();
   pl->publish_stats_to_osd();
 }
 
