@@ -62,7 +62,7 @@ BackfillState::Initial::Initial(my_context ctx)
 }
 
 boost::statechart::result
-BackfillState::Initial::react(const BackfillState::Trigerred& evt)
+BackfillState::Initial::react(const BackfillState::Triggered& evt)
 {
   logger().debug("{}: backfill triggered", __func__);
   ceph_assert(bs().last_backfill_started == ps().earliest_backfill());
