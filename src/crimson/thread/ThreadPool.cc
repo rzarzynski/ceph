@@ -1,10 +1,14 @@
 #include "ThreadPool.h"
 
 #include <chrono>
+#include <optional>
 #include <pthread.h>
-#include "include/intarith.h"
+
+#include <seastar/core/memory.hh>
+#include <seastar/core/resource.hh>
 
 #include "include/ceph_assert.h"
+#include "include/intarith.h"
 #include "crimson/common/config_proxy.h"
 
 using crimson::common::local_conf;
@@ -21,6 +25,7 @@ ThreadPool::ThreadPool(size_t n_threads,
   for (size_t i = 0; i < n_threads; i++) {
     threads.emplace_back([this, cpu_id, queue_max_wait] {
       pin(cpu_id);
+      configure_memory();
       loop(queue_max_wait);
     });
   }
@@ -40,7 +45,13 @@ void ThreadPool::pin(unsigned cpu_id)
   CPU_SET(cpu_id, &cs);
   [[maybe_unused]] auto r = pthread_setaffinity_np(pthread_self(),
                                                    sizeof(cs), &cs);
-  ceph_assert(r == 0);
+}
+
+void ThreadPool::configure_memory()
+{
+  std::vector<seastar::resource::memory> layout;
+  layout.emplace_back(seastar::resource::memory{1024 * 1024 * 1024, 0});
+  seastar::memory::configure(layout, false, std::nullopt);
 }
 
 void ThreadPool::loop(std::chrono::milliseconds queue_max_wait)

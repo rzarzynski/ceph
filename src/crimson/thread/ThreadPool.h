@@ -86,6 +86,7 @@ class ThreadPool {
     return stopping.load(std::memory_order_relaxed);
   }
   static void pin(unsigned cpu_id);
+  static void configure_memory();
   seastar::semaphore& local_free_slots() {
     return submit_queue.local().free_slots;
   }
