@@ -1,6 +1,12 @@
 // -*- mode:C++; tab-width:8; c-basic-offset:2; indent-tabs-mode:t -*-
 // vim: ts=8 sw=2 smarttab
 
+#ifdef WITH_SEASTAR
+#  include <optional>
+#  include <seastar/core/memory.hh>
+#  include <seastar/core/resource.hh>
+#endif
+
 #include "BlueRocksEnv.h"
 #include "BlueFS.h"
 #include "include/stringify.h"
@@ -583,4 +589,14 @@ rocksdb::Status BlueRocksEnv::GetTestDirectory(std::string* path)
   static int foo = 0;
   *path = "temp_" + stringify(++foo);
   return rocksdb::Status::OK();
+}
+
+void BlueRocksEnv::StartThread(void(*function)(void* arg), void* arg)
+{
+#ifdef WITH_SEASTAR
+  std::vector<seastar::resource::memory> layout;
+  layout.emplace_back(seastar::resource::memory{1024 * 1024 * 1024, 0});
+  seastar::memory::configure(layout, false, std::nullopt);
+#endif
+  base_t::StartThread(function, arg);
 }
