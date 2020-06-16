@@ -18,6 +18,12 @@
 #include <sys/syscall.h>   /* For SYS_xxx definitions */
 #endif
 
+#ifdef WITH_SEASTAR
+#include <optional>
+#include <seastar/core/memory.hh>
+#include <seastar/core/resource.hh>
+#endif
+
 #include "common/Thread.h"
 #include "common/code_environment.h"
 #include "common/debug.h"
@@ -81,6 +87,11 @@ void *Thread::entry_wrapper()
     _set_affinity(cpuid);
 
   ceph_pthread_setname(pthread_self(), thread_name);
+#ifdef WITH_SEASTAR
+  std::vector<seastar::resource::memory> layout;
+  layout.emplace_back(seastar::resource::memory{1024 * 1024 * 1024, 0});
+  seastar::memory::configure(layout, false, std::nullopt);
+#endif
   return entry();
 }
 
