@@ -411,7 +411,7 @@ static ceph::spinlock debug_lock;
       bdout << "ptr " << this << " get " << _raw << bendl;
     }
     buffer::raw *raw = p._raw; 
-    release();
+    release_raw();
     if (raw) {
       _raw = raw;
       _off = p._off;
@@ -423,7 +423,7 @@ static ceph::spinlock debug_lock;
   }
   buffer::ptr& buffer::ptr::operator= (ptr&& p) noexcept
   {
-    release();
+    release_raw();
     buffer::raw *raw = p._raw;
     if (raw) {
       _raw = raw;
@@ -455,7 +455,7 @@ static ceph::spinlock debug_lock;
     other._len = l;
   }
 
-  void buffer::ptr::release()
+  void buffer::ptr::release_raw()
   {
     if (_raw) {
       bdout << "ptr " << this << " release " << _raw << bendl;

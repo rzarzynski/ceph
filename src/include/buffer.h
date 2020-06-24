@@ -170,7 +170,7 @@ struct error_code;
     unsigned _off, _len;
   private:
 
-    void release();
+    void release_raw();
 
     template<bool is_const>
     class iterator_impl {
@@ -244,7 +244,7 @@ struct error_code;
     ~ptr() {
       // BE CAREFUL: this destructor is called also for hypercombined ptr_node.
       // After freeing underlying raw, `*this` can become inaccessible as well!
-      release();
+      release_raw();
     }
 
     bool have_raw() const { return _raw ? true:false; }
