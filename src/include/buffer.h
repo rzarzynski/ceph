@@ -79,6 +79,23 @@ template<typename T> class DencDumper;
 
 namespace ceph {
 
+#ifdef BUFFER_CORRUPTION_DEBUG
+class canary_t {
+  std::uint64_t magic{0xBADC0FFEEBADC0DE};
+public:
+  void is_alive_or_die() const {
+    if (magic != 0xBADC0FFEEBADC0DE) {
+      ceph_abort_msg("Canary is dead! Oops...");
+    }
+  }
+};
+# define INSERT_CANARY(name) canary_t name
+# define VERIFY_CANARY(name) (name).is_alive_or_die()
+#else
+# define INSERT_CANARY(name) /* nop */
+# define VERIFY_CANARY(name) /* nop */
+#endif
+
 template <class T>
 struct nop_delete {
   void operator()(T*) {}
@@ -166,6 +183,7 @@ struct error_code;
   class CEPH_BUFFER_API ptr {
     friend class list;
   protected:
+    INSERT_CANARY(canary);
     raw *_raw;
     unsigned _off, _len;
   private:
@@ -242,6 +260,7 @@ struct error_code;
     ptr& operator= (const ptr& p);
     ptr& operator= (ptr&& p) noexcept;
     ~ptr() {
+      VERIFY_CANARY(canary);
       // BE CAREFUL: this destructor is called also for hypercombined ptr_node.
       // After freeing underlying raw, `*this` can become inaccessible as well!
       release();
@@ -369,7 +388,9 @@ struct error_code;
       }
     };
 
-    ~ptr_node() = default;
+    ~ptr_node() {
+      VERIFY_CANARY(canary);
+    }
 
     static std::unique_ptr<ptr_node, disposer>
     create(ceph::unique_leakable_ptr<raw> r) {
