@@ -2180,7 +2180,7 @@ MEMPOOL_DEFINE_OBJECT_FACTORY(buffer::raw_static, buffer_raw_static,
 
 
 namespace ceph::buffer {
-inline namespace v15_2_0 {
+inline namespace v16_2_0 {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wnon-virtual-dtor"
