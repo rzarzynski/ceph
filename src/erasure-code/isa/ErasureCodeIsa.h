@@ -82,7 +82,7 @@ public:
 
   int init(ceph::ErasureCodeProfile &profile, std::ostream *ss) override;
 
-  virtual void isa_encode(char **data,
+  virtual void isa_encode(const char **data,
                           char **coding,
                           int blocksize) = 0;
 
@@ -130,7 +130,7 @@ public:
 
   }
 
-  void isa_encode(char **data,
+  void isa_encode(const char **data,
                           char **coding,
                           int blocksize) override;
 

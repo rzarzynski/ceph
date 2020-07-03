@@ -59,7 +59,7 @@ typedef unsigned long long vector_op_t;
 // compute byte-wise XOR of cw and dw block, ew contains the end address of cw
 // -------------------------------------------------------------------------
 void
-byte_xor(unsigned char* cw, unsigned char* dw, unsigned char* ew);
+byte_xor(const unsigned char* cw, unsigned char* dw, const unsigned char* ew);
 
 // -------------------------------------------------------------------------
 // compute word-wise XOR of cw and dw block, ew contains the end address of cw
@@ -71,7 +71,7 @@ vector_xor(vector_op_t* cw, vector_op_t* dw, vector_op_t* ew);
 // compute region XOR like parity = src[0] ^ src[1] ... ^ src[src_size-]
 // -------------------------------------------------------------------------
 void
-region_xor(unsigned char** src, unsigned char* parity, int src_size, unsigned size);
+region_xor(const unsigned char** src, unsigned char* parity, int src_size, unsigned size);
 
 // -------------------------------------------------------------------------
 // compute region XOR like parity = src[0] ^ src[1] ... ^ src[src_size-]

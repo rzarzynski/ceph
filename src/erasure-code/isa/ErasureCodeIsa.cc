@@ -83,10 +83,14 @@ ErasureCodeIsa::get_chunk_size(unsigned int object_size) const
 int ErasureCodeIsa::encode_chunks(const set<int> &want_to_encode,
                                   map<int, bufferlist> *encoded)
 {
-  char *chunks[k + m];
-  for (int i = 0; i < k + m; i++)
-    chunks[i] = (*encoded)[i].c_str();
-  isa_encode(&chunks[0], &chunks[k], (*encoded)[0].length());
+  const char *src_chunks[k];
+  char *target_chunks[m];
+  int i = 0;
+  for (; i < k; i++)
+    src_chunks[i] = (*encoded)[i].c_str();
+  for (; i < k + m; i++)
+    target_chunks[i] = (*encoded)[i].c_str();
+  isa_encode(&src_chunks[0], &target_chunks[k], (*encoded)[0].length());
   return 0;
 }
 
@@ -117,14 +121,14 @@ int ErasureCodeIsa::decode_chunks(const set<int> &want_to_read,
 // -----------------------------------------------------------------------------
 
 void
-ErasureCodeIsaDefault::isa_encode(char **data,
+ErasureCodeIsaDefault::isa_encode(const char **data,
                                   char **coding,
                                   int blocksize)
 {
 
   if (m == 1)
     // single parity stripe
-    region_xor((unsigned char**) data, (unsigned char*) coding[0], k, blocksize);
+    region_xor((const unsigned char**) data, (unsigned char*) coding[0], k, blocksize);
   else
     ec_encode_data(blocksize, k, m, encode_tbls,
                    (unsigned char**) data, (unsigned char**) coding);
@@ -162,7 +166,7 @@ ErasureCodeIsaDefault::isa_decode(int *erasures,
     nerrs++;
   }
 
-  unsigned char *recover_source[k];
+  const unsigned char *recover_source[k];
   unsigned char *recover_target[m];
 
   memset(recover_source, 0, sizeof (recover_source));
@@ -175,9 +179,9 @@ ErasureCodeIsaDefault::isa_decode(int *erasures,
     if (!erasure_contains(erasures, i)) {
       if (r < k) {
         if (i < k) {
-          recover_source[r] = (unsigned char*) data[i];
+          recover_source[r] = (const unsigned char*) data[i];
         } else {
-          recover_source[r] = (unsigned char*) coding[i - k];
+          recover_source[r] = (const unsigned char*) coding[i - k];
         }
         r++;
       }
@@ -303,8 +307,12 @@ ErasureCodeIsaDefault::isa_decode(int *erasures,
     tcache.putDecodingTableToCache(erasure_signature, p_tbls, matrixtype, k, m);
   }
   // Recover data sources
-  ec_encode_data(blocksize,
-                 k, nerrs, decode_tbls, recover_source, recover_target);
+  // XXX: const casting because of (broken?) ISA-L interface which expects
+  // to provide input data as `unsigned char **src`. This looks like a bug
+  // in the interface because this isn't an in-place transformata – data
+  // are placed in `unsigned char **dest`.
+  ec_encode_data(blocksize, k, nerrs, decode_tbls,
+                 const_cast<unsigned char**>(recover_source), recover_target);
 
 
   return 0;

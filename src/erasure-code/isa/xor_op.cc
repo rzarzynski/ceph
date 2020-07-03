@@ -25,7 +25,7 @@
 
 void
 // -----------------------------------------------------------------------------
-byte_xor(unsigned char* cw, unsigned char* dw, unsigned char* ew)
+byte_xor(const unsigned char* cw, unsigned char* dw, const unsigned char* ew)
 // -----------------------------------------------------------------------------
 {
   while (cw < ew)
@@ -54,7 +54,7 @@ vector_xor(vector_op_t* cw,
 
 void
 // -----------------------------------------------------------------------------
-region_xor(unsigned char** src,
+region_xor(const unsigned char** src,
            unsigned char* parity,
            int src_size,
            unsigned size)
