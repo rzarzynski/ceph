@@ -343,6 +343,8 @@ private:
   class _future {};
   template <class... ValuesT>
   class _future<::crimson::errorated_future_marker<ValuesT...>>
+    // XXX: for the variant withouh `plainify()` and with newer S* we would
+    // declare here a friendship with `futurator::satisfy_with_result_of`.
     : private seastar::future<ValuesT...> {
     using base_t = seastar::future<ValuesT...>;
     // we need the friendship for the sake of `get_exception() &&` when
@@ -1058,6 +1060,11 @@ struct futurize<Container<::crimson::errorated_future_marker<Values...>>> {
   [[gnu::always_inline]]
   static type make_exception_future(Arg&& arg) {
     return errorator_type::template make_exception_future2<Values...>(std::forward<Arg>(arg));
+  }
+
+  template<typename PromiseT, typename Func>
+  static void satisfy_with_result_of(PromiseT&& pr, Func&& func) {
+    func().forward_to(std::move(pr));
   }
 };
 
