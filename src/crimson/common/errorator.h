@@ -528,22 +528,13 @@ private:
       // As C++17 doesn't guarantee copy elision when non-same types are
       // involved while examination of assemblies from GCC 8.1 confirmed
       // extra copying, switch to the second approach has been made.
-#if 1
-      return reinterpret_cast<typename futurator_t::type&&>(this->then_wrapped(
-#else
       return this->then_wrapped(
-#endif
         [ valfunc = std::forward<ValueFuncT>(valfunc),
           errfunc = std::forward<ErrorVisitorT>(errfunc)
         ] (auto&& future) mutable noexcept {
           if (__builtin_expect(future.failed(), false)) {
-#if 1
-            return plainify(_safe_then_handle_errors<futurator_t>(
-              std::move(future), std::forward<ErrorVisitorT>(errfunc)));
-#else
             return _safe_then_handle_errors<futurator_t>(
               std::move(future), std::forward<ErrorVisitorT>(errfunc));
-#endif
           } else {
             // NOTE: using `seastar::future::get()` here is a bit bloaty
             // as the method rechecks availability of future's value and,
@@ -573,19 +564,10 @@ private:
             // solution here would be mark the `::get_available_state()`
             // as `protected` and use dedicated `get_value()` exactly as
             // `::then()` already does.
-#if 1
-            return plainify(futurator_t::apply(std::forward<ValueFuncT>(valfunc),
-                                               std::move(future).get()));
-#else
             return futurator_t::apply(std::forward<ValueFuncT>(valfunc),
                                       std::move(future).get());
-#endif
           }
-#if 1
-        }));
-#else
-        }) };
-#endif
+        });
     }
 
     /**
@@ -688,12 +670,6 @@ private:
     friend inline auto ::crimson::do_for_each(Iterator begin,
                                               Iterator end,
                                               AsyncAction action);
-#if 1
-    // for the sake of `plainify()` let any errorator convert errorated
-    // future into plain one.
-    template <class...>
-    friend class errorator;
-#endif
 
     template<typename AsyncAction>
     friend inline auto ::crimson::do_until(AsyncAction action);
@@ -848,17 +824,6 @@ public:
   }
 
 private:
-#if 1
-  template <class... Args>
-  static decltype(auto) plainify(seastar::future<Args...>&& fut) {
-    return std::forward<seastar::future<Args...>>(fut);
-  }
-  template <class Arg>
-  static decltype(auto) plainify(Arg&& arg) {
-    return std::forward<typename Arg::base_t>(arg);
-  }
-#endif
-
   template <class T, class = std::void_t<T>>
   class futurize {
     using vanilla_futurize = seastar::futurize<T>;
