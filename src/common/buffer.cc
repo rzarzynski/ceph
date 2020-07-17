@@ -277,6 +277,174 @@ static ceph::spinlock debug_lock;
     }
   };
 
+
+  struct ring_entry_t {
+    class cache_ring_t* ring;
+    std::uint32_t overall_size;
+
+    bool needs_reclaim() const {
+      return ring == nullptr;
+    }
+
+    cache_ring_t* make_reclaimable() {
+      return std::exchange(ring, nullptr);
+    }
+  };
+  static_assert(std::is_pod_v<ring_entry_t>);
+
+  struct cache_ring_t {
+    // https://www.snellman.net/blog/archive/2016-12-13-ring-buffers/
+    struct : public std::atomic_uint32_t {
+      std::uint32_t exchange_in_ring(std::uint32_t value) {
+        return exchange(value % effective_size());
+      }
+    } head{0};
+    std::atomic_uint32_t tail{0};
+    std::unique_ptr<char[]> cache_area { new char[size()] };
+
+    constexpr static std::uint32_t size() {
+      return 64 * 1024 * 1024 + sizeof(ring_entry_t);
+    }
+
+    constexpr static std::uint32_t effective_size() {
+      // we need to ensure there is always a room for the right-to-left
+      // carry-on marker.
+      return size() - sizeof(ring_entry_t);
+    }
+
+    ring_entry_t* entry_cast(const std::uint32_t offset) {
+      return reinterpret_cast<ring_entry_t*>(cache_area.get() + offset);
+    }
+
+    char* addr_cast(const std::uint32_t offset) {
+      return cache_area.get() + offset;
+    }
+
+    char* _allocate(const std::uint32_t len) {
+      // we don't relly need a copy of head as allocations are singly threaded
+      // apart avoiding unnecessary reloads.
+      const auto head_snapshot = head.load();
+      const auto tail_snapshot = tail.load();
+
+      //std::cout << __func__ << " head=" << head << " tail=" << tail << std::endl;
+      bdout << "allocating from ring."
+            << " len=" << len
+            << " head_snapshot=" << head_snapshot
+            << " tail_snapshot=" << tail_snapshot
+            << bendl;
+      if (head_snapshot >= tail_snapshot) {
+        const std::uint32_t continuous_at_right = effective_size() - head_snapshot;
+        const std::uint32_t continuous_at_left = tail_snapshot;
+        if (len < continuous_at_right) {
+          // this is preferred as we don't accept any gaps between head and
+          // the allocated space.
+          bdout << "allocating at right, continuous_at_right="
+                << continuous_at_right << bendl;
+          return addr_cast(head.exchange_in_ring(head_snapshot + len));
+        } else if (len == continuous_at_right && continuous_at_left > 0) {
+          // we must sacrifice some space to distinguish between empty and
+          // full ring. This restriction boils down to the fact that we can
+          // consume `continuous_at_right` entirely ONLY if there is some
+          // free space at the left.
+          bdout << "allocating exhaustively at right,"
+                << " continuous_at_right=" << continuous_at_right
+                << " continuous_at_left=" << continuous_at_left
+                << bendl;
+          return addr_cast(head.exchange_in_ring(head_snapshot + len));
+        } else if (len < continuous_at_left) {
+          bdout << "allocating at left, continuous_at_left="
+                << continuous_at_left << bendl;
+          // because of how deallocate works, there shall be no gap between
+          const auto r2l_carry_marker = \
+            (head_snapshot + continuous_at_right) % effective_size();
+          entry_cast(r2l_carry_marker)->ring = this;
+          entry_cast(r2l_carry_marker)->overall_size = continuous_at_right;
+          return addr_cast(head.exchange_in_ring(r2l_carry_marker + len));
+        } else {
+          bdout << "no space at right nor left sides of the ring" << bendl;
+          return nullptr;
+        }
+      } else {
+        if (const auto continuous_at_center = tail_snapshot - head_snapshot;
+            len <= continuous_at_center) {
+          bdout << "allocating at center, continuous_at_center="
+                << continuous_at_center << bendl;
+          return addr_cast(head.exchange_in_ring(head_snapshot + len));
+        } else {
+          bdout << "no space in the middle of the ring" << bendl;
+          return nullptr;
+        }
+      }
+    }
+
+    char* allocate(const std::uint32_t len) {
+      const auto ret = _allocate(len);
+      ceph_assert(ret == nullptr || ret >= cache_area.get());
+      ceph_assert((ret + len) <= (cache_area.get() + effective_size()));
+      return ret;
+    }
+
+    void deallocate(ring_entry_t& ptr) {
+      auto* const ring = std::move(ptr).make_reclaimable();
+      std::uint32_t tail_snapshot = ring->tail.load();
+      std::uint32_t new_tail;
+      do {
+        do {
+          if (const auto* const current_entry = entry_cast(tail_snapshot);
+              tail_snapshot != head && current_entry->needs_reclaim()) {
+            // the comparison with `head` validates whether `current_entry`
+            // points to an alive entry.
+            new_tail = (tail_snapshot + current_entry->overall_size) % effective_size();
+          } else {
+            // this will end the function IF there was no update to `tail`
+            // committed by another thread.
+            new_tail = tail_snapshot;
+          }
+        } while (!tail.compare_exchange_strong(tail_snapshot, new_tail));
+      } while (new_tail != tail_snapshot);
+    }
+  };
+
+  struct raw_tls : public ring_entry_t, public ceph::buffer::raw {
+    inline static thread_local cache_ring_t cache_ring;
+
+  public:
+    raw_tls(char *dataptr, unsigned l, int mempool,
+               class cache_ring_t& control_block,
+               const std::uint32_t overall_size)
+      : ring_entry_t { &control_block, overall_size },
+        raw(dataptr, l, mempool) {
+    }
+    raw* clone_empty() override {
+      return create(len, 0).release();
+    }
+
+    static ceph::unique_leakable_ptr<buffer::raw>
+    create(unsigned len,
+           int mempool = mempool::mempool_buffer_anon) {
+      const std::uint32_t rawlen = round_up_to(sizeof(raw_tls),
+                                               alignof(raw_tls));
+      const std::uint32_t datalen = round_up_to(len, alignof(raw_tls));
+      const auto overall_size = rawlen + datalen;
+
+      if (char* const ptr = cache_ring.allocate(overall_size); ptr) {
+        // actual data first, since it has presumably larger alignment restriction
+        // then put the raw_tls at the end.
+        return ceph::unique_leakable_ptr<buffer::raw>(
+          new (ptr) raw_tls(ptr+rawlen, len, mempool, cache_ring, overall_size));
+      } else {
+        return ceph::buffer::create(len, mempool);
+      }
+    }
+
+    static void operator delete(void *ptr) {
+      // BEWARE: this overloaded operator is called AFTER `~raw_tls()`.
+      // that is, the object is *destructed* at this stage.
+      auto* const raw = reinterpret_cast<raw_tls*>(ptr);
+      raw->ring->deallocate(static_cast<ring_entry_t&>(*raw));
+    }
+  };
+
   ceph::unique_leakable_ptr<buffer::raw> buffer::copy(const char *c, unsigned len) {
     auto r = buffer::create_aligned(len, sizeof(size_t));
     memcpy(r->data, c, len);
@@ -1322,7 +1490,7 @@ static ceph::spinlock debug_lock;
     size_t alen = round_up_to(need, CEPH_BUFFER_ALLOC_UNIT) -
       sizeof(raw_combined);
     auto new_back = \
-      ptr_node::create(raw_combined::create(alen, 0, get_mempool()));
+      ptr_node::create(raw_tls::create(alen, get_mempool()));
     new_back->set_length(0);   // unused, so far.
     _carriage = new_back.get();
     _buffers.push_back(*new_back.release());
