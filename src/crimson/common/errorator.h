@@ -345,7 +345,7 @@ private:
   class _future<::crimson::errorated_future_marker<ValuesT...>>
     // XXX: for the variant withouh `plainify()` and with newer S* we would
     // declare here a friendship with `futurator::satisfy_with_result_of`.
-    : private seastar::future<ValuesT...> {
+    : public seastar::future<ValuesT...> {
     using base_t = seastar::future<ValuesT...>;
     // we need the friendship for the sake of `get_exception() &&` when
     // `safe_then()` is going to return an errorated future as a result of
