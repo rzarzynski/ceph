@@ -281,6 +281,8 @@ static ceph::spinlock debug_lock;
   struct ring_entry_t {
     class cache_ring_t* ring;
     std::uint32_t overall_size;
+    char padding[4];
+    char data[];
 
     bool needs_reclaim() const {
       return ring == nullptr;
@@ -316,18 +318,16 @@ static ceph::spinlock debug_lock;
       return reinterpret_cast<ring_entry_t*>(cache_area.get() + offset);
     }
 
-    char* addr_cast(const std::uint32_t offset, const std::uint32_t len) {
-      entry_cast(offset)->ring = this;
-      entry_cast(offset)->overall_size = len;
-      return cache_area.get() + offset + sizeof(ring_entry_t);
+    char* addr_cast(const std::uint32_t offset) {
+      return cache_area.get() + offset;
     }
 
-    char* _allocate(const std::uint32_t wanted_len) {
+    ring_entry_t* _allocate(const std::uint32_t data_len) {
       // we don't relly need a copy of head as allocations are singly threaded
       // apart avoiding unnecessary reloads.
       const auto head_snapshot = head.load();
       const auto tail_snapshot = tail.load();
-      const auto len = wanted_len + sizeof(ring_entry_t);
+      const std::uint32_t len = data_len + sizeof(ring_entry_t);
 
       //std::cout << __func__ << " head=" << head << " tail=" << tail << std::endl;
       bdout << "allocating from ring."
@@ -343,7 +343,8 @@ static ceph::spinlock debug_lock;
           // the allocated space.
           bdout << "allocating at right, continuous_at_right="
                 << continuous_at_right << bendl;
-          return addr_cast(head.exchange_in_ring(head_snapshot + len), len);
+          return new (addr_cast(head.exchange_in_ring(head_snapshot + len)))
+            ring_entry_t{ this, len };
         } else if (len == continuous_at_right && continuous_at_left > 0) {
           // we must sacrifice some space to distinguish between empty and
           // full ring. This restriction boils down to the fact that we can
@@ -353,17 +354,20 @@ static ceph::spinlock debug_lock;
                 << " continuous_at_right=" << continuous_at_right
                 << " continuous_at_left=" << continuous_at_left
                 << bendl;
-          return addr_cast(head.exchange_in_ring(head_snapshot + len), len);
+          return new (addr_cast(head.exchange_in_ring(head_snapshot + len)))
+            ring_entry_t{ this, len };
         } else if (len < continuous_at_left) {
           bdout << "allocating at left,"
                 << " continuous_at_left=" << continuous_at_left
                 << " continuous_at_right=" << continuous_at_right
                 << bendl;
+	  ceph_assert(head_snapshot + continuous_at_right == effective_size());
           // because of how deallocate works, there shall be no gap between
-          entry_cast(head_snapshot)->ring = this;
-          entry_cast(head_snapshot)->overall_size = continuous_at_right;
-	  head.exchange_in_ring(head_snapshot + continuous_at_right);
-          return addr_cast(head.exchange_in_ring(head_snapshot + continuous_at_right + len), len);
+	  const auto r2l_carry = head_snapshot + continuous_at_right;
+	  new (addr_cast(head.exchange_in_ring(r2l_carry)))
+	    ring_entry_t{ this, continuous_at_right };
+          return new (addr_cast(head.exchange_in_ring(r2l_carry + len)))
+	    ring_entry_t{ this, len };
         } else {
           bdout << "no space at right nor left sides of the ring" << bendl;
           return nullptr;
@@ -373,7 +377,8 @@ static ceph::spinlock debug_lock;
             len <= continuous_at_center) {
           bdout << "allocating at center, continuous_at_center="
                 << continuous_at_center << bendl;
-          return addr_cast(head.exchange_in_ring(head_snapshot + len), len);
+          return new (addr_cast(head.exchange_in_ring(head_snapshot + len)))
+            ring_entry_t{ this, len };
         } else {
           bdout << "no space in the middle of the ring" << bendl;
           return nullptr;
@@ -382,10 +387,13 @@ static ceph::spinlock debug_lock;
     }
 
     char* allocate(const std::uint32_t len) {
-      const auto ret = _allocate(len);
-      ceph_assert(ret == nullptr || ret >= cache_area.get());
-      ceph_assert((ret + len) <= (cache_area.get() + effective_size()));
-      return ret;
+      if (auto* entry = _allocate(len); entry) {
+        ceph_assert(entry->data >= cache_area.get());
+        ceph_assert((entry->data + len) <= (cache_area.get() + effective_size()));
+	return entry->data;
+      } else {
+        return nullptr;
+      }
     }
 
     void deallocate(ring_entry_t& ptr) {
