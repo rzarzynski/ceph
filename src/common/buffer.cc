@@ -316,15 +316,18 @@ static ceph::spinlock debug_lock;
       return reinterpret_cast<ring_entry_t*>(cache_area.get() + offset);
     }
 
-    char* addr_cast(const std::uint32_t offset) {
-      return cache_area.get() + offset;
+    char* addr_cast(const std::uint32_t offset, const std::uint32_t len) {
+      entry_cast(offset)->ring = this;
+      entry_cast(offset)->overall_size = len;
+      return cache_area.get() + offset + sizeof(ring_entry_t);
     }
 
-    char* _allocate(const std::uint32_t len) {
+    char* _allocate(const std::uint32_t wanted_len) {
       // we don't relly need a copy of head as allocations are singly threaded
       // apart avoiding unnecessary reloads.
       const auto head_snapshot = head.load();
       const auto tail_snapshot = tail.load();
+      const auto len = wanted_len + sizeof(ring_entry_t);
 
       //std::cout << __func__ << " head=" << head << " tail=" << tail << std::endl;
       bdout << "allocating from ring."
@@ -340,7 +343,7 @@ static ceph::spinlock debug_lock;
           // the allocated space.
           bdout << "allocating at right, continuous_at_right="
                 << continuous_at_right << bendl;
-          return addr_cast(head.exchange_in_ring(head_snapshot + len));
+          return addr_cast(head.exchange_in_ring(head_snapshot + len), len);
         } else if (len == continuous_at_right && continuous_at_left > 0) {
           // we must sacrifice some space to distinguish between empty and
           // full ring. This restriction boils down to the fact that we can
@@ -350,16 +353,17 @@ static ceph::spinlock debug_lock;
                 << " continuous_at_right=" << continuous_at_right
                 << " continuous_at_left=" << continuous_at_left
                 << bendl;
-          return addr_cast(head.exchange_in_ring(head_snapshot + len));
+          return addr_cast(head.exchange_in_ring(head_snapshot + len), len);
         } else if (len < continuous_at_left) {
-          bdout << "allocating at left, continuous_at_left="
-                << continuous_at_left << bendl;
+          bdout << "allocating at left,"
+                << " continuous_at_left=" << continuous_at_left
+                << " continuous_at_right=" << continuous_at_right
+                << bendl;
           // because of how deallocate works, there shall be no gap between
-          const auto r2l_carry_marker = \
-            (head_snapshot + continuous_at_right) % effective_size();
-          entry_cast(r2l_carry_marker)->ring = this;
-          entry_cast(r2l_carry_marker)->overall_size = continuous_at_right;
-          return addr_cast(head.exchange_in_ring(r2l_carry_marker + len));
+          entry_cast(head_snapshot)->ring = this;
+          entry_cast(head_snapshot)->overall_size = continuous_at_right;
+	  head.exchange_in_ring(head_snapshot + continuous_at_right);
+          return addr_cast(head.exchange_in_ring(head_snapshot + continuous_at_right + len), len);
         } else {
           bdout << "no space at right nor left sides of the ring" << bendl;
           return nullptr;
@@ -369,7 +373,7 @@ static ceph::spinlock debug_lock;
             len <= continuous_at_center) {
           bdout << "allocating at center, continuous_at_center="
                 << continuous_at_center << bendl;
-          return addr_cast(head.exchange_in_ring(head_snapshot + len));
+          return addr_cast(head.exchange_in_ring(head_snapshot + len), len);
         } else {
           bdout << "no space in the middle of the ring" << bendl;
           return nullptr;
@@ -390,7 +394,13 @@ static ceph::spinlock debug_lock;
       std::uint32_t new_tail;
       do {
         do {
-          if (const auto* const current_entry = entry_cast(tail_snapshot);
+          const auto* const current_entry = entry_cast(tail_snapshot);
+          bdout << "deallocating from ring."
+                << " tail_snapshot=" << tail_snapshot
+                << " current_entry->ring=" << current_entry->ring
+                << " current_entry->overall_size=" << current_entry->overall_size
+                << bendl;
+          if (
               tail_snapshot != head && current_entry->needs_reclaim()) {
             // the comparison with `head` validates whether `current_entry`
             // points to an alive entry.
@@ -403,17 +413,21 @@ static ceph::spinlock debug_lock;
         } while (!tail.compare_exchange_strong(tail_snapshot, new_tail));
       } while (new_tail != tail_snapshot);
     }
+
+    static void deallocate(void* ptr) {
+      auto* const entry = reinterpret_cast<ring_entry_t*>(
+        reinterpret_cast<std::uintptr_t>(ptr) - sizeof(ring_entry_t));
+      auto* const ring = entry->ring;
+      ring->deallocate(*entry);
+    }
   };
 
-  struct raw_tls : public ring_entry_t, public ceph::buffer::raw {
+  struct raw_tls : public ceph::buffer::raw {
     inline static thread_local cache_ring_t cache_ring;
 
   public:
-    raw_tls(char *dataptr, unsigned l, int mempool,
-               class cache_ring_t& control_block,
-               const std::uint32_t overall_size)
-      : ring_entry_t { &control_block, overall_size },
-        raw(dataptr, l, mempool) {
+    raw_tls(char *dataptr, unsigned l, int mempool)
+      : raw(dataptr, l, mempool) {
     }
     raw* clone_empty() override {
       return create(len, 0).release();
@@ -431,7 +445,7 @@ static ceph::spinlock debug_lock;
         // actual data first, since it has presumably larger alignment restriction
         // then put the raw_tls at the end.
         return ceph::unique_leakable_ptr<buffer::raw>(
-          new (ptr) raw_tls(ptr+rawlen, len, mempool, cache_ring, overall_size));
+          new (ptr) raw_tls(ptr+rawlen, len, mempool));
       } else {
         return ceph::buffer::create(len, mempool);
       }
@@ -440,8 +454,7 @@ static ceph::spinlock debug_lock;
     static void operator delete(void *ptr) {
       // BEWARE: this overloaded operator is called AFTER `~raw_tls()`.
       // that is, the object is *destructed* at this stage.
-      auto* const raw = reinterpret_cast<raw_tls*>(ptr);
-      raw->ring->deallocate(static_cast<ring_entry_t&>(*raw));
+      cache_ring_t::deallocate(ptr);
     }
   };
 
@@ -1489,8 +1502,13 @@ static ceph::spinlock debug_lock;
     size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
     size_t alen = round_up_to(need, CEPH_BUFFER_ALLOC_UNIT) -
       sizeof(raw_combined);
+#if 0
+    auto new_back = \
+      ptr_node::create(raw_combined::create(alen, 0, get_mempool()));
+#else
     auto new_back = \
       ptr_node::create(raw_tls::create(alen, get_mempool()));
+#endif
     new_back->set_length(0);   // unused, so far.
     _carriage = new_back.get();
     _buffers.push_back(*new_back.release());
