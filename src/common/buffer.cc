@@ -397,6 +397,7 @@ static ceph::spinlock debug_lock;
     }
 
     void deallocate(ring_entry_t& ptr) {
+      static_assert(std::is_trivially_destructible_v<ring_entry_t>);
       auto* const ring = std::move(ptr).make_reclaimable();
       std::uint32_t tail_snapshot = ring->tail.load();
       std::uint32_t new_tail;
@@ -455,7 +456,7 @@ static ceph::spinlock debug_lock;
         return ceph::unique_leakable_ptr<buffer::raw>(
           new (ptr) raw_tls(ptr+rawlen, len, mempool));
       } else {
-        return ceph::buffer::create(len, mempool);
+        return buffer::raw_combined::create(len, 0, mempool);
       }
     }
 
