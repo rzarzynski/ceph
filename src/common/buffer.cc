@@ -462,6 +462,10 @@ static ceph::spinlock debug_lock;
     raw* clone_empty() override {
       return create(len, 0).release();
     }
+    char *get_data() const override {
+      VERIFY_CANARY(canary);
+      return data;
+    }
 
     [[gnu::noinline]] static ceph::unique_leakable_ptr<buffer::raw>
     create(unsigned len,
