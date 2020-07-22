@@ -447,6 +447,7 @@ static ceph::spinlock debug_lock;
   };
 
   struct raw_tls : public ceph::buffer::raw {
+    INSERT_CANARY(canary);
     inline static thread_local std::unique_ptr<
       cache_ring_t, decltype(&cache_ring_t::deferred_destroy)> cache_ring
     { new cache_ring_t{}, cache_ring_t::deferred_destroy };
@@ -454,6 +455,9 @@ static ceph::spinlock debug_lock;
   public:
     raw_tls(char *dataptr, unsigned l, int mempool)
       : raw(dataptr, l, mempool) {
+    }
+    ~raw_tls() {
+      VERIFY_CANARY(canary);
     }
     raw* clone_empty() override {
       return create(len, 0).release();
