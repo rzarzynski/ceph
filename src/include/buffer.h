@@ -79,6 +79,9 @@ template<typename T> class DencDumper;
 
 namespace ceph {
 
+  
+#define BUFFER_CORRUPTION_DEBUG
+
 #ifdef BUFFER_CORRUPTION_DEBUG
 class canary_t {
   std::uint64_t magic{0xBADC0FFEEBADC0DE};
