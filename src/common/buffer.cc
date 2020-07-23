@@ -84,6 +84,14 @@ static ceph::spinlock debug_lock;
    */
   class buffer::raw_combined : public buffer::raw {
     size_t alignment;
+    INSERT_CANARY(canary);
+    ~raw_combined() override {
+      VERIFY_CANARY(canary);
+    }
+    char *get_data() const override {
+      VERIFY_CANARY(canary);
+      return data;
+    }
   public:
     raw_combined(char *dataptr, unsigned l, unsigned align,
 		 int mempool)
