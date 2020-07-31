@@ -747,7 +747,7 @@ CtPtr ProtocolV2::read(CONTINUATION_RXBPTR_TYPE<ProtocolV2> &next,
   ssize_t r = connection->read(len, buf,
     [&next, this](char *buffer, int r) {
       if (unlikely(pre_auth.enabled) && r >= 0) {
-        pre_auth.rxbuf.append(*next.node);
+        pre_auth.rxbuf.append(next.node->as_regular_ptr());
 	ceph_assert(!cct->_conf->ms_die_on_bug ||
 		    pre_auth.rxbuf.length() < 1000000);
       }
@@ -757,7 +757,7 @@ CtPtr ProtocolV2::read(CONTINUATION_RXBPTR_TYPE<ProtocolV2> &next,
   if (r <= 0) {
     // error or done synchronously
     if (unlikely(pre_auth.enabled) && r == 0) {
-      pre_auth.rxbuf.append(*next.node);
+      pre_auth.rxbuf.append(next.node->as_regular_ptr());
       ceph_assert(!cct->_conf->ms_die_on_bug ||
 		  pre_auth.rxbuf.length() < 1000000);
     }

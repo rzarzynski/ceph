@@ -8048,8 +8048,8 @@ int sparsify(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   const auto& ptr = bl.front();
   bool replace = true;
   while (offset < length) {
-    if (calc_sparse_extent(ptr, sparse_size, length, &write_offset,
-                           &write_length, &offset)) {
+    if (calc_sparse_extent(ptr.as_regular_ptr(), sparse_size, length,
+                           &write_offset, &write_length, &offset)) {
       if (write_offset == 0 && write_length == length) {
         CLS_LOG(20, "nothing to do");
         return 0;

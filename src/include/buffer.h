@@ -357,13 +357,14 @@ struct error_code;
   };
 
   class ptr_node : public ptr_hook, private ptr {
+    // for accessing the `_raw` exactly like in the `ptr` class.
+    friend class list;
   public:
     using ptr::c_str;
     using ptr::end_c_str;
     using ptr::raw_c_str;
     using ptr::length;
     using ptr::offset;
-    using ptr::get_raw;
     using ptr::is_aligned;
     using ptr::is_n_align_sized;
     using ptr::append;
@@ -385,7 +386,11 @@ struct error_code;
     // tests
     using ptr::begin;
 
-    ptr& as_regular_ptr() { return *this; }
+    // explicit request for the `ptr` interface. Satisfying it doesn't
+    // violate the fundamental invariant of a hypercombined `ptr_node`:
+    // the instance SHALL NOT bind to any other `raw` than the one it
+    // lives on. This is possible thankfully to the `const` qualifier
+    // as `const ptr&` still have no `operator=` nor `swap` available.
     const ptr& as_regular_ptr() const { return *this; }
     unsigned* lenptr() { return &_len; }
 
@@ -425,6 +430,9 @@ struct error_code;
     }
     ptr_node(const ptr_node&) = default;
 
+    // deleting these members to enforce the very fundamental invariant
+    // of a hypercombined `ptr_node`: it SHALL NOT bind to any other `raw`
+    // than the one it lives on. Otherwise we're risking use-after-free.
     ptr& operator= (const ptr& p) = delete;
     ptr& operator= (ptr&& p) noexcept = delete;
     ptr_node& operator= (const ptr_node& p) = delete;

@@ -1735,7 +1735,7 @@ TEST(BufferList, push_back) {
     EXPECT_EQ((unsigned)(1 + len), bl.length());
     EXPECT_EQ((unsigned)2, bl.get_num_buffers());
     EXPECT_EQ('B', bl.back()[0]);
-    const bufferptr& back_bp = bl.back();
+    const bufferptr& back_bp = bl.back().as_regular_ptr();
     EXPECT_EQ(static_cast<instrumented_bptr&>(ptr).get_raw(),
               static_cast<const instrumented_bptr&>(back_bp).get_raw());
   }
