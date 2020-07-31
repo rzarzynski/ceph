@@ -1528,16 +1528,20 @@ static ceph::spinlock debug_lock;
   {
     // make a new buffer.  fill out a complete page, factoring in the
     // raw_combined overhead.
-    size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
-    size_t alen = round_up_to(need,
-      _carriage == &always_empty_bptr ? 512 : CEPH_BUFFER_ALLOC_UNIT) -
-        sizeof(raw_combined);
+    const size_t need = round_up_to(len, sizeof(size_t)) + sizeof(raw_combined);
+    const auto num_refills = _carriage.get_num_refills();
+    const size_t alen = \
+      + round_up_to(need, (1 << num_refills) * CEPH_BUFFER_ALLOC_UNIT)
+      - sizeof(raw_combined);
     auto new_back = \
       ptr_node::create(RawT::create(alen, 0, get_mempool()));
     new_back->set_length(0);   // unused, so far.
     _carriage = new_back.get();
     _buffers.push_back(*new_back.release());
     _num += 1;
+    if (num_refills < carriage_t::MAX_NUM_REFILLS) {
+      _carriage.inc_num_refills();
+    }
     return _buffers.back();
   }
 

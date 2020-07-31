@@ -632,7 +632,52 @@ struct error_code;
     // track bufferptr we can modify (especially ::append() to). Not all bptrs
     // bufferlist holds have this trait -- if somebody ::push_back(const ptr&),
     // he expects it won't change.
-    ptr* _carriage;
+    class carriage_t {
+      static constexpr std::uintptr_t NUM_REFILLS_MASK {0b111};
+      static constexpr std::uintptr_t ADDR_MASK {~NUM_REFILLS_MASK};
+      std::uintptr_t _addr_and_numrefills;
+    public:
+      static constexpr std::uint8_t MAX_NUM_REFILLS {NUM_REFILLS_MASK};
+      carriage_t(ptr* p)
+	: _addr_and_numrefills(reinterpret_cast<std::uintptr_t>(p)) {
+      }
+      // XXX: do we want num_refills proliferation on copy-cting?
+#if 0
+      carriage_t(const carriage_t& rhs)
+	: _addr_and_numrefills(rhs._addr_and_numrefills & ADDR_MASK) {
+      }
+#endif
+      ptr* get_addr() {
+	return reinterpret_cast<ptr*>(_addr_and_numrefills & ADDR_MASK);
+      }
+      const ptr* get_addr() const {
+	return reinterpret_cast<const ptr*>(_addr_and_numrefills & ADDR_MASK);
+      }
+      ptr* operator->() {
+	return get_addr();
+      }
+      const ptr* operator->() const {
+	return get_addr();
+      }
+      ptr& operator*() {
+	return *get_addr();
+      }
+      void operator=(ptr* rhs) {
+	_addr_and_numrefills = \
+	  reinterpret_cast<std::uintptr_t>(rhs) | get_num_refills();
+      }
+      bool operator!=(const ptr* rhs) const {
+	return get_addr() != rhs;
+      }
+      std::uint8_t get_num_refills() const {
+	return _addr_and_numrefills & NUM_REFILLS_MASK;
+      }
+      void inc_num_refills() {
+	// BEWARE: not checked for an overflow!
+	// XXX: move the saturation logic here?
+	++_addr_and_numrefills;
+      }
+    } _carriage;
     unsigned _len, _num;
 
     template <bool is_const>
