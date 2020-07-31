@@ -1361,7 +1361,7 @@ TEST(BufferList, append_bench_with_size_hint) {
       for (auto iter = std::begin(src);
 	   iter != std::end(src);
 	   iter = std::next(iter, step)) {
-	bl.append(&*iter, step);
+	bl.append_tls(&*iter, step);
       }
     }
     cout << rounds << " fills of buffer len " << src.size()
@@ -1382,7 +1382,7 @@ TEST(BufferList, append_bench) {
       for (auto iter = std::begin(src);
 	   iter != std::end(src);
 	   iter = std::next(iter, step)) {
-	bl.append(&*iter, step);
+	bl.append_tls(&*iter, step);
       }
     }
     cout << rounds << " fills of buffer len " << src.size()
@@ -1400,7 +1400,7 @@ TEST(BufferList, append_hole_bench) {
     for (size_t r = 0; r < rounds; ++r) {
       ceph::bufferlist bl;
       while (bl.length() < targeted_bl_size) {
-	bl.append_hole(step);
+	bl.append_hole_tls(step);
       }
     }
     cout << rounds << " fills of buffer len " << targeted_bl_size
