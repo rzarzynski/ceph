@@ -93,41 +93,6 @@ struct cls_rgw_bi_log_related_op {
   rgw_zone_set zones_trace;
   uint16_t bilog_flags = 0;
   enum RGWModifyOp op;
-
-  // prepare a BILog entry basing on two sources information:
-  //   1. the state cls_rgw_bi_log_related_op which is usually constructed
-  //      from data passed by the client;
-  //   2. parameters computed locally (in e.g. cls_rgw). They can be
-  //      problematic as client may have no access to it. Therefore,
-  //      the goal is to minimize the set / eradicate it entirelly.
-  std::optional<rgw_bi_log_entry> get_bilog_entry(
-    const ceph::real_time& timestamp,
-    const rgw_bucket_entry_ver& ver,
-    const uint64_t index_ver,
-    const std::string& max_marker,
-    const std::string* owner,
-    const std::string* owner_display_name) const
-  {
-    if (log_op) {
-      return rgw_bi_log_entry{
-        std::string{}, // TODO: get_id() + max_marker,
-        this->key.name,
-        this->key.instance,
-        timestamp,
-        ver,
-        this->op,
-        CLS_RGW_STATE_COMPLETE,
-        index_ver,
-        this->op_tag,
-        this->bilog_flags,
-        owner,
-        owner_display_name,
-        &this->zones_trace
-      };
-    } else {
-      return std::nullopt;
-    }
-  }
 };
 
 struct rgw_cls_obj_complete_op : cls_rgw_bi_log_related_op
