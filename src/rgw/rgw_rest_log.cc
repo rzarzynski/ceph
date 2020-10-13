@@ -514,18 +514,31 @@ void RGWOp_BILog_Info::send_response() {
 }
 
 void RGWOp_BILog_Delete::execute() {
+  if (s->info.args.exists("start-marker")) {
+    dout(5) << "start-marker is no longer accepted" << dendl;
+    http_ret = -EINVAL;
+    return;
+  }
+
+  string marker;
+  if (s->info.args.exists("end-marker")) {
+    if (!s->info.args.exists("marker")) {
+      marker = s->info.args.get("end-marker");
+    } else {
+      dout(5) << "end-marker and marker cannot both be provided" << dendl;
+      http_ret = -EINVAL;
+      return;
+    }
+  }
+
   string tenant_name = s->info.args.get("tenant"),
          bucket_name = s->info.args.get("bucket"),
-         start_marker = s->info.args.get("start-marker"),
-         end_marker = s->info.args.get("end-marker"),
          bucket_instance = s->info.args.get("bucket-instance");
-
-  RGWBucketInfo bucket_info;
 
   http_ret = 0;
   if ((bucket_name.empty() && bucket_instance.empty()) ||
-      end_marker.empty()) {
-    ldpp_dout(s, 5) << "ERROR: one of bucket and bucket instance, and also end-marker is mandatory" << dendl;
+      marker.empty()) {
+    ldpp_dout(s, 5) << "ERROR: one of bucket and bucket instance, and also marker is mandatory" << dendl;
     http_ret = -EINVAL;
     return;
   }
@@ -537,6 +550,7 @@ void RGWOp_BILog_Delete::execute() {
     return;
   }
 
+  RGWBucketInfo bucket_info;
   if (!bucket_instance.empty()) {
     rgw_bucket b(rgw_bucket_key(tenant_name, bn, bucket_instance));
     http_ret = store->getRados()->get_bucket_instance_info(*s->sysobj_ctx, b, bucket_info, NULL, NULL, s->yield);
@@ -551,7 +565,7 @@ void RGWOp_BILog_Delete::execute() {
       return;
     }
   }
-  http_ret = store->svc()->bilog_rados->log_trim(bucket_info, shard_id, start_marker, end_marker);
+  http_ret = store->svc()->bilog_rados->log_trim(bucket_info, shard_id, marker);
   if (http_ret < 0) {
     ldpp_dout(s, 5) << "ERROR: trim_bi_log_entries() " << dendl;
   }
