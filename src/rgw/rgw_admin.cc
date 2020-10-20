@@ -8590,7 +8590,7 @@ next:
         cerr << "ERROR: get_bi_log_status(): " << cpp_strerror(-ret) << std::endl;
         return ret;
       }
-      ret = store->svc()->bilog_rados->get_log_max_marker(bucket_info, headers, shard_id, &markers);
+      ret = store->svc()->bilog_rados->log_get_max_marker(bucket_info, headers, shard_id, &markers);
       if (ret < 0) {
         cerr << "ERROR: get_bi_log_status(): " << cpp_strerror(-ret) << std::endl;
         return -ret;
