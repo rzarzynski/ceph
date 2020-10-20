@@ -51,6 +51,10 @@ public:
                                  const std::map<int, rgw_bucket_dir_header>& headers,
                                  int shard_id,
                                  std::map<int, std::string> *max_markers) = 0;
+  virtual int log_get_max_marker(const RGWBucketInfo& bucket_info,
+                                 const std::map<int, rgw_bucket_dir_header>& headers,
+                                 int shard_id,
+                                 std::string *max_marker) = 0;
 };
 
 class RGWSI_BILog_RADOS_InIndex : public RGWSI_BILog_RADOS
@@ -81,6 +85,10 @@ public:
                          const std::map<int, rgw_bucket_dir_header>& headers,
                          int shard_id,
                          std::map<int, std::string> *max_markers) override;
+  int log_get_max_marker(const RGWBucketInfo& bucket_info,
+                         const std::map<int, rgw_bucket_dir_header>& headers,
+                         int shard_id,
+                         std::string *max_marker) override;
 };
 
 class RGWSI_BILog_RADOS_CLSFIFO : public RGWSI_BILog_RADOS
@@ -114,4 +122,8 @@ public:
                          const std::map<int, rgw_bucket_dir_header>& headers,
                          int shard_id,
                          std::map<int, string> *max_markers) override;
+  int log_get_max_marker(const RGWBucketInfo& bucket_info,
+                         const std::map<int, rgw_bucket_dir_header>& headers,
+                         int shard_id,
+                         std::string *max_marker) override;
 };
