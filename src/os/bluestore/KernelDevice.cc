@@ -982,6 +982,25 @@ int KernelDevice::discard(uint64_t offset, uint64_t len)
   return r;
 }
 
+
+// FIXME: copied from buffer.cc
+#define CEPH_BUFFER_ALLOC_UNIT  4096u
+
+// create a buffer basing on user-configurable. it's intended to make
+// our buffers THP-able.
+static ceph::unique_leakable_ptr<buffer::raw> create_custom_aligned(
+  CephContext* const cct,
+  const size_t len)
+{
+  // just to preserve the logic of create_small_page_aligned().
+  if (len < CEPH_PAGE_SIZE) {
+    return ceph::buffer::create_aligned(len, CEPH_BUFFER_ALLOC_UNIT);
+  } else {
+    const size_t custom_alignment = cct->_conf->bdev_read_buffer_alignment;
+    return ceph::buffer::create_aligned(len, custom_alignment);
+  }
+}
+
 int KernelDevice::read(uint64_t off, uint64_t len, bufferlist *pbl,
 		      IOContext *ioc,
 		      bool buffered)
@@ -995,7 +1014,7 @@ int KernelDevice::read(uint64_t off, uint64_t len, bufferlist *pbl,
 
   auto start1 = mono_clock::now();
 
-  auto p = buffer::ptr_node::create(buffer::create_small_page_aligned(len));
+  auto p = buffer::ptr_node::create(create_custom_aligned(cct, len));
   int r = ::pread(buffered ? fd_buffereds[WRITE_LIFE_NOT_SET] : fd_directs[WRITE_LIFE_NOT_SET],
 		  p->c_str(), len, off);
   auto age = cct->_conf->bdev_debug_aio_log_age;
@@ -1045,7 +1064,7 @@ int KernelDevice::aio_read(
     ioc->pending_aios.push_back(aio_t(ioc, fd_directs[WRITE_LIFE_NOT_SET]));
     ++ioc->num_pending;
     aio_t& aio = ioc->pending_aios.back();
-    aio.pread(off, len, buffer::create_small_page_aligned(len));
+    aio.pread(off, len, create_custom_aligned(cct, len));
     dout(30) << aio << dendl;
     pbl->append(aio.bl);
     dout(5) << __func__ << " 0x" << std::hex << off << "~" << len

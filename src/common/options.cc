@@ -4309,6 +4309,10 @@ std::vector<Option> get_global_options() {
     .set_default(4_K)
     .set_description(""),
 
+    Option("bdev_read_buffer_alignment", Option::TYPE_SIZE, Option::LEVEL_ADVANCED)
+    .set_default(4_K)
+    .set_description(""),
+
     Option("bdev_debug_aio", Option::TYPE_BOOL, Option::LEVEL_DEV)
     .set_default(false)
     .set_description(""),
