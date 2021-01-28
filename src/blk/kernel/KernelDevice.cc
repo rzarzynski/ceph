@@ -1035,7 +1035,7 @@ int KernelDevice::discard(uint64_t offset, uint64_t len)
 
 // create a buffer basing on user-configurable. it's intended to make
 // our buffers THP-able.
-static ceph::unique_leakable_ptr<buffer::raw> create_custom_aligned(
+ceph::unique_leakable_ptr<buffer::raw> KernelDevice::create_custom_aligned(
   CephContext* const cct,
   const size_t len)
 {
@@ -1044,6 +1044,10 @@ static ceph::unique_leakable_ptr<buffer::raw> create_custom_aligned(
     return ceph::buffer::create_aligned(len, CEPH_BUFFER_ALLOC_UNIT);
   } else {
     const size_t custom_alignment = cct->_conf->bdev_read_buffer_alignment;
+    dout(5) << __func__ << " with the custom alignment;"
+            << " len=" << len
+            << " custom_alignment=" << custom_alignment
+            << dendl;
     return ceph::buffer::create_aligned(len, custom_alignment);
   }
 }

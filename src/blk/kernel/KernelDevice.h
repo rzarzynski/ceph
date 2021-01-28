@@ -20,6 +20,7 @@
 #include "include/types.h"
 #include "include/interval_set.h"
 #include "common/Thread.h"
+#include "include/buffer.h"
 #include "include/utime.h"
 
 #include "aio/aio.h"
@@ -107,6 +108,9 @@ class KernelDevice : public BlockDevice {
 
   void _detect_vdo();
   int choose_fd(bool buffered, int write_hint) const;
+  ceph::unique_leakable_ptr<buffer::raw> create_custom_aligned(
+    CephContext* const cct,
+    const size_t len);
 
 public:
   KernelDevice(CephContext* cct, aio_callback_t cb, void *cbpriv, aio_callback_t d_cb, void *d_cbpriv);
