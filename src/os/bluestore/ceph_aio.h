@@ -59,20 +59,22 @@ struct aio_t {
     }
 #endif
   }
-  void pread(uint64_t _offset, uint64_t len) {
+  void pread(uint64_t _offset,
+             uint64_t len,
+             ceph::unique_leakable_ptr<buffer::raw> raw_buffer) {
     offset = _offset;
     length = len;
-    bufferptr p = buffer::create_small_page_aligned(length);
+    auto p = buffer::ptr_node::create(std::move(raw_buffer));
 #if defined(HAVE_LIBAIO)
-    io_prep_pread(&iocb, fd, p.c_str(), length, offset);
+    io_prep_pread(&iocb, fd, p->c_str(), length, offset);
 #elif defined(HAVE_POSIXAIO)
     n_aiocb = 1;
     aio.aiocb.aio_fildes = fd;
-    aio.aiocb.aio_buf = p.c_str();
+    aio.aiocb.aio_buf = p->c_str();
     aio.aiocb.aio_nbytes = length;
     aio.aiocb.aio_offset = offset;
 #endif
-    bl.append(std::move(p));
+    bl.push_back(std::move(p));
   }
 
   long get_return_value() {
