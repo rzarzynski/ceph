@@ -3,8 +3,11 @@
 
 #pragma once
 
+#include <map>
+
 #include "crimson/common/operation.h"
 #include "crimson/osd/scheduler/scheduler.h"
+#include "osd/osd_types.h"
 
 namespace crimson::osd {
 
@@ -36,6 +39,94 @@ static_assert(
   (sizeof(OP_NAMES)/sizeof(OP_NAMES[0])) ==
   static_cast<int>(OperationTypeCode::last_op));
 
+template <typename>
+struct OperationComparator;
+
+template <typename T>
+class OperationRepeatSequencer {
+public:
+  using OpRef = boost::intrusive_ptr<T>;
+  using ops_sequence_t = std::map<OpRef, seastar::promise<>>;
+
+  template <typename Func, typename HandleT, typename Result = std::invoke_result_t<Func>>
+  seastar::futurize_t<Result> preserve_sequence(
+      HandleT& handle,
+      epoch_t same_interval_since,
+      OpRef& op,
+      const spg_t& pgid,
+      Func&& func) {
+    auto& ops = pg_ops[pgid];
+    if (!op->pos) {
+      auto [it, inserted] = ops.emplace(op, seastar::promise<>());
+      assert(__builtin_expect(inserted, true));
+      op->pos = it;
+    }
+
+    bool first = (*(op->pos) == ops.begin()) ? true : false;
+
+    this->same_interval_since = same_interval_since;
+
+    typename OperationRepeatSequencer<T>::ops_sequence_t::iterator last_op_it = *(op->pos);
+    if (!first) {
+      --last_op_it;
+    }
+    epoch_t last_op_interval_start =
+      last_op_it->first->interval_start_epoch;
+
+    if (first || last_op_interval_start == same_interval_since) {
+      op->interval_start_epoch = same_interval_since;
+      auto fut = seastar::futurize_invoke(func);
+      auto it = *(op->pos);
+
+      it->second.set_value();
+      it->second = seastar::promise<>();
+      return fut;
+    } else {
+      handle.exit();	// need to wait for previous operations,
+			// release the current pipepline stage
+
+      ::crimson::get_logger(ceph_subsys_osd).debug(
+	  "{}, same_interval_since: {}, previous op: {}, last_interval_start: {}",
+	  *op, same_interval_since, *(last_op_it->first), last_op_interval_start);
+      assert(__builtin_expect(last_op_interval_start < same_interval_since, true));
+      return last_op_it->second.get_future().then(
+	[op, same_interval_since, func=std::forward<Func>(func)]() mutable {
+	op->interval_start_epoch = same_interval_since;
+	auto fut = seastar::futurize_invoke(std::forward<Func>(func));
+	auto it = *(op->pos);
+	it->second.set_value();
+	it->second = seastar::promise<>();
+	return fut;
+      });
+    }
+  }
+
+  void operation_finished(OpRef& op, const spg_t& pgid, bool error = false) {
+    if (op->pos) {
+      if (error) {
+	(*(op->pos))->second.set_value();
+      }
+      pg_ops.at(pgid).erase(*(op->pos));
+    }
+  }
+private:
+  std::map<spg_t, std::map<OpRef, seastar::promise<>, OperationComparator<T>>> pg_ops;
+  epoch_t same_interval_since = 0;
+};
+template <typename T>
+struct OperationComparator {
+  bool operator()(
+    const typename OperationRepeatSequencer<T>::OpRef& left,
+    const typename OperationRepeatSequencer<T>::OpRef& right) const;
+};
+
+template <typename T>
+bool OperationComparator<T>::operator()(
+  const typename OperationRepeatSequencer<T>::OpRef& left,
+  const typename OperationRepeatSequencer<T>::OpRef& right) const {
+  return left->get_id() < right->get_id();
+}
+
 template <typename T>
 class OperationT : public Operation {
 public:
@@ -53,7 +144,11 @@ public:
   virtual ~OperationT() = default;
 
 private:
+  epoch_t interval_start_epoch = 0;
+  std::optional<typename OperationRepeatSequencer<T>::ops_sequence_t::iterator> pos;
   virtual void dump_detail(ceph::Formatter *f) const = 0;
+  template <typename>
+  friend class OperationRepeatSequencer;
 };
 
 /**
