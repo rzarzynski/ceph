@@ -107,7 +107,30 @@ private:
     });
   }
 
+  boost::intrusive::list_member_hook<> list_hook;
+  uint64_t list_link_cnt = 0;
+
 public:
+
+  template <typename ListType>
+  void link_me(ListType&& list) {
+    if (!list_link_cnt)
+      list.push_back(*this);
+    list_link_cnt++;
+  }
+
+  template <typename ListType>
+  void unlink_me(ListType&& list) {
+    assert(list_link_cnt > 0);
+    if (--list_link_cnt == 0)
+      list.erase(std::decay_t<ListType>::s_iterator_to(*this));
+  }
+
+  using obc_accessing_option_t = boost::intrusive::member_hook<
+    ObjectContext,
+    boost::intrusive::list_member_hook<>,
+    &ObjectContext::list_hook>;
+
   template<RWState::State Type, typename Func>
   auto with_lock(Func&& func) {
     switch (Type) {
