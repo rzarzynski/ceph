@@ -141,6 +141,7 @@ seastar::future<> ClientRequest::process_op(Ref<PG> &pg)
   }).then([this, pg]() mutable -> PG::load_obc_ertr::future<> {
     op_info.set_from_op(&*m, *pg->get_osdmap());
     return pg->with_locked_obc(m, op_info, this, [this, pg](auto obc) mutable {
+      logger().debug("{}: got obc lock", *this);
       return with_blocking_future(handle.enter(pp(*pg).process)).then(
 	[this, pg, obc]() mutable {
         return do_process(pg, obc);
