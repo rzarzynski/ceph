@@ -61,26 +61,34 @@ ReplicatedBackend::_submit_transaction(std::set<pg_shard_t>&& pg_shards,
   bufferlist encoded_txn;
   encode(txn, encoded_txn);
 
-  return interruptor::parallel_for_each(std::move(pg_shards),
-    [=, encoded_txn=std::move(encoded_txn), txn=std::move(txn)]
-    (auto pg_shard) mutable {
-      if (pg_shard == whoami) {
-        return shard_services.get_store().do_transaction(coll,std::move(txn));
-      } else {
+  // filter out `whoami` from shards to turn them into *remote shards*.
+  // we want to proceed them first to optimie latency.
+  pg_shards.erase(
+    std::remove_if(
+      std::begin(pg_shards), std::end(pg_shards), [whoami] (const auto& pg_shard) {
+        return pg_shard == whoami;
+      }),
+    std::end(pg_shards));
+  return interruptor::when_all_succeed(
+    interruptor::parallel_for_each(std::move(pg_shards),
+      [=, encoded_txn=std::move(encoded_txn), &txn]
+      (auto remote_pg_shard) mutable {
         auto m = make_message<MOSDRepOp>(req_id, whoami,
-                                         spg_t{pgid, pg_shard.shard}, hoid,
+                                         spg_t{pgid, remote_pg_shard.shard}, hoid,
                                          CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK,
                                          map_epoch, min_epoch,
                                          tid, osd_op_p.at_version);
         m->set_data(encoded_txn);
-        pending_txn->second.acked_peers.push_back({pg_shard, eversion_t{}});
-	encode(log_entries, m->logbl);
-	m->pg_trim_to = osd_op_p.pg_trim_to;
-	m->min_last_complete_ondisk = osd_op_p.min_last_complete_ondisk;
-	m->set_rollback_to(osd_op_p.at_version);
+        pending_txn->second.acked_peers.push_back({remote_pg_shard, eversion_t{}});
+        encode(log_entries, m->logbl);
+        m->pg_trim_to = osd_op_p.pg_trim_to;
+        m->min_last_complete_ondisk = osd_op_p.min_last_complete_ondisk;
+        m->set_rollback_to(osd_op_p.at_version);
         // TODO: set more stuff. e.g., pg_states
-        return shard_services.send_to_osd(pg_shard.osd, std::move(m), map_epoch);
-      }
+        return shard_services.send_to_osd(remote_pg_shard.osd, std::move(m), map_epoch);
+      }),
+    [=, txn=std::move(txn)] {
+      return shard_services.get_store().do_transaction(coll, std::move(txn));
     }).then_interruptible([this, peers=pending_txn->second.weak_from_this()] {
       if (!peers) {
 	// for now, only actingset_changed can cause peers
