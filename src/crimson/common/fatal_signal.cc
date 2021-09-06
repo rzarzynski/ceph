@@ -71,13 +71,21 @@ void FatalSignal::install_oneshot_signal_handler()
 }
 
 
-static void print_backtrace(std::string_view cause) {
+static void print_backtrace(std::string_view cause)
+{
   std::cerr << cause;
   if (seastar::engine_is_ready()) {
     std::cerr << " on shard " << seastar::this_shard_id();
   }
+  // BEWARE: the backtrace dump format is a part of our public interface;
+  // there are tools tha rel on it. Any change here should be discussed
+  // on ceph-dev!
   std::cerr << ".\nBacktrace:\n";
-  std::cerr << boost::stacktrace::stacktrace();
+  size_t idx = 1;
+  for (const auto& frame : boost::stacktrace::stacktrace()) {
+    std::cerr << idx++ << ": (" << frame.name() << ")" << " ["<< frame.address() << "]"
+              << std::endl;
+  }
   std::cerr << std::flush;
   // TODO: dump crash related meta data to $crash_dir
   //       see handle_fatal_signal()
