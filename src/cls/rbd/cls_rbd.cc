@@ -2789,6 +2789,7 @@ int get_id(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
   if (size == 0)
     return -ENOENT;
 
+  CLS_LOG(10, "get_id: going to sync_read, size: %ld", size);
   bufferlist read_bl;
   r = cls_cxx_read(hctx, 0, size, &read_bl);
   if (r < 0) {
@@ -2796,13 +2797,23 @@ int get_id(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
     return r;
   }
 
+  CLS_LOG(10, "get_id: going to decode");
   string id;
   try {
     auto iter = read_bl.cbegin();
     decode(id, iter);
+  } catch (const ceph::buffer::end_of_buffer &err) {
+    CLS_LOG(10, "get_id: handled end_of_buffer. Rethrowing!");
+    std::rethrow_exception(std::current_exception());
   } catch (const ceph::buffer::error &err) {
     return -EIO;
+  } catch (...) {
+    auto e = std::current_exception();
+    CLS_LOG(10, "get_id: got exception type %s", typeid(e).name());
+    std::rethrow_exception(std::move(e));
   }
+
+  CLS_LOG(10, "get_id: going to encode");
 
   encode(id, *out);
   return 0;
