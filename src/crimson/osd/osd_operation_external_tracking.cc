@@ -44,17 +44,42 @@ void HistoricBackend::handle(ClientRequest::CompletionEvent&,
   ClientRequest::ICRef(
     &client_request, /* add_ref= */true
   ).detach(); // yes, "leak" it for now!
+  static std::decay_t<decltype(historic_registry)>::const_iterator last_of_recents {
+    std::begin(historic_registry)
+  };
+  static size_t num_recent_ops = 0;
+  static size_t num_slow_ops = 0;
+  ++num_recent_ops;
 
   // check whether the history size limit is not exceeded; if so, then
   // purge the oldest op.
   // NOTE: Operation uses the auto-unlink feature of boost::intrusive.
   // NOTE: the cleaning happens in OSDOperationRegistry::do_stop()
-  if (historic_registry.size() > local_conf()->osd_op_history_size) {
-    const auto& oldest_historic_op =
-      static_cast<const ClientRequest&>(historic_registry.front());
-    // clear a previously "leaked" op
-    ClientRequest::ICRef(&oldest_historic_op, /* add_ref= */false);
+  if (num_recent_ops > local_conf()->osd_op_history_size) {
+    ++last_of_recents;
+		++num_slow_ops;
   }
+	if (num_slow_ops > local_conf()->osd_op_history_slow_op_size) {
+		// we're interested in keeping slowest ops. if the slow op history
+		// is disabled, the list will have only one element the full-blown
+		// search will boil down into `.front()`.
+    const auto fastest_historic_iter = std::min_element(
+			std::cbegin(historic_registry), last_of_recents,
+			[] (const auto& lop, const auto& rop) {
+        const auto& lclient_request = static_cast<const ClientRequest&>(lop);
+        const auto& rclient_request = static_cast<const ClientRequest&>(rop);
+        const auto lduration =
+				  lclient_request.get_completed() - lclient_request.get_started();
+        const auto rduration =
+				  rclient_request.get_completed() - rclient_request.get_started();
+			  return lduration < rduration;
+			});
+		assert(fastest_historic_iter != std::end(historic_registry));
+		const auto& fastest_historic_op =
+      static_cast<const ClientRequest&>(*fastest_historic_iter);
+    // clear a previously "leaked" op
+    ClientRequest::ICRef(&fastest_historic_op, /* add_ref= */false);
+	}
 }
 
 } // namespace crimson::osd

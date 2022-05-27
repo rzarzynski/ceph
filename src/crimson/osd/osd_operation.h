@@ -104,6 +104,7 @@ class TrackableOperationT : public OperationT<T> {
     return static_cast<const T*>(this);
   }
 
+protected:
   template<class EventT>
   decltype(auto) get_event() {
     // all out derivates are supposed to define the list of tracking
@@ -112,7 +113,11 @@ class TrackableOperationT : public OperationT<T> {
     return std::get<EventT>(that()->tracking_events);
   }
 
-protected:
+  template<class EventT>
+  decltype(auto) get_event() const {
+    return std::get<EventT>(that()->tracking_events);
+  }
+
   using OperationT<T>::OperationT;
 
   struct StartEvent : TimeEvent<StartEvent> {};
@@ -173,7 +178,7 @@ struct OSDOperationRegistry : OperationRegistryT<
   void do_stop() override;
   size_t dump_client_requests(ceph::Formatter* f) const;
   size_t dump_historic_client_requests(ceph::Formatter* f) const;
-
+  size_t dump_slowest_historic_client_requests(ceph::Formatter* f) const;
 };
 /**
  * Throttles set of currently running operations
