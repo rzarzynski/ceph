@@ -131,10 +131,10 @@ void PGLog::IndexedLog::trim(
     }
   }
 
-  while (!dups.empty()) {
+  for (size_t num_dups_to_trim = cct->_conf->osd_pg_log_trim_max;
+       num_dups_to_trim > 0 && !dups.empty();
+       num_dups_to_trim--) {
     const auto& e = *dups.begin();
-    if (e.version.version >= earliest_dup_version)
-      break;
     lgeneric_subdout(cct, osd, 20) << "trim dup " << e << dendl;
     if (trimmed_dups)
       trimmed_dups->insert(e.get_key_name());
