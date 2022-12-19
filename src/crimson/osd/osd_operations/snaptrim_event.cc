@@ -122,7 +122,8 @@ seastar::future<seastar::stop_iteration> SnapTrimEvent::with_pg(
           max,
           &to_trim);
         if (r == -ENOENT) {
-          return std::optional<decltype(to_trim)>{};
+          to_trim.clear(); // paranoia
+          return to_trim;
         } else if (r != 0) {
           logger().error("{}: get_next_objects_to_trim returned {}",
                          *this, cpp_strerror(r));
@@ -131,13 +132,14 @@ seastar::future<seastar::stop_iteration> SnapTrimEvent::with_pg(
           assert(!to_trim.empty());
         }
         logger().debug("{}: async almost done line {}", *this, __LINE__);
-        return std::make_optional(std::move(to_trim));
+        return to_trim;
       }).then_interruptible([&shard_services, this] (const auto& to_trim) {
-        if (!to_trim || to_trim->empty()) {
+        if (to_trim.empty()) {
+          // ENOENT
           return interruptor::make_ready_future<seastar::stop_iteration>(
             seastar::stop_iteration::yes);
         }
-        for (const auto& object : *to_trim) {
+        for (const auto& object : to_trim) {
           logger().debug("{}: trimming {}", *this, object);
           auto [op, fut] = shard_services.start_operation<SnapTrimObjSubEvent>(
             pg,
