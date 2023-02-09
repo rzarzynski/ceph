@@ -702,10 +702,18 @@ void ProtocolV2::write_event() {
 
     // if r > 0 mean data still lefted, so no need _try_send.
     if (r == 0) {
+      // let's give receiver some time to get another messge and
+      // thus to make `ack_left` non-zero since it was zeroed at
+      // the beggning of this method.
+      connection->inject_delay();
       uint64_t left = ack_left;
       if (left) {
         ldout(cct, 10) << __func__ << " try send msg ack, acked " << left
                        << " messages" << dendl;
+        // Oops? `in_seq` is fetched without coordination with `ack_left`
+        // via the `Connection::lock` -- holding `write_lock` isn't enough.
+        // What if we double-ack a message?
+        connection->inject_delay();
         auto ack_frame = AckFrame::Encode(in_seq);
         if (append_frame(ack_frame)) {
           ack_left -= left;
