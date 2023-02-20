@@ -112,6 +112,9 @@ protected:
   uint32_t magic;
   int socket_priority;
 
+  using seq_init_generator_t = std::function<uint64_t(void)>;
+  seq_init_generator_t seq_init_policy;
+
 public:
   AuthClient *auth_client = 0;
   AuthServer *auth_server = 0;
@@ -388,6 +391,10 @@ public:
    */
   int get_socket_priority() {
     return socket_priority;
+  }
+
+  void set_seq_init_policy(seq_init_generator_t generator) {
+    seq_init_policy = std::move(generator);
   }
   /**
    * Add a new Dispatcher to the front of the list. If you add

@@ -95,8 +95,9 @@ private:
   };
   std::map<int, std::list<out_queue_entry_t>> out_queue;
   std::list<Message *> sent;
-  std::atomic<uint64_t> out_seq{0};
-  std::atomic<uint64_t> in_seq{0};
+  const uint64_t seq_init_value;
+  std::atomic<uint64_t> out_seq{seq_init_value};
+  std::atomic<uint64_t> in_seq{seq_init_value};
   std::atomic<uint64_t> ack_left{0};
 
   using ProtFuncPtr = void (ProtocolV2::*)();
