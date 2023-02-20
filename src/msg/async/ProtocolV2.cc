@@ -1425,7 +1425,11 @@ CtPtr ProtocolV2::handle_message() {
   // client will occasionally pull a message out of the sent queue to send
   // elsewhere.  in that case it doesn't matter if we "got" it or not.
   uint64_t cur_seq = in_seq;
-  if (message->get_seq() <= cur_seq) {
+  if (message->get_seq() == 0 && cur_seq + 1 == 0) {
+    // the tx part starts counting from 1, thus 0 must be an wrapped around
+    // (strictly speaking; it's not an overflow in C++).
+    ldout(cct, 5) << __func__ << " seq has wrapped around!" << dendl;
+  } else if (message->get_seq() <= cur_seq) {
     ldout(cct, 0) << __func__ << " got old message " << message->get_seq()
                   << " <= " << cur_seq << " " << message << " " << *message
                   << ", discarding" << dendl;
