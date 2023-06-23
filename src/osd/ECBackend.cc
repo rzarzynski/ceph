@@ -1919,15 +1919,6 @@ ECUtil::HashInfoRef ECBackend::get_hash_info(
 
 void ECBackend::RMWPipeline::start_rmw(Op *op, PGTransactionUPtr &&t)
 {
-  [
-    check_ops=[this] (auto...) { return this->check_ops(); },
-    get_parent=[this] (auto...) { return this->get_parent(); },
-    &waiting_state=this->waiting_state,
-    &sinfo=this->sinfo,
-    cct=(CephContext*)nullptr,
-    op=std::move(op),
-    t=std::move(t)
-  ] () mutable {
   ceph_assert(op);
 
   op->plan = ECTransaction::get_write_plan(
@@ -1950,23 +1941,10 @@ void ECBackend::RMWPipeline::start_rmw(Op *op, PGTransactionUPtr &&t)
 
   waiting_state.push_back(*op);
   check_ops();
-  }();
 }
 
 bool ECBackend::RMWPipeline::try_state_to_reads()
 {
-  return [
-    check_ops=[this] (auto...) { return this->check_ops(); },
-    get_parent=[this] (auto...) { return this->get_parent();},
-    objects_read_async_no_cache=[this] (auto&&... args) {
-      return this->objects_read_async_no_cache(std::forward<decltype(args)>(args)...);
-    },
-    &waiting_state=this->waiting_state,
-    &waiting_reads=this->waiting_reads,
-    &pipeline_state=this->pipeline_state,
-    &cache=this->cache,
-    cct=(CephContext*)nullptr
-  ] {
   if (waiting_state.empty())
     return false;
 
@@ -2028,7 +2006,7 @@ bool ECBackend::RMWPipeline::try_state_to_reads()
     ceph_assert(get_parent()->get_pool().allows_ecoverwrites());
     objects_read_async_no_cache(
       op->remote_read,
-      [op, check_ops](map<hobject_t,pair<int, extent_map> > &&results) {
+      [op, this](map<hobject_t,pair<int, extent_map> > &&results) {
 	for (auto &&i: results) {
 	  op->remote_read_result.emplace(i.first, i.second.second);
 	}
@@ -2037,27 +2015,10 @@ bool ECBackend::RMWPipeline::try_state_to_reads()
   }
 
   return true;
-  }();
 }
 
 bool ECBackend::RMWPipeline::try_reads_to_commit()
 {
-  return [
-    get_parent=[this] (auto...) { return this->get_parent(); },
-    get_osdmap=[this] (auto...) { return this->get_osdmap(); }, // get_parent() basically
-    get_osdmap_epoch=[this] (auto...) { return this->get_osdmap_epoch(); }, // get_parent() basically
-    get_info=[this] (auto...) { return this->get_info(); }, // get_parent() basically
-    handle_sub_write=[this] (auto&&... args) {
-      return this->handle_sub_write(std::forward<decltype(args)>(args)...);
-    },
-    // important: get_parent()->send_message_osd_cluster()
-    &waiting_reads=this->waiting_reads,
-    &waiting_commit=this->waiting_commit,
-    &cache=this->cache,
-    &ec_impl=this->ec_impl,
-    &sinfo=this->sinfo,
-    cct=(CephContext*)nullptr
-  ] {
   if (waiting_reads.empty())
     return false;
   Op *op = &(waiting_reads.front());
@@ -2219,24 +2180,10 @@ bool ECBackend::RMWPipeline::try_reads_to_commit()
   }
 
   return true;
-  }();
 }
 
 bool ECBackend::RMWPipeline::try_finish_rmw()
 {
-  return [
-    get_parent=[this] (auto...) { return this->get_parent(); },
-    get_osdmap=[this] (auto...) { return this->get_osdmap(); }, // get_parent() basically
-    // important: get_parent()->send_message_osd_cluster()
-    &waiting_reads=this->waiting_reads,
-    &waiting_commit=this->waiting_commit,
-    &pipeline_state=this->pipeline_state,
-    &cache=this->cache,
-    &completed_to=this->completed_to,
-    &committed_to=this->committed_to,
-    &tid_to_op_map=this->tid_to_op_map,
-    cct=(CephContext*)nullptr
-  ] {
   if (waiting_commit.empty())
     return false;
   Op *op = &(waiting_commit.front());
@@ -2281,7 +2228,6 @@ bool ECBackend::RMWPipeline::try_finish_rmw()
 	     << dendl;
   }
   return true;
-  }();
 }
 
 void ECBackend::RMWPipeline::check_ops()
