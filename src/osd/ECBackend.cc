@@ -1934,7 +1934,7 @@ void ECBackend::RMWPipeline::start_rmw(Op *op, PGTransactionUPtr &&t)
     sinfo,
     std::move(t),
     [&](const hobject_t &i) {
-      ECUtil::HashInfoRef ref; // = get_hash_info(i, true);
+      ECUtil::HashInfoRef ref = get_hash_info(i, true);
       if (!ref) {
 	derr << __func__ << ": get_hash_info(" << i << ")"
 	     << " returned a null pointer and there is no "
