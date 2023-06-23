@@ -552,6 +552,7 @@ public:
     void on_change();
     void call_write_ordered(std::function<void(void)> &&cb);
 
+    CephContext* cct;
     PGBackend::Listener *get_parent() const { return parent; }
     const OSDMapRef& get_osdmap() const { return get_parent()->pgb_get_osdmap(); }
     epoch_t get_osdmap_epoch() const { return get_parent()->pgb_get_osdmap_epoch(); }
@@ -594,11 +595,13 @@ public:
     // TODO: lay an interface down here
     ECBackend& ec_backend;
 
-    RMWPipeline(ceph::ErasureCodeInterfaceRef ec_impl,
+    RMWPipeline(CephContext* cct,
+                ceph::ErasureCodeInterfaceRef ec_impl,
                 const ECUtil::stripe_info_t& sinfo,
                 PGBackend::Listener* parent,
                 ECBackend& ec_backend)
-      : ec_impl(std::move(ec_impl)),
+      : cct(cct),
+        ec_impl(std::move(ec_impl)),
         sinfo(sinfo),
         parent(parent),
         ec_backend(ec_backend) {
