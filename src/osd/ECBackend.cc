@@ -1479,17 +1479,6 @@ void ECBackend::check_recovery_sources(const OSDMapRef& osdmap)
 
 void ECBackend::RMWPipeline::on_change()
 {
-  [
-    &waiting_state=this->waiting_state,
-    &waiting_reads=this->waiting_reads,
-    &waiting_commit=this->waiting_commit,
-    &pipeline_state=this->pipeline_state,
-    &cache=this->cache,
-    &completed_to=this->completed_to,
-    &committed_to=this->committed_to,
-    &tid_to_op_map=this->tid_to_op_map,
-    cct=(CephContext*)nullptr
-  ] {
   dout(10) << __func__ << dendl;
 
   completed_to = eversion_t();
@@ -1502,7 +1491,6 @@ void ECBackend::RMWPipeline::on_change()
     cache.release_write_pin(op.second.pin);
   }
   tid_to_op_map.clear();
-  }();
 }
 
 void ECBackend::on_change()
