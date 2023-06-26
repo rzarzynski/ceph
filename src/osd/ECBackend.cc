@@ -1572,24 +1572,7 @@ void ECBackend::submit_transaction(
     op->trace = client_op->pg_trace;
   }
   dout(10) << __func__ << ": op " << *op << " starting" << dendl;
-  rmw_pipeline.start_rmw(
-    op,
-    std::move(t),
-    ECTransaction::get_write_plan(
-      sinfo,
-      std::move(t),
-      [&](const hobject_t &i) {
-        ECUtil::HashInfoRef ref = get_hash_info(i, true);
-        if (!ref) {
-          derr << __func__ << ": get_hash_info(" << i << ")"
-               << " returned a null pointer and there is no "
-               << " way to recover from such an error in this "
-               << " context" << dendl;
-          ceph_abort();
-        }
-        return ref;
-      },
-      get_parent()->get_dpp()));
+  rmw_pipeline.start_rmw(op, std::move(t));
 }
 
 void ECBackend::RMWPipeline::call_write_ordered(std::function<void(void)> &&cb) {
@@ -1922,15 +1905,28 @@ ECUtil::HashInfoRef ECBackend::get_hash_info(
   return ref;
 }
 
-template <class TransactionT>
-void ECBackend::RMWPipeline::start_rmw(
-  Op *op,
-  TransactionT &&t,
-  ECTransaction::WritePlan &&write_plan)
+void ECBackend::RMWPipeline::start_rmw(Op *op, PGTransactionUPtr &&t)
 {
-  dout(10) << __func__ << ": " << *op << dendl;
   ceph_assert(op);
-  op->plan = std::move(write_plan);
+
+  op->plan = ECTransaction::get_write_plan(
+    sinfo,
+    std::move(t),
+    [&](const hobject_t &i) {
+      ECUtil::HashInfoRef ref = get_hash_info(i, true);
+      if (!ref) {
+	derr << __func__ << ": get_hash_info(" << i << ")"
+	     << " returned a null pointer and there is no "
+	     << " way to recover from such an error in this "
+	     << " context" << dendl;
+	ceph_abort();
+      }
+      return ref;
+    },
+    get_parent()->get_dpp());
+
+  dout(10) << __func__ << ": " << *op << dendl;
+
   waiting_state.push_back(*op);
   check_ops();
 }

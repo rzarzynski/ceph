@@ -543,8 +543,7 @@ public:
     op_list waiting_commit;       /// writes waiting on initial commit
     eversion_t completed_to;
     eversion_t committed_to;
-    template <class TransactionT>
-    void start_rmw(Op *op, TransactionT &&t, ECTransaction::WritePlan &&write_plan);
+    void start_rmw(Op *op, PGTransactionUPtr &&t);
     bool try_state_to_reads();
     bool try_reads_to_commit();
     bool try_finish_rmw();
