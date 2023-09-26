@@ -48,7 +48,8 @@ PGBackend::create(pg_t pgid,
 		  crimson::os::CollectionRef coll,
 		  crimson::osd::ShardServices& shard_services,
 		  const ec_profile_t& ec_profile,
-		  DoutPrefixProvider &dpp)
+		  DoutPrefixProvider &dpp,
+		  ECListener &eclistener)
 {
   switch (pool.type) {
   case pg_pool_t::TYPE_REPLICATED:
@@ -61,7 +62,8 @@ PGBackend::create(pg_t pgid,
                                        pool.stripe_width,
 				       pool.fast_read,
 				       pool.allows_ecoverwrites(),
-				       dpp);
+				       dpp,
+				       eclistener);
   default:
     throw runtime_error(seastar::format("unsupported pool type '{}'",
                                         pool.type));

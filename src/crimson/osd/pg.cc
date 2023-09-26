@@ -119,6 +119,7 @@ PG::PG(
 	coll_ref,
 	shard_services,
 	profile,
+	*this,
 	*this)),
     recovery_backend(
       std::make_unique<ReplicatedRecoveryBackend>(
@@ -1041,7 +1042,7 @@ PG::do_osd_ops(
     return seastar::do_with(eversion_t(), [m, &op_info, obc, e, this](auto &version) {
       auto error_log_fut = seastar::now();
       epoch_t epoch = get_osdmap_epoch();
-      ceph_tid_t rep_tid = shard_services.get_tid();
+      ceph_tid_t rep_tid = get_tid();
       auto last_complete = peering_state.get_info().last_complete;
       if (op_info.may_write()) {
         // This should be executed as OrderedExclusivePhaseT so that
