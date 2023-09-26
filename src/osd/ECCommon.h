@@ -18,7 +18,6 @@
 #include <boost/intrusive/list.hpp>
 #include <fmt/format.h>
 
-#include "common/sharedptr_registry.hpp"
 #include "erasure-code/ErasureCodeInterface.h"
 #include "ECUtil.h"
 #if WITH_SEASTAR
@@ -202,7 +201,7 @@ struct ECListener {
     const eversion_t &roll_forward_to,
     const eversion_t &min_last_complete_ondisk,
     bool transaction_applied,
-    ceph::os::Transaction &t,
+    ObjectStore::Transaction &t,
     bool async = false) = 0;
   virtual void op_applied(
     const eversion_t &applied_version) = 0;
