@@ -158,11 +158,6 @@ private:
 
   void kick_reads();
 
-  uint64_t get_recovery_chunk_size() const {
-    return round_up_to(cct->_conf->osd_recovery_max_chunk,
-			sinfo.get_stripe_width());
-  }
-
   /**
    * Recovery
    *
@@ -193,6 +188,28 @@ private:
    * Transaction, and reads in a RecoveryMessages object which is passed
    * among the recovery methods.
    */
+  struct RecoveryBackend {
+    CephContext* cct;
+    ceph::ErasureCodeInterfaceRef ec_impl;
+    const ECUtil::stripe_info_t& sinfo;
+    // TODO: lay an interface down here
+    ECListener* parent;
+
+    ECListener *get_parent() const { return parent; }
+    const OSDMapRef& get_osdmap() const { return get_parent()->pgb_get_osdmap(); }
+    epoch_t get_osdmap_epoch() const { return get_parent()->pgb_get_osdmap_epoch(); }
+    const pg_info_t &get_info() { return get_parent()->get_info(); }
+
+    RecoveryBackend(CephContext* cct,
+                ceph::ErasureCodeInterfaceRef ec_impl,
+                const ECUtil::stripe_info_t& sinfo,
+                ECListener* parent)
+      : cct(cct),
+        ec_impl(std::move(ec_impl)),
+        sinfo(sinfo),
+        parent(parent) {
+    }
+  // <<<----
   struct RecoveryOp {
     hobject_t hoid;
     eversion_t v;
@@ -206,13 +223,13 @@ private:
 
     static const char* tostr(state_t state) {
       switch (state) {
-      case ECBackend::RecoveryOp::IDLE:
+      case RecoveryOp::IDLE:
 	return "IDLE";
-      case ECBackend::RecoveryOp::READING:
+      case RecoveryOp::READING:
 	return "READING";
-      case ECBackend::RecoveryOp::WRITING:
+      case RecoveryOp::WRITING:
 	return "WRITING";
-      case ECBackend::RecoveryOp::COMPLETE:
+      case RecoveryOp::COMPLETE:
 	return "COMPLETE";
       default:
 	ceph_abort();
@@ -237,8 +254,18 @@ private:
   friend ostream &operator<<(ostream &lhs, const RecoveryOp &rhs);
   std::map<hobject_t, RecoveryOp> recovery_ops;
 
+  uint64_t get_recovery_chunk_size() const {
+    return round_up_to(cct->_conf->osd_recovery_max_chunk,
+			sinfo.get_stripe_width());
+  }
+
   void continue_recovery_op(
     RecoveryOp &op,
+    RecoveryMessages *m);
+  } recovery_backend;
+  friend ostream &operator<<(ostream &lhs, const RecoveryBackend::RecoveryOp &rhs);
+  void continue_recovery_op(
+    RecoveryBackend::RecoveryOp &op,
     RecoveryMessages *m);
   friend struct RecoveryMessages;
   void dispatch_recovery_messages(RecoveryMessages &m, int priority);

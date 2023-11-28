@@ -29,9 +29,9 @@
 
 #define dout_context cct
 #define dout_subsys ceph_subsys_osd
-#define DOUT_PREFIX_ARGS this
-#undef dout_prefix
-#define dout_prefix _prefix(_dout, this)
+//#define DOUT_PREFIX_ARGS this
+//#undef dout_prefix
+//#define dout_prefix _prefix(_dout, this)
 
 using std::dec;
 using std::hex;
@@ -57,7 +57,7 @@ static ostream& _prefix(std::ostream *_dout, ECBackend *pgb) {
 }
 
 struct ECRecoveryHandle : public PGBackend::RecoveryHandle {
-  list<ECBackend::RecoveryOp> ops;
+  list<ECBackend::RecoveryBackend::RecoveryOp> ops;
 };
 
 static ostream &operator<<(ostream &lhs, const map<pg_shard_t, bufferlist> &rhs)
@@ -86,7 +86,7 @@ static ostream &operator<<(ostream &lhs, const map<int, bufferlist> &rhs)
   return lhs << "]";
 }
 
-ostream &operator<<(ostream &lhs, const ECBackend::RecoveryOp &rhs)
+ostream &operator<<(ostream &lhs, const ECBackend::RecoveryBackend::RecoveryOp &rhs)
 {
   return lhs << "RecoveryOp("
 	     << "hoid=" << rhs.hoid
@@ -96,13 +96,13 @@ ostream &operator<<(ostream &lhs, const ECBackend::RecoveryOp &rhs)
 	     << " recovery_info=" << rhs.recovery_info
 	     << " recovery_progress=" << rhs.recovery_progress
 	     << " obc refcount=" << rhs.obc.use_count()
-	     << " state=" << ECBackend::RecoveryOp::tostr(rhs.state)
+	     << " state=" << ECBackend::RecoveryBackend::RecoveryOp::tostr(rhs.state)
 	     << " waiting_on_pushes=" << rhs.waiting_on_pushes
 	     << " extent_requested=" << rhs.extent_requested
 	     << ")";
 }
 
-void ECBackend::RecoveryOp::dump(Formatter *f) const
+void ECBackend::RecoveryBackend::RecoveryOp::dump(Formatter *f) const
 {
   f->dump_stream("hoid") << hoid;
   f->dump_stream("v") << v;
@@ -126,6 +126,7 @@ ECBackend::ECBackend(
   : PGBackend(cct, pg, store, coll, ch),
     read_pipeline(cct, ec_impl, this->sinfo, get_parent()->get_eclistener()),
     rmw_pipeline(cct, ec_impl, this->sinfo, get_parent()->get_eclistener(), *this),
+    recovery_backend(cct, ec_impl, this->sinfo, get_parent()->get_eclistener()),
     unstable_hashinfo_registry(cct, ec_impl),
     ec_impl(ec_impl),
     sinfo(ec_impl->get_data_chunk_count(), stripe_width) {
@@ -144,9 +145,9 @@ void ECBackend::_failed_push(const hobject_t &hoid, ECCommon::read_result_t &res
 	   << res.r << " errors=" << res.errors << dendl;
   dout(10) << __func__ << ": canceling recovery op for obj " << hoid
 	   << dendl;
-  ceph_assert(recovery_ops.count(hoid));
-  eversion_t v = recovery_ops[hoid].v;
-  recovery_ops.erase(hoid);
+  ceph_assert(recovery_backend.recovery_ops.count(hoid));
+  eversion_t v = recovery_backend.recovery_ops[hoid].v;
+  recovery_backend.recovery_ops.erase(hoid);
 
   set<pg_shard_t> fl;
   for (auto&& i : res.errors) {
@@ -261,14 +262,14 @@ void ECBackend::handle_recovery_push(
   }
   if (op.after_progress.data_complete) {
     if ((get_parent()->pgb_is_primary())) {
-      ceph_assert(recovery_ops.count(op.soid));
-      ceph_assert(recovery_ops[op.soid].obc);
+      ceph_assert(recovery_backend.recovery_ops.count(op.soid));
+      ceph_assert(recovery_backend.recovery_ops[op.soid].obc);
       if (get_parent()->pg_is_repair() || is_repair)
         get_parent()->inc_osd_stat_repaired();
       get_parent()->on_local_recover(
 	op.soid,
 	op.recovery_info,
-	recovery_ops[op.soid].obc,
+	recovery_backend.recovery_ops[op.soid].obc,
 	false,
 	&m->t);
     } else {
@@ -306,12 +307,12 @@ void ECBackend::handle_recovery_push_reply(
   pg_shard_t from,
   RecoveryMessages *m)
 {
-  if (!recovery_ops.count(op.soid))
+  if (!recovery_backend.recovery_ops.count(op.soid))
     return;
-  RecoveryOp &rop = recovery_ops[op.soid];
+  RecoveryBackend::RecoveryOp &rop = recovery_backend.recovery_ops[op.soid];
   ceph_assert(rop.waiting_on_pushes.count(from));
   rop.waiting_on_pushes.erase(from);
-  continue_recovery_op(rop, m);
+  recovery_backend.continue_recovery_op(rop, m);
 }
 
 void ECBackend::handle_recovery_read_complete(
@@ -320,6 +321,20 @@ void ECBackend::handle_recovery_read_complete(
   std::optional<map<string, bufferlist, less<>> > attrs,
   RecoveryMessages *m)
 {
+  return [
+    &hoid,
+    &to_read,
+    attrs,
+    m,
+    cct=this->cct,
+    &ec_impl=this->ec_impl,
+    &sinfo=this->sinfo,
+    &recovery_ops=this->recovery_backend.recovery_ops,
+    &unstable_hashinfo_registry=this->unstable_hashinfo_registry,
+    get_recovery_chunk_size=[this] (auto...) { return this->recovery_backend.get_recovery_chunk_size();},
+    get_parent=[this] (auto&&...) { return this->get_parent();},
+    continue_recovery_op=[this] (auto&&... args) { return this->recovery_backend.continue_recovery_op(std::forward<decltype(args)>(args)...);}
+  ]() mutable {
   dout(10) << __func__ << ": returned " << hoid << " "
 	   << "(" << to_read.get<0>()
 	   << ", " << to_read.get<1>()
@@ -327,7 +342,7 @@ void ECBackend::handle_recovery_read_complete(
 	   << ")"
 	   << dendl;
   ceph_assert(recovery_ops.count(hoid));
-  RecoveryOp &op = recovery_ops[hoid];
+  RecoveryBackend::RecoveryOp &op = recovery_ops[hoid];
   ceph_assert(op.returned_data.empty());
   map<int, bufferlist*> target;
   for (set<shard_id_t>::iterator i = op.missing_on_shards.begin();
@@ -381,6 +396,7 @@ void ECBackend::handle_recovery_read_complete(
   ceph_assert(op.xattrs.size());
   ceph_assert(op.obc);
   continue_recovery_op(op, m);
+}();
 }
 
 struct SendPushReplies : public Context {
@@ -448,6 +464,14 @@ struct RecoveryReadCompleter : ECCommon::ReadCompleter {
 
 void ECBackend::dispatch_recovery_messages(RecoveryMessages &m, int priority)
 {
+  return [
+    priority,
+    m,
+    cct=this->cct,
+    &read_pipeline=this->read_pipeline,
+    get_parent=[this] (auto...) { return this->get_parent();},
+    get_osdmap_epoch=[this] (auto...) { return this->get_osdmap_epoch(); } // get_parent() basically
+  ]() mutable {
   for (map<pg_shard_t, vector<PushOp> >::iterator i = m.pushes.begin();
        i != m.pushes.end();
        m.pushes.erase(i++)) {
@@ -499,7 +523,8 @@ void ECBackend::dispatch_recovery_messages(RecoveryMessages &m, int priority)
     OpRequestRef(),
     false,
     true,
-    std::make_unique<RecoveryReadCompleter>(*this));
+    nullptr /*std::make_unique<RecoveryReadCompleter>(*this)*/);
+  }();
 }
 
 void ECBackend::RecoveryBackend::continue_recovery_op(
@@ -509,10 +534,22 @@ void ECBackend::RecoveryBackend::continue_recovery_op(
 }
 
 void ECBackend::continue_recovery_op(
-  RecoveryOp &op,
+  RecoveryBackend::RecoveryOp &op,
   RecoveryMessages *m)
 {
+  return [
+    &op,
+    m,
+    cct=this->cct,
+    &sinfo=this->sinfo,
+    &read_pipeline=this->read_pipeline,
+    recovery_ops=this->recovery_backend.recovery_ops,
+    get_recovery_chunk_size=[this] (auto&&...) { return this->recovery_backend.get_recovery_chunk_size();},
+    get_parent=[this] (auto&&...) { return this->get_parent();},
+    get_hash_info=[this] (auto&&... args) { return this->get_hash_info(std::forward<decltype(args)>(args)...);}
+  ]() mutable {
   dout(10) << __func__ << ": continuing " << op << dendl;
+  using RecoveryOp = RecoveryBackend::RecoveryOp;
   while (1) {
     switch (op.state) {
     case RecoveryOp::IDLE: {
@@ -532,6 +569,7 @@ void ECBackend::continue_recovery_op(
           ceph_assert(recovery_ops.count(op.hoid));
           eversion_t v = recovery_ops[op.hoid].v;
           recovery_ops.erase(op.hoid);
+	  // TODO: not in crimson yet
           get_parent()->on_failed_pull({get_parent()->whoami_shard()},
                                        op.hoid, v);
           return;
@@ -548,6 +586,7 @@ void ECBackend::continue_recovery_op(
 	ceph_assert(!op.recovery_progress.first);
 	dout(10) << __func__ << ": canceling recovery op for obj " << op.hoid
 		 << dendl;
+	// in crimson
 	get_parent()->cancel_pull(op.hoid);
 	recovery_ops.erase(op.hoid);
 	return;
@@ -611,6 +650,7 @@ void ECBackend::continue_recovery_op(
 	pop.before_progress = op.recovery_progress;
 	pop.after_progress = after_progress;
 	if (*mi != get_parent()->primary_shard())
+	  // already in crimson -- junction point with PeeringState
 	  get_parent()->begin_peer_recover(
 	    *mi,
 	    op.hoid);
@@ -641,8 +681,10 @@ void ECBackend::continue_recovery_op(
 	  stat.num_bytes_recovered = op.recovery_info.size;
 	  stat.num_keys_recovered = 0; // ??? op ... omap_entries.size(); ?
 	  stat.num_objects_recovered = 1;
+	  // TODO: not in crimson yet
 	  if (get_parent()->pg_is_repair())
 	    stat.num_objects_repaired = 1;
+	  // pg_recovery.cc in crimson has it
 	  get_parent()->on_global_recover(op.hoid, stat, false);
 	  dout(10) << __func__ << ": WRITING return " << op << dendl;
 	  recovery_ops.erase(op.hoid);
@@ -662,6 +704,7 @@ void ECBackend::continue_recovery_op(
     };
     }
   }
+  }();
 }
 
 void ECBackend::run_recovery_op(
@@ -670,13 +713,13 @@ void ECBackend::run_recovery_op(
 {
   ECRecoveryHandle *h = static_cast<ECRecoveryHandle*>(_h);
   RecoveryMessages m;
-  for (list<RecoveryOp>::iterator i = h->ops.begin();
+  for (list<RecoveryBackend::RecoveryOp>::iterator i = h->ops.begin();
        i != h->ops.end();
        ++i) {
     dout(10) << __func__ << ": starting " << *i << dendl;
-    ceph_assert(!recovery_ops.count(i->hoid));
-    RecoveryOp &op = recovery_ops.insert(make_pair(i->hoid, *i)).first->second;
-    continue_recovery_op(op, &m);
+    ceph_assert(!recovery_backend.recovery_ops.count(i->hoid));
+    RecoveryBackend::RecoveryOp &op = recovery_backend.recovery_ops.insert(make_pair(i->hoid, *i)).first->second;
+    recovery_backend.continue_recovery_op(op, &m);
   }
 
   dispatch_recovery_messages(m, priority);
@@ -692,7 +735,7 @@ int ECBackend::recover_object(
   RecoveryHandle *_h)
 {
   ECRecoveryHandle *h = static_cast<ECRecoveryHandle*>(_h);
-  h->ops.push_back(RecoveryOp());
+  h->ops.push_back(RecoveryBackend::RecoveryOp());
   h->ops.back().v = v;
   h->ops.back().hoid = hoid;
   h->ops.back().obc = obc;
@@ -1285,14 +1328,14 @@ void ECBackend::on_change()
 
 void ECBackend::clear_recovery_state()
 {
-  recovery_ops.clear();
+  recovery_backend.recovery_ops.clear();
 }
 
 void ECBackend::dump_recovery_info(Formatter *f) const
 {
   f->open_array_section("recovery_ops");
-  for (map<hobject_t, RecoveryOp>::const_iterator i = recovery_ops.begin();
-       i != recovery_ops.end();
+  for (map<hobject_t, RecoveryBackend::RecoveryOp>::const_iterator i = recovery_backend.recovery_ops.begin();
+       i != recovery_backend.recovery_ops.end();
        ++i) {
     f->open_object_section("op");
     i->second.dump(f);
