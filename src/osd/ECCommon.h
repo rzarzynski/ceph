@@ -18,6 +18,7 @@
 #include <boost/intrusive/list.hpp>
 #include <fmt/format.h>
 
+#include "common/sharedptr_registry.hpp"
 #include "erasure-code/ErasureCodeInterface.h"
 #include "ECUtil.h"
 #if WITH_SEASTAR
@@ -573,6 +574,30 @@ struct ECCommon {
         parent(parent),
         ec_backend(ec_backend) {
     }
+  };
+
+  class UnstableHashInfoRegistry {
+    CephContext *cct;
+    ceph::ErasureCodeInterfaceRef ec_impl;
+    /// If modified, ensure that the ref is held until the update is applied
+    SharedPtrRegistry<hobject_t, ECUtil::HashInfo> registry;
+
+  public:
+    UnstableHashInfoRegistry(
+      CephContext *cct,
+      ceph::ErasureCodeInterfaceRef ec_impl)
+      : cct(cct),
+	ec_impl(std::move(ec_impl)) {}
+
+    ECUtil::HashInfoRef maybe_put_hash_info(
+      const hobject_t &hoid,
+      ECUtil::HashInfo &&hinfo);
+
+    ECUtil::HashInfoRef get_hash_info(
+      const hobject_t &hoid,
+      bool create,
+      const std::map<std::string, ceph::buffer::list, std::less<>>& attr,
+      uint64_t size);
   };
 };
 
