@@ -189,9 +189,13 @@ private:
    * among the recovery methods.
    */
   struct RecoveryBackend {
+    
     CephContext* cct;
+    const coll_t &coll;
     ceph::ErasureCodeInterfaceRef ec_impl;
     const ECUtil::stripe_info_t& sinfo;
+    ReadPipeline& read_pipeline;
+    UnstableHashInfoRegistry& unstable_hashinfo_registry;
     // TODO: lay an interface down here
     ECListener* parent;
 
@@ -199,14 +203,22 @@ private:
     const OSDMapRef& get_osdmap() const { return get_parent()->pgb_get_osdmap(); }
     epoch_t get_osdmap_epoch() const { return get_parent()->pgb_get_osdmap_epoch(); }
     const pg_info_t &get_info() { return get_parent()->get_info(); }
+    void add_temp_obj(const hobject_t &oid) { get_parent()->add_temp_obj(oid); }
+    void clear_temp_obj(const hobject_t &oid) { get_parent()->clear_temp_obj(oid); }
 
     RecoveryBackend(CephContext* cct,
+		    const coll_t &coll,
                 ceph::ErasureCodeInterfaceRef ec_impl,
                 const ECUtil::stripe_info_t& sinfo,
+		ReadPipeline& read_pipeline,
+		UnstableHashInfoRegistry& unstable_hashinfo_registry,
                 ECListener* parent)
       : cct(cct),
+        coll(coll),
         ec_impl(std::move(ec_impl)),
         sinfo(sinfo),
+	read_pipeline(read_pipeline),
+	unstable_hashinfo_registry(unstable_hashinfo_registry),
         parent(parent) {
     }
   // <<<----
@@ -259,18 +271,21 @@ private:
 			sinfo.get_stripe_width());
   }
 
-  void continue_recovery_op(
-    RecoveryOp &op,
-    RecoveryMessages *m);
-  } recovery_backend;
-  friend ostream &operator<<(ostream &lhs, const RecoveryBackend::RecoveryOp &rhs);
+  void dispatch_recovery_messages(RecoveryMessages &m, int priority);
+
+  RecoveryHandle *open_recovery_op();
+  void run_recovery_op(
+    struct ECRecoveryHandle &h,
+    int priority);
+  int recover_object(
+    const hobject_t &hoid,
+    eversion_t v,
+    ObjectContextRef head,
+    ObjectContextRef obc,
+    RecoveryHandle *h);
   void continue_recovery_op(
     RecoveryBackend::RecoveryOp &op,
     RecoveryMessages *m);
-  friend struct RecoveryMessages;
-  void dispatch_recovery_messages(RecoveryMessages &m, int priority);
-  friend struct OnRecoveryReadComplete;
-  friend struct RecoveryReadCompleter;
   void handle_recovery_read_complete(
     const hobject_t &hoid,
     boost::tuple<uint64_t, uint64_t, std::map<pg_shard_t, ceph::buffer::list> > &to_read,
@@ -284,11 +299,26 @@ private:
     const PushReplyOp &op,
     pg_shard_t from,
     RecoveryMessages *m);
+  friend struct RecoveryMessages;
+  int get_ec_data_chunk_count() const {
+    return ec_impl->get_data_chunk_count();
+  }
+  };
+  friend ostream &operator<<(ostream &lhs, const RecoveryBackend::RecoveryOp &rhs);
+  friend struct RecoveryMessages;
+  friend struct OnRecoveryReadComplete;
+  friend struct RecoveryReadCompleter;
+
+  void handle_recovery_push(
+    const PushOp &op,
+    RecoveryMessages *m,
+    bool is_repair);
 
 public:
 
   struct ReadPipeline read_pipeline;
   struct RMWPipeline rmw_pipeline;
+  struct RecoveryBackend recovery_backend;
 
   ceph::ErasureCodeInterfaceRef ec_impl;
 
