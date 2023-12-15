@@ -43,6 +43,7 @@ ECBackend::ECBackend(pg_shard_t p_shard,
     sinfo{ec_impl->get_data_chunk_count(), stripe_width},
     fast_read{fast_read},
     allows_ecoverwrites{allows_ecoverwrites},
+    unstable_hashinfo_registry{shard_services.get_cct(), ec_impl},
     read_pipeline{shard_services.get_cct(), ec_impl, sinfo, &eclistener},
     rmw_pipeline{shard_services.get_cct(), ec_impl, sinfo, &eclistener, *this}
 {
