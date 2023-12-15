@@ -188,8 +188,8 @@ private:
    * Transaction, and reads in a RecoveryMessages object which is passed
    * among the recovery methods.
    */
+public:
   struct RecoveryBackend {
-    
     CephContext* cct;
     const coll_t &coll;
     ceph::ErasureCodeInterfaceRef ec_impl;
