@@ -29,9 +29,9 @@
 
 #define dout_context cct
 #define dout_subsys ceph_subsys_osd
-//#define DOUT_PREFIX_ARGS this
-//#undef dout_prefix
-//#define dout_prefix _prefix(_dout, this)
+#define DOUT_PREFIX_ARGS this
+#undef dout_prefix
+#define dout_prefix _prefix(_dout, this)
 
 using std::dec;
 using std::hex;
@@ -53,6 +53,10 @@ using ceph::ErasureCodeInterfaceRef;
 using ceph::Formatter;
 
 static ostream& _prefix(std::ostream *_dout, ECBackend *pgb) {
+  return pgb->get_parent()->gen_dbg_prefix(*_dout);
+}
+
+static ostream& _prefix(std::ostream *_dout, ECBackend::RecoveryBackend *pgb) {
   return pgb->get_parent()->gen_dbg_prefix(*_dout);
 }
 
