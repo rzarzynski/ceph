@@ -802,8 +802,7 @@ ReplicatedRecoveryBackend::_handle_pull_response(
       [this, &pull_info, &recovery_waiter, &push_op](auto, auto obc) {
         pull_info.obc = obc;
         recovery_waiter.obc = obc;
-        obc->obs.oi.decode(push_op.attrset.at(OI_ATTR),
-                           push_op.soid);
+        obc->obs.oi.decode(push_op.attrset.at(OI_ATTR));
         assert(obc->obs.oi.soid == push_op.soid);
         auto ss_attr_iter = push_op.attrset.find(SS_ATTR);
         if (ss_attr_iter != push_op.attrset.end()) {
