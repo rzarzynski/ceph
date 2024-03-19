@@ -146,7 +146,7 @@ ReplicatedRecoveryBackend::maybe_pull_missing_obj(
 }
 
 RecoveryBackend::interruptible_future<>
-ReplicatedRecoveryBackend::push_delete(
+RecoveryBackend::push_delete(
   const hobject_t& soid,
   eversion_t need)
 {
@@ -182,7 +182,7 @@ ReplicatedRecoveryBackend::push_delete(
 }
 
 RecoveryBackend::interruptible_future<>
-ReplicatedRecoveryBackend::handle_recovery_delete(
+RecoveryBackend::handle_recovery_delete(
   Ref<MOSDPGRecoveryDelete> m)
 {
   logger().debug("{}: {}", __func__, *m);
@@ -203,7 +203,7 @@ ReplicatedRecoveryBackend::handle_recovery_delete(
 }
 
 RecoveryBackend::interruptible_future<>
-ReplicatedRecoveryBackend::on_local_recover_persist(
+RecoveryBackend::on_local_recover_persist(
   const hobject_t& soid,
   const ObjectRecoveryInfo& _recovery_info,
   bool is_delete,
@@ -227,7 +227,7 @@ ReplicatedRecoveryBackend::on_local_recover_persist(
 }
 
 RecoveryBackend::interruptible_future<>
-ReplicatedRecoveryBackend::local_recover_delete(
+RecoveryBackend::local_recover_delete(
   const hobject_t& soid,
   eversion_t need,
   epoch_t epoch_to_freeze)
@@ -240,7 +240,7 @@ ReplicatedRecoveryBackend::local_recover_delete(
 	[this, lomt = std::move(lomt)](auto& txn) {
 	return backend->remove(lomt->os, txn).then_interruptible(
 	  [this, &txn]() mutable {
-	  logger().debug("ReplicatedRecoveryBackend::local_recover_delete: do_transaction...");
+	  logger().debug("RecoveryBackend::local_recover_delete: do_transaction...");
 	  return shard_services.get_store().do_transaction(coll,
 							   std::move(txn));
 	});
@@ -271,7 +271,7 @@ ReplicatedRecoveryBackend::local_recover_delete(
 }
 
 RecoveryBackend::interruptible_future<>
-ReplicatedRecoveryBackend::recover_delete(
+RecoveryBackend::recover_delete(
   const hobject_t &soid, eversion_t need)
 {
   logger().debug("{}: {}, {}", __func__, soid, need);
@@ -1292,7 +1292,7 @@ void ReplicatedRecoveryBackend::submit_push_complete(
 }
 
 RecoveryBackend::interruptible_future<>
-ReplicatedRecoveryBackend::handle_recovery_delete_reply(
+RecoveryBackend::handle_recovery_delete_reply(
   Ref<MOSDPGRecoveryDeleteReply> m)
 {
   auto& p = m->objects.front();
@@ -1322,12 +1322,6 @@ ReplicatedRecoveryBackend::handle_recovery_op(
   case MSG_OSD_PG_PUSH_REPLY:
     return handle_push_reply(
 	boost::static_pointer_cast<MOSDPGPushReply>(m));
-  case MSG_OSD_PG_RECOVERY_DELETE:
-    return handle_recovery_delete(
-	boost::static_pointer_cast<MOSDPGRecoveryDelete>(m));
-  case MSG_OSD_PG_RECOVERY_DELETE_REPLY:
-    return handle_recovery_delete_reply(
-	boost::static_pointer_cast<MOSDPGRecoveryDeleteReply>(m));
   default:
     // delegate to parent class for handling backend-agnostic recovery ops.
     return RecoveryBackend::handle_recovery_op(std::move(m), conn);
