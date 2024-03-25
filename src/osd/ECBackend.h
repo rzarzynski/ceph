@@ -168,7 +168,7 @@ private:
 		      UnstableHashInfoRegistry& unstable_hashinfo_registry,
 		      PGBackend::Listener* parent,
 		      ECBackend* ecbackend)
-      : RecoveryBackend(cct, coll, std::move(ec_impl), sinfo, read_pipeline, unstable_hashinfo_registry, parent->get_eclistener(), ecbackend),
+      : RecoveryBackend(cct, coll, std::move(ec_impl), sinfo, read_pipeline, unstable_hashinfo_registry, parent->get_eclistener()),
 	parent(parent) {
     }
 
