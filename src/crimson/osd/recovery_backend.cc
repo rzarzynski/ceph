@@ -4,6 +4,7 @@
 #include <fmt/format.h>
 
 #include "crimson/common/exception.h"
+#include "crimson/osd/ec_backend.h"
 #include "crimson/osd/ec_recovery_backend.h"
 #include "crimson/osd/recovery_backend.h"
 #include "crimson/osd/replicated_recovery_backend.h"
@@ -367,7 +368,7 @@ std::unique_ptr<RecoveryBackend> RecoveryBackend::create(
       pg, shard_services, coll, backend);
   case pg_pool_t::TYPE_ERASURE:
     return std::make_unique<ECRecoveryBackend>(
-      pg, shard_services, coll, backend);
+      pg, shard_services, coll, static_cast<ECBackend*>(backend));
   default:
     ceph_abort_msg(seastar::format(
       "unsupported pool type '{}'", pool.type));
