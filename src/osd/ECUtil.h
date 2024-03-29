@@ -106,6 +106,14 @@ public:
     const auto last_chunk_idx = (chunk_size - 1 + off + len) / chunk_size;
     return {first_chunk_idx, last_chunk_idx};
   }
+  uint64_t get_partial_read_skip_size(std::pair<uint64_t, uint64_t> in) const {
+    const auto [offset, length] = in;
+    const auto offset_in_stripe = offset % get_stripe_width();
+    const auto offset_complement = get_stripe_width() - offset_in_stripe;
+    return std::min(
+      std::max(length, offset_complement) - offset_complement,
+      offset_in_stripe);
+  }
 };
 
 int decode(

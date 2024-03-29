@@ -553,6 +553,9 @@ struct ClientReadCompleter : ECCommon::ReadCompleter {
       }
       bufferlist trimmed;
       auto off = read.offset - aligned.first;
+      if (g_conf()->osd_ec_partial_reads) {
+        off += read_pipeline.sinfo.get_partial_read_skip_size(aligned);
+      }
       auto len =
           std::min(read.size, bl.length() - (read.offset - aligned.first));
       trimmed.substr_of(bl, off, len);

@@ -74,6 +74,134 @@ TEST(ECUtil, stripe_info_t)
             make_pair((uint64_t)0, 2*swidth));
 }
 
+TEST(ECUtil, get_partial_read_skip_size)
+{
+  const uint64_t swidth = 4096;
+  const uint64_t schunk = 1024;
+  const uint64_t ssize = 4;
+
+  ECUtil::stripe_info_t s(ssize, swidth);
+  ASSERT_EQ(s.get_stripe_width(), swidth);
+  ASSERT_EQ(s.get_chunk_size(), schunk);
+
+  // read nothing at the very beginning
+  //   +---+---+---+---+
+  //   | ~0|   |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(make_pair(0, 0)), 0);
+  }
+
+  // read not-so-many (< schunk) bytes at the middle (partial read)
+  //   +---+---+---+---+
+  //   |   | * |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(make_pair(schunk, schunk/2)), 0);
+  }
+
+  // read more (> schunk) bytes at the middle (partial read)
+  //   +---+---+---+---+
+  //   |   | * | * |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(make_pair(schunk, 2*schunk)), 0);
+  }
+
+  // full stripe except last chunk
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  //   | * | * | * |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(make_pair(swidth, 3*schunk)), 0);
+  }
+
+  // full stripe except 1st chunk
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  //   |   | * | * | * |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(
+      make_pair(swidth+schunk, 3*schunk)), 0);
+  }
+
+  // partial, multi-stripe read with len under 1 stripe
+  //  data is read form shards in stripe-rounded boundaries but
+  //  unneeded shards are gone from the wants_to_read.
+  //  here this means chunk no 0 (marked here with `d`) is read
+  //  but will be discarded at postprocessing.
+  //   +---+---+---+---+
+  //   | d |   |   | * |
+  //   +---+---+---+---+
+  //   | * |   |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(
+      make_pair(3*schunk, 2*schunk)), schunk);
+  }
+
+  // partial, a bit larger multi-stripe read with len under 1 stripe
+  //   +---+---+---+---+
+  //   | d | d |   | * |
+  //   +---+---+---+---+
+  //   | * | * |   |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(
+      make_pair(3*schunk, 3*schunk)), 2*schunk);
+  }
+
+  // partial, even larger multi-stripe read
+  //   +---+---+---+---+
+  //   | d | d | d | * |
+  //   +---+---+---+---+
+  //   | * | * | * |   |
+  //   +---+---+---+---+
+  //   |   |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(
+      make_pair(3*schunk, 4*schunk)), 3*schunk);
+  }
+
+  // large, partial, multi-stripe read
+  //   +---+---+---+---+
+  //   | d | d | d | * |
+  //   +---+---+---+---+
+  //   | * | * | * | * |
+  //   +---+---+---+---+
+  //   | * |   |   |   |
+  //   +---+---+---+---+
+  {
+    ASSERT_EQ(s.get_partial_read_skip_size(
+      make_pair(3*schunk, 4*schunk)), 3*schunk);
+  }
+}
+
 TEST(ECCommon, get_min_want_to_read_shards)
 {
   const uint64_t swidth = 4096;
