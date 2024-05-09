@@ -112,11 +112,12 @@ using crimson::common::local_conf;
   }
 
   ObjectContextLoader::load_obc_iertr::future<ObjectContextRef>
-  ObjectContextLoader::load_obc(ObjectContextRef obc)
+  ObjectContextLoader::load_obc(
+    ObjectContextRef obc,
+    PGBackend::load_metadata_iertr::future<PGBackend::loaded_object_md_t::ref> _md)
   {
     LOG_PREFIX(ObjectContextLoader::load_obc);
-    return backend.load_metadata(obc->get_oid())
-    .safe_then_interruptible(
+    return std::move(_md).safe_then_interruptible(
       [FNAME, this, obc=std::move(obc)](auto md)
       -> load_obc_ertr::future<ObjectContextRef> {
       const hobject_t& oid = md->os.oi.soid;
@@ -188,7 +189,7 @@ using crimson::common::local_conf;
       DEBUGDPP("cache miss on {}", dpp, obc->get_oid());
       return obc->template with_promoted_lock<State, IOInterruptCondition>(
         [obc, this] {
-        return load_obc(obc);
+        return load_obc(obc, backend.load_metadata(obc->get_oid()));
       });
     }
   }

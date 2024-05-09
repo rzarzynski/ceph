@@ -93,6 +93,8 @@ private:
   }
 
   load_obc_iertr::future<ObjectContextRef>
-  load_obc(ObjectContextRef obc);
+  load_obc(
+    ObjectContextRef obc,
+    PGBackend::load_metadata_iertr::future<PGBackend::loaded_object_md_t::ref> md);
 };
 }
