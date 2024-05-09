@@ -629,3 +629,12 @@ void PGRecovery::on_backfill_reserved()
   ceph_assert(!pg->get_peering_state().is_backfilling());
   start_backfill_recovery(BackfillState::Triggered{});
 }
+
+hobject_t PGRecovery::get_temp_recovery_object(
+    const hobject_t& target,
+    eversion_t version)
+{
+  return pg->get_recovery_backend()->get_temp_recovery_object(
+    target,
+    version);
+}

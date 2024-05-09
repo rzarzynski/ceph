@@ -243,11 +243,13 @@ public:
   using RecoveryBlockingEvent =
     crimson::AggregateBlockingEvent<WaitForObjectRecovery::BlockingEvent>;
   using WaitForObjectRecoveryRef = boost::intrusive_ptr<WaitForObjectRecovery>;
-protected:
-  std::map<hobject_t, WaitForObjectRecoveryRef> recovering;
+
   hobject_t get_temp_recovery_object(
     const hobject_t& target,
     eversion_t version) const;
+
+protected:
+  std::map<hobject_t, WaitForObjectRecoveryRef> recovering;
 
   boost::container::flat_set<hobject_t> temp_contents;
 
