@@ -144,6 +144,8 @@ struct ECListener {
   // XXX
   virtual void send_message_osd_cluster(
     std::vector<std::pair<int, Message*>>& messages, epoch_t from_epoch) = 0;
+  virtual void send_message_osd_cluster(
+    int osd, MOSDPGPush* msg, epoch_t from_epoch) = 0;
 
   virtual std::ostream& gen_dbg_prefix(std::ostream& out) const = 0;
 
