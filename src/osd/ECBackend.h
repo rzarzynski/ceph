@@ -161,6 +161,7 @@ private:
 
   void kick_reads();
 
+public:
   struct ECRecoveryBackend : RecoveryBackend {
     ECRecoveryBackend(CephContext* cct,
 		      const coll_t &coll,
@@ -195,7 +196,9 @@ private:
   private:
     Listener *parent;
   };
-  friend ostream &operator<<(ostream &lhs, const RecoveryBackend::RecoveryOp &rhs);
+
+private:
+  friend std::ostream &operator<<(std::ostream &lhs, const RecoveryBackend::RecoveryOp &rhs);
   friend struct RecoveryMessages;
   friend struct OnRecoveryReadComplete;
   friend struct RecoveryReadCompleter;
