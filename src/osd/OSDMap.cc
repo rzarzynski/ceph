@@ -1748,6 +1748,44 @@ int OSDMap::find_osd_on_ip(const entity_addr_t& ip) const
   return -1;
 }
 
+static uint64_t get_client_features_from_release(const ceph_release_t release_name)
+{
+  // must correspond with get_client_mask()
+  switch (release_name) {
+    case ceph_release_t::luminous:
+      return CEPH_FEATUREMASK_SERVER_LUMINOUS;
+    case ceph_release_t::mimic:
+      return CEPH_FEATUREMASK_SERVER_MIMIC;
+    case ceph_release_t::nautilus:
+      return CEPH_FEATUREMASK_SERVER_NAUTILUS;
+    case ceph_release_t::octopus:
+      return CEPH_FEATUREMASK_SERVER_OCTOPUS;
+    case ceph_release_t::pacific:
+      return CEPH_FEATUREMASK_SERVER_PACIFIC;
+    case ceph_release_t::quincy:
+      return CEPH_FEATUREMASK_SERVER_QUINCY;
+    case ceph_release_t::reef:
+      return CEPH_FEATUREMASK_SERVER_REEF;
+    case ceph_release_t::squid:
+      return CEPH_FEATUREMASK_SERVER_SQUID;
+    default:
+      return 0;
+  }
+}
+
+static uint64_t get_client_mask()
+{
+  // must correspond with get_client_features_from_release()
+  return CEPH_FEATUREMASK_SERVER_LUMINOUS |
+    CEPH_FEATUREMASK_SERVER_MIMIC |
+    CEPH_FEATUREMASK_SERVER_NAUTILUS |
+    CEPH_FEATUREMASK_SERVER_OCTOPUS |
+    CEPH_FEATUREMASK_SERVER_PACIFIC |
+    CEPH_FEATUREMASK_SERVER_QUINCY |
+    CEPH_FEATUREMASK_SERVER_REEF |
+    CEPH_FEATUREMASK_SERVER_SQUID |
+    0;
+}
 
 uint64_t OSDMap::get_features(int entity_type, uint64_t *pmask) const
 {
@@ -1836,6 +1874,11 @@ uint64_t OSDMap::get_features(int entity_type, uint64_t *pmask) const
     features |= CEPH_FEATUREMASK_CEPHX_V2;
   }
   mask |= CEPH_FEATUREMASK_CEPHX_V2;
+
+  if (entity_type == CEPH_ENTITY_TYPE_CLIENT) {
+    features |= get_client_features_from_release(require_min_compat_client);
+    mask |= get_client_mask();
+  }
 
   if (pmask)
     *pmask = mask;
