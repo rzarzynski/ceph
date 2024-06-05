@@ -63,6 +63,7 @@ static ostream& _prefix(std::ostream *_dout,
   // TODO: backref to ECListener?
   return *_dout;
 }
+static ostream& _prefix(std::ostream *_dout, struct ClientReadCompleter *read_completer);
 
 ostream &operator<<(ostream &lhs, const ECCommon::RMWPipeline::pipeline_state_t &rhs) {
   switch (rhs.pipeline_state) {
@@ -123,6 +124,7 @@ ostream &operator<<(ostream &lhs, const ECCommon::ReadOp &rhs)
 	     << ", priority=" << rhs.priority
 	     << ", obj_to_source=" << rhs.obj_to_source
 	     << ", source_to_obj=" << rhs.source_to_obj
+	     << ", want_to_read" << rhs.want_to_read
 	     << ", in_progress=" << rhs.in_progress << ")";
 }
 
@@ -139,6 +141,7 @@ void ECCommon::ReadOp::dump(Formatter *f) const
   f->dump_int("priority", priority);
   f->dump_stream("obj_to_source") << obj_to_source;
   f->dump_stream("source_to_obj") << source_to_obj;
+  f->dump_stream("want_to_read") << want_to_read;
   f->dump_stream("in_progress") << in_progress;
 }
 
@@ -552,12 +555,21 @@ struct ClientReadCompleter : ECCommon::ReadCompleter {
         goto out;
       }
       bufferlist trimmed;
+      auto* cct = read_pipeline.cct;
       auto off = read.offset - aligned.first;
       if (g_conf()->osd_ec_partial_reads) {
-        off += read_pipeline.sinfo.get_partial_read_skip_size(aligned);
+        const auto skip_size =
+	  read_pipeline.sinfo.get_partial_read_skip_size(aligned);
+        off += skip_size;
+        dout(30) << __func__ << "partial read skip size="
+		 << skip_size << dendl;
       }
       auto len =
           std::min(read.size, bl.length() - (read.offset - aligned.first));
+      dout(30) << __func__ << " bl.length()=" << bl.length()
+	       << " len=" << len << " read.size=" << read.size
+	       << " off=" << off << " read.offset=" << read.offset
+	       << dendl;
       trimmed.substr_of(bl, off, len);
       result.insert(
 	read.offset, trimmed.length(), std::move(trimmed));
@@ -576,6 +588,9 @@ out:
   ECCommon::ReadPipeline &read_pipeline;
   ECCommon::ClientAsyncReadStatus *status;
 };
+static ostream& _prefix(std::ostream *_dout, ClientReadCompleter *read_completer) {
+  return _prefix(_dout, &read_completer->read_pipeline);
+}
 
 void ECCommon::ReadPipeline::objects_read_and_reconstruct(
   const map<hobject_t, std::list<ECCommon::ec_align_t>> &reads,
