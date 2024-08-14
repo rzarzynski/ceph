@@ -386,7 +386,7 @@ TEST(small_encoding, varint) {
       cout << std::endl;
       ASSERT_EQ(bl.length(), v[i][1]);
       uint32_t u;
-      auto p = bl.begin().get_current_ptr().cbegin();
+      auto p = bl.front().cbegin();
       denc_varint(u, p);
       ASSERT_EQ(v[i][0], u);
     }
@@ -401,7 +401,7 @@ TEST(small_encoding, varint) {
       cout << std::endl;
       ASSERT_EQ(bl.length(), v[i][2]);
       int32_t u;
-      auto p = bl.begin().get_current_ptr().cbegin();
+      auto p = bl.front().cbegin();
       denc_signed_varint(u, p);
       ASSERT_EQ((int32_t)v[i][0], u);
     }
@@ -417,7 +417,7 @@ TEST(small_encoding, varint) {
       cout << std::endl;
       ASSERT_EQ(bl.length(), v[i][3]);
       int64_t u;
-      auto p = bl.begin().get_current_ptr().cbegin();
+      auto p = bl.front().cbegin();
       denc_signed_varint(u, p);
       ASSERT_EQ(x, u);
     }
@@ -464,7 +464,7 @@ TEST(small_encoding, varint_lowz) {
       cout << std::endl;
       ASSERT_EQ(bl.length(), v[i][1]);
       uint32_t u;
-      auto p = bl.begin().get_current_ptr().cbegin();
+      auto p = bl.front().cbegin();
       denc_varint_lowz(u, p);
       ASSERT_EQ(v[i][0], u);
     }
@@ -480,7 +480,7 @@ TEST(small_encoding, varint_lowz) {
       cout << std::endl;
       ASSERT_EQ(bl.length(), v[i][2]);
       int64_t u;
-      auto p = bl.begin().get_current_ptr().cbegin();
+      auto p = bl.front().cbegin();
       denc_signed_varint_lowz(u, p);
       ASSERT_EQ(x, u);
     }
@@ -496,7 +496,7 @@ TEST(small_encoding, varint_lowz) {
       cout << std::endl;
       ASSERT_EQ(bl.length(), v[i][3]);
       int64_t u;
-      auto p = bl.begin().get_current_ptr().cbegin();
+      auto p = bl.front().cbegin();
       denc_signed_varint_lowz(u, p);
       ASSERT_EQ(x, u);
     }    
@@ -535,7 +535,7 @@ TEST(small_encoding, lba) {
     cout << std::endl;
     ASSERT_EQ(bl.length(), v[i][1]);
     uint64_t u;
-    auto p = bl.begin().get_current_ptr().cbegin();
+    auto p = bl.front().cbegin();
     denc_lba(u, p);
     ASSERT_EQ(v[i][0], u);
   }
