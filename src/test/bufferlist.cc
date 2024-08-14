@@ -710,7 +710,7 @@ TEST(BufferListIterator, constructors) {
     EXPECT_NE(*i, *j);
     EXPECT_EQ('B', *i);
     EXPECT_EQ('C', *j);
-    bl.c_str()[1] = 'X';
+    bl.data()[1] = 'X';
   }
 
   //

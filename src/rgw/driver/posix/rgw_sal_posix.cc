@@ -2015,7 +2015,7 @@ int POSIXObject::write(int64_t ofs, bufferlist& bl, const DoutPrefixProvider* dp
   }
 
   int64_t left = bl.length();
-  char* curp = bl.c_str();
+  const char* curp = bl.c_str();
   ssize_t ret;
 
   ret = fchmod(obj_fd, S_IRUSR|S_IWUSR);
