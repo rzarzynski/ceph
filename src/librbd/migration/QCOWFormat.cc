@@ -57,7 +57,7 @@ typedef std::vector<ClusterExtent> ClusterExtents;
 
 void LookupTable::init() {
   if (cluster_offsets == nullptr) {
-    cluster_offsets = reinterpret_cast<uint64_t*>(bl.c_str());
+    cluster_offsets = reinterpret_cast<const uint64_t*>(bl.c_str());
   }
 }
 
@@ -72,7 +72,7 @@ void LookupTable::decode() {
 
   // translate the lookup table (big-endian -> CPU endianness)
   for (auto idx = 0UL; idx < size; ++idx) {
-    cluster_offsets[idx] = big_to_native(cluster_offsets[idx]);
+    //cluster_offsets[idx] = big_to_native(cluster_offsets[idx]);
   }
 
   decoded = true;
@@ -893,7 +893,7 @@ void QCOWFormat<I>::handle_probe(int r, Context* on_finish) {
     return;
   }
 
-  auto header_probe = *reinterpret_cast<QCowHeaderProbe*>(
+  auto header_probe = *reinterpret_cast<const QCowHeaderProbe*>(
     m_bl.c_str());
   header_probe.magic = big_to_native(header_probe.magic);
   header_probe.version = big_to_native(header_probe.version);
@@ -948,7 +948,7 @@ void QCOWFormat<I>::handle_read_v1_header(int r, Context* on_finish) {
     return;
   }
 
-  auto header = *reinterpret_cast<QCowHeaderV1*>(m_bl.c_str());
+  auto header = *reinterpret_cast<const QCowHeaderV1*>(m_bl.c_str());
 
   // byte-swap important fields
   header.magic = big_to_native(header.magic);
@@ -1050,7 +1050,7 @@ void QCOWFormat<I>::handle_read_v2_header(int r, Context* on_finish) {
     return;
   }
 
-  auto header = *reinterpret_cast<QCowHeader*>(m_bl.c_str());
+  auto header = *reinterpret_cast<const QCowHeader*>(m_bl.c_str());
 
   // byte-swap important fields
   header.magic = big_to_native(header.magic);
@@ -1214,7 +1214,7 @@ void QCOWFormat<I>::handle_read_snapshot(int r, Context* on_finish) {
   }
 
   m_snapshots_offset += m_bl.length();
-  auto header = *reinterpret_cast<QCowSnapshotHeader*>(m_bl.c_str());
+  auto header = *reinterpret_cast<const QCowSnapshotHeader*>(m_bl.c_str());
 
   auto& snapshot = m_snapshots[m_snapshots.size() + 1];
   snapshot.id.resize(big_to_native(header.id_str_size));
