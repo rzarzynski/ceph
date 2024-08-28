@@ -204,7 +204,12 @@ struct error_code;
 	}
       }
 
-      iterator_impl& operator+=(size_t len);
+      iterator_impl& operator+=(size_t len) {
+	pos += len;
+	if (pos > end_ptr)
+	  throw end_of_buffer();
+	return *this;
+      }
 
       const char *get_pos() {
 	return pos;
