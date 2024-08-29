@@ -140,9 +140,8 @@ struct rbd_bencher {
       io_size(io_size)
   {
     if (io_type == IO_TYPE_WRITE || io_type == IO_TYPE_RW) {
-      bufferptr bp(io_size);
-      memset(bp.c_str(), rand() & 0xff, io_size);
-      write_bl.push_back(bp);
+      auto filler = write_bl.append_hole(io_size);
+      memset(filler.c_str(), rand() & 0xff, io_size);
     }
   }
 
