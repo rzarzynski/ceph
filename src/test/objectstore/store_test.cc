@@ -831,18 +831,18 @@ TEST_P(StoreTest, SmallBlockWrites) {
     ASSERT_EQ(r, 0);
   }
   bufferlist a;
-  bufferptr ap(0x1000);
+  bufferptr_rw ap(0x1000);
   memset(ap.c_str(), 'a', 0x1000);
   a.append(ap);
   bufferlist b;
-  bufferptr bp(0x1000);
+  bufferptr_rw bp(0x1000);
   memset(bp.c_str(), 'b', 0x1000);
   b.append(bp);
   bufferlist c;
-  bufferptr cp(0x1000);
+  bufferptr_rw cp(0x1000);
   memset(cp.c_str(), 'c', 0x1000);
   c.append(cp);
-  bufferptr zp(0x1000);
+  bufferptr_rw zp(0x1000);
   zp.zero();
   bufferlist z;
   z.append(zp);
@@ -2351,7 +2351,7 @@ TEST_P(StoreTest, ManySmallWrite) {
     ASSERT_EQ(r, 0);
   }
   bufferlist bl;
-  bufferptr bp(4096);
+  bufferptr_rw bp(4096);
   bp.zero();
   bl.append(bp);
   for (int i=0; i<100; ++i) {
@@ -2455,7 +2455,7 @@ TEST_P(StoreTest, SmallSkipFront) {
   }
   {
     bufferlist bl;
-    bufferptr bp(4096);
+    bufferptr_rw bp(4096);
     memset(bp.c_str(), 1, 4096);
     bl.append(bp);
     ObjectStore::Transaction t;
@@ -2495,7 +2495,7 @@ TEST_P(StoreTest, AppendDeferredVsTailCache) {
   }
   unsigned min_alloc = g_conf()->bluestore_min_alloc_size;
   unsigned size = min_alloc / 3;
-  bufferptr bpa(size);
+  bufferptr_rw bpa(size);
   memset(bpa.c_str(), 1, bpa.length());
   bufferlist bla;
   bla.append(bpa);
@@ -2516,7 +2516,7 @@ TEST_P(StoreTest, AppendDeferredVsTailCache) {
     ch = store->open_collection(cid);
   }
 
-  bufferptr bpb(size);
+  bufferptr_rw bpb(size);
   memset(bpb.c_str(), 2, bpb.length());
   bufferlist blb;
   blb.append(bpb);
@@ -2526,7 +2526,7 @@ TEST_P(StoreTest, AppendDeferredVsTailCache) {
     r = store->queue_transaction(ch, std::move(t));
     ASSERT_EQ(r, 0);
   }
-  bufferptr bpc(size);
+  bufferptr_rw bpc(size);
   memset(bpc.c_str(), 3, bpc.length());
   bufferlist blc;
   blc.append(bpc);
@@ -2572,7 +2572,7 @@ TEST_P(StoreTest, AppendZeroTrailingSharedBlock) {
   }
   unsigned min_alloc = g_conf()->bluestore_min_alloc_size;
   unsigned size = min_alloc / 3;
-  bufferptr bpa(size);
+  bufferptr_rw bpa(size);
   memset(bpa.c_str(), 1, bpa.length());
   bufferlist bla;
   bla.append(bpa);
@@ -2602,7 +2602,7 @@ TEST_P(StoreTest, AppendZeroTrailingSharedBlock) {
   }
 
   // append with implicit zeroing
-  bufferptr bpb(size);
+  bufferptr_rw bpb(size);
   memset(bpb.c_str(), 2, bpb.length());
   bufferlist blb;
   blb.append(bpb);
@@ -2651,7 +2651,7 @@ TEST_P(StoreTest, SmallSequentialUnaligned) {
   }
   bufferlist bl;
   int len = 1000;
-  bufferptr bp(len);
+  bufferptr_rw bp(len);
   bp.zero();
   bl.append(bp);
   for (int i=0; i<1000; ++i) {
@@ -2684,7 +2684,7 @@ TEST_P(StoreTest, ManyBigWrite) {
     ASSERT_EQ(r, 0);
   }
   bufferlist bl;
-  bufferptr bp(4 * 1048576);
+  bufferptr_rw bp(4 * 1048576);
   bp.zero();
   bl.append(bp);
   for (int i=0; i<10; ++i) {
@@ -2737,11 +2737,11 @@ TEST_P(StoreTest, BigWriteBigZero) {
     ASSERT_EQ(r, 0);
   }
   bufferlist bl;
-  bufferptr bp(1048576);
+  bufferptr_rw bp(1048576);
   memset(bp.c_str(), 'b', bp.length());
   bl.append(bp);
   bufferlist s;
-  bufferptr sp(4096);
+  bufferptr_rw sp(4096);
   memset(sp.c_str(), 's', sp.length());
   s.append(sp);
   {
@@ -2784,7 +2784,7 @@ TEST_P(StoreTest, MiscFragmentTests) {
     ASSERT_EQ(r, 0);
   }
   bufferlist bl;
-  bufferptr bp(524288);
+  bufferptr_rw bp(524288);
   bp.zero();
   bl.append(bp);
   {
@@ -3336,7 +3336,7 @@ TEST_P(StoreTest, SimpleCloneTest) {
   }
   {
     bufferlist final;
-    bufferptr p(16384);
+    bufferptr_rw p(16384);
     memset(p.c_str(), 1, p.length());
     bufferlist pl;
     pl.append(p);
@@ -3344,7 +3344,7 @@ TEST_P(StoreTest, SimpleCloneTest) {
     ObjectStore::Transaction t;
     t.write(cid, hoid, 0, pl.length(), pl);
     t.clone(cid, hoid, hoid2);
-    bufferptr a(4096);
+    bufferptr_rw a(4096);
     memset(a.c_str(), 2, a.length());
     bufferlist al;
     al.append(a);
@@ -3365,7 +3365,7 @@ TEST_P(StoreTest, SimpleCloneTest) {
   }
   {
     bufferlist final;
-    bufferptr p(16384);
+    bufferptr_rw p(16384);
     memset(p.c_str(), 111, p.length());
     bufferlist pl;
     pl.append(p);
@@ -3373,10 +3373,10 @@ TEST_P(StoreTest, SimpleCloneTest) {
     ObjectStore::Transaction t;
     t.write(cid, hoid, 0, pl.length(), pl);
     t.clone(cid, hoid, hoid2);
-    bufferptr z(4096);
+    bufferptr_rw z(4096);
     z.zero();
     final.append(z);
-    bufferptr a(4096);
+    bufferptr_rw a(4096);
     memset(a.c_str(), 112, a.length());
     bufferlist al;
     al.append(a);
@@ -3397,7 +3397,7 @@ TEST_P(StoreTest, SimpleCloneTest) {
   }
   {
     bufferlist final;
-    bufferptr p(16000);
+    bufferptr_rw p(16000);
     memset(p.c_str(), 5, p.length());
     bufferlist pl;
     pl.append(p);
@@ -3405,10 +3405,10 @@ TEST_P(StoreTest, SimpleCloneTest) {
     ObjectStore::Transaction t;
     t.write(cid, hoid, 0, pl.length(), pl);
     t.clone(cid, hoid, hoid2);
-    bufferptr z(1000);
+    bufferptr_rw z(1000);
     z.zero();
     final.append(z);
-    bufferptr a(8000);
+    bufferptr_rw a(8000);
     memset(a.c_str(), 6, a.length());
     bufferlist al;
     al.append(a);
@@ -3431,14 +3431,14 @@ TEST_P(StoreTest, SimpleCloneTest) {
     ASSERT_EQ(0, queue_transaction(store, ch, std::move(t)));
   }
   {
-    bufferptr p(1048576);
+    bufferptr_rw p(1048576);
     memset(p.c_str(), 3, p.length());
     bufferlist pl;
     pl.append(p);
     ObjectStore::Transaction t;
     t.write(cid, hoid, 0, pl.length(), pl);
     t.clone(cid, hoid, hoid2);
-    bufferptr a(65536);
+    bufferptr_rw a(65536);
     memset(a.c_str(), 4, a.length());
     bufferlist al;
     al.append(a);
@@ -3466,14 +3466,14 @@ TEST_P(StoreTest, SimpleCloneTest) {
     ASSERT_EQ(0, queue_transaction(store, ch, std::move(t)));
   }
   {
-    bufferptr p(65536);
+    bufferptr_rw p(65536);
     memset(p.c_str(), 7, p.length());
     bufferlist pl;
     pl.append(p);
     ObjectStore::Transaction t;
     t.write(cid, hoid, 0, pl.length(), pl);
     t.clone(cid, hoid, hoid2);
-    bufferptr a(4096);
+    bufferptr_rw a(4096);
     memset(a.c_str(), 8, a.length());
     bufferlist al;
     al.append(a);
@@ -3501,14 +3501,14 @@ TEST_P(StoreTest, SimpleCloneTest) {
     ASSERT_EQ(0, queue_transaction(store, ch, std::move(t)));
   }
   {
-    bufferptr p(65536);
+    bufferptr_rw p(65536);
     memset(p.c_str(), 9, p.length());
     bufferlist pl;
     pl.append(p);
     ObjectStore::Transaction t;
     t.write(cid, hoid, 0, pl.length(), pl);
     t.clone(cid, hoid, hoid2);
-    bufferptr a(4096);
+    bufferptr_rw a(4096);
     memset(a.c_str(), 10, a.length());
     bufferlist al;
     al.append(a);
@@ -4378,7 +4378,7 @@ public:
     if (!size) {
       return;
     }
-    bufferptr bp(size);
+    bufferptr_rw bp(size);
     for (unsigned int i = 0; i < size - 1; i++) {
       // severely limit entropy so we can compress...
       bp[i] = alphanum[rand() % 10]; //(sizeof(alphanum) - 1)];
@@ -5370,7 +5370,7 @@ TEST_P(StoreTestSpecificAUSize, ZipperPatternSharded) {
   }
   bufferlist bl;
   int len = 4096;
-  bufferptr bp(len);
+  bufferptr_rw bp(len);
   bp.zero();
   bl.append(bp);
   for (int i=0; i<1000; ++i) {
@@ -9266,7 +9266,7 @@ TEST_P(StoreTest, KVDBHistogramTest) {
   coll_t cid;
   string base("testobj.");
   bufferlist a;
-  bufferptr ap(0x1000);
+  bufferptr_rw ap(0x1000);
   memset(ap.c_str(), 'a', 0x1000);
   a.append(ap);
   auto ch = store->create_new_collection(cid);
@@ -9310,7 +9310,7 @@ TEST_P(StoreTest, KVDBStatsTest) {
   coll_t cid;
   string base("testobj.");
   bufferlist a;
-  bufferptr ap(0x1000);
+  bufferptr_rw ap(0x1000);
   memset(ap.c_str(), 'a', 0x1000);
   a.append(ap);
   auto ch = store->create_new_collection(cid);
@@ -10294,7 +10294,7 @@ TEST_P(StoreTestDeferredSetup, DISABLED_BluestoreHugeReads)
 
   bufferlist bl;
   {
-    bufferptr bp{HUGE_BUFFER_SIZE};
+    bufferptr_rw bp{HUGE_BUFFER_SIZE};
     // non-zeros! Otherwise the deduplication will take place.
     ::memset(bp.c_str(), 0x42, HUGE_BUFFER_SIZE);
     bl.push_back(std::move(bp));
@@ -10368,7 +10368,7 @@ TEST_P(StoreTest, SpuriousReadErrorTest) {
     ASSERT_EQ(r, 0);
   }
   bufferlist test_data;
-  bufferptr ap(0x2000);
+  bufferptr_rw ap(0x2000);
   memset(ap.c_str(), 'a', 0x2000);
   test_data.append(ap);
   {
@@ -10609,9 +10609,8 @@ TEST_P(StoreTestSpecificAUSize, ReproNoBlobMultiTest) {
     uint64_t offs = 0;
     bufferlist bl;
     const int size = 0x100;
-    bufferptr ap(size);
-    memset(ap.c_str(), 'a', size);
-    bl.append(ap);
+    auto filler = bl.append_hole(size);
+    memset(filler.c_str(), 'a', size);
     int i = 0;
     uint64_t  blob_size = 524288;
     uint64_t total = 0;
@@ -10622,9 +10621,9 @@ TEST_P(StoreTestSpecificAUSize, ReproNoBlobMultiTest) {
       hoid2.hobj.snap = i + 1;
       while (offs < 128 * 1024 * 1024) {
 
-        t.write(cid, hoid, offs, ap.length(), bl);
+        t.write(cid, hoid, offs, size, bl);
        offs += blob_size;
-       total += ap.length();
+       total += size;
       }
       t.clone(cid, hoid, hoid2);
       r = queue_transaction(store, ch, std::move(t));
