@@ -314,7 +314,8 @@ Message *decode_message(CephContext *cct,
                         ceph::bufferlist&& front,
                         ceph::bufferlist&& middle,
                         const ceph::bufferlist& data,
-                        Message::ConnectionRef conn)
+                        Message::ConnectionRef conn,
+                        uint64_t features)
 {
 #ifdef WITH_SEASTAR
   // In crimson, conn is independently maintained outside Message.
@@ -985,7 +986,7 @@ Message *decode_message(CephContext *cct,
   m->set_data(data);
 
   try {
-    m->decode_payload(0);
+    m->decode_payload(features);
   }
   catch (const ceph::buffer::error &e) {
     if (cct) {
@@ -1101,5 +1102,6 @@ Message *decode_message(CephContext *cct, int crcflags, ceph::bufferlist::const_
   decode(fr, p);
   decode(mi, p);
   decode(da, p);
-  return decode_message(cct, crcflags, h, f, std::move(fr), std::move(mi), std::move(da), nullptr);
+  return decode_message(
+    cct, crcflags, h, f, std::move(fr), std::move(mi), std::move(da), nullptr, 0);
 }
