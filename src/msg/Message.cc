@@ -985,7 +985,7 @@ Message *decode_message(CephContext *cct,
   m->set_data(data);
 
   try {
-    m->decode_payload();
+    m->decode_payload(0);
   }
   catch (const ceph::buffer::error &e) {
     if (cct) {
