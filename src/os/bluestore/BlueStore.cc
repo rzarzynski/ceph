@@ -4447,7 +4447,7 @@ void BlueStore::MempoolThread::_update_cache_settings()
 #define dout_prefix *_dout << "bluestore.OmapIteratorImpl(" << this << ") "
 
 BlueStore::OmapIteratorImpl::OmapIteratorImpl(
-  PerfCounters* _logger, CollectionRef c, OnodeRef& o, KeyValueDB::Iterator it)
+  PerfCounters* _logger, CollectionRef c, OnodeRef& o, KeyValueDB::Iterator it, string start_from)
   : logger(_logger), c(c), o(o), it(it)
 {
   logger->inc(l_bluestore_omap_iterator_count);
@@ -4455,7 +4455,9 @@ BlueStore::OmapIteratorImpl::OmapIteratorImpl(
   if (o->onode.has_omap()) {
     o->get_omap_key(string(), &head);
     o->get_omap_tail(&tail);
-    it->lower_bound(head);
+    string key;
+    o->get_omap_key(start_from, &key);
+    it->lower_bound(key);
   }
 }
 BlueStore::OmapIteratorImpl::~OmapIteratorImpl()
@@ -12198,7 +12200,8 @@ int BlueStore::omap_check_keys(
 
 ObjectMap::ObjectMapIterator BlueStore::get_omap_iterator(
   CollectionHandle &c_,              ///< [in] collection
-  const ghobject_t &oid  ///< [in] object
+  const ghobject_t &oid,  ///< [in] object
+  std::string start_from  ///< [in] key the iterator should point to at the beginning
   )
 {
   Collection *c = static_cast<Collection *>(c_.get());
@@ -12223,7 +12226,7 @@ ObjectMap::ObjectMapIterator BlueStore::get_omap_iterator(
     bounds.upper_bound = std::move(upper_bound);
   }
   KeyValueDB::Iterator it = db->get_iterator(o->get_omap_prefix(), 0, std::move(bounds));
-  return ObjectMap::ObjectMapIterator(new OmapIteratorImpl(logger,c, o, it));
+  return ObjectMap::ObjectMapIterator(new OmapIteratorImpl(logger,c, o, it, start_from));
 }
 
 // -----------------
