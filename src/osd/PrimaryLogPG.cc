@@ -7680,11 +7680,9 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	bool truncated = false;
 	if (oi.is_omap()) {
 	  ObjectMap::ObjectMapIterator iter = osd->store->get_omap_iterator(
-	    ch, ghobject_t(soid), start_after
+	    ch, ghobject_t(soid), { .key = start_after, .lower_bound = false }
 	    );
 	  ceph_assert(iter);
-	  // the get_omap_iterator() seeks to lower bound
-	  iter->upper_bound(start_after);
 	  for (num = 0; iter->valid(); ++num, iter->next()) {
 	    if (num >= max_return ||
 		bl.length() >= cct->_conf->osd_max_omap_bytes_per_request) {
@@ -7732,16 +7730,14 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	    // try to seek as many keys-at-once as possible for the sake of performance.
 	    // note complexity should be logarithmic, so seek(n/2) + seek(n/2) is worse
 	    // than just seek(n).
-	    filter_prefix >= start_after ? filter_prefix : start_after
-	    );
+	    ObjectStore::omap_iter_seek_t{
+	      .key = std::max(start_after, filter_prefix),
+	      .lower_bound = filter_prefix > start_after
+	    });
           if (!iter) {
             result = -ENOENT;
             goto fail;
           }
-	  if (filter_prefix <= start_after) {
-	    // the get_omap_iterator() seeks to lower bound
-	    iter->upper_bound(start_after);
-	  }
 	  for (num = 0;
 	       iter->valid() &&
 		 iter->key().substr(0, filter_prefix.size()) == filter_prefix;
