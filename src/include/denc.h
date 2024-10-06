@@ -1794,29 +1794,29 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
 #define DENC_HELPERS							\
   /* bound_encode */							\
   static void _denc_start(size_t& p,					\
-			  __u8 *struct_v,				\
-			  __u8 *struct_compat,				\
+			  __u8 struct_v,				\
+			  __u8 struct_compat,				\
 			  char **, uint32_t *) {			\
     p += 2 + 4;								\
   }									\
   static void _denc_finish(size_t& p,					\
-			   __u8 *struct_v,				\
-			   __u8 *struct_compat,				\
+			   __u8 struct_v,				\
+			   __u8 struct_compat,				\
 			   char **, uint32_t *) { }			\
   /* encode */								\
   static void _denc_start(::ceph::buffer::list::contiguous_appender& p,	\
-			  __u8 *struct_v,				\
-			  __u8 *struct_compat,				\
+			  __u8 struct_v,				\
+			  __u8 struct_compat,				\
 			  char **len_pos,				\
 			  uint32_t *start_oob_off) {			\
-    denc(*struct_v, p);							\
-    denc(*struct_compat, p);						\
+    denc(struct_v, p);							\
+    denc(struct_compat, p);						\
     *len_pos = p.get_pos_add(4);					\
     *start_oob_off = p.get_out_of_band_offset();			\
   }									\
   static void _denc_finish(::ceph::buffer::list::contiguous_appender& p, \
-			   __u8 *struct_v,				\
-			   __u8 *struct_compat,				\
+			   __u8 struct_v,				\
+			   __u8 struct_compat,				\
 			   char **len_pos,				\
 			   uint32_t *start_oob_off) {			\
     *(ceph_le32*)*len_pos = p.get_pos() - *len_pos - sizeof(uint32_t) +	\
@@ -1824,20 +1824,20 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
   }									\
   /* decode */								\
   static void _denc_start(::ceph::buffer::ptr::const_iterator& p,	\
-			  __u8 *struct_v,				\
-			  __u8 *struct_compat,				\
+			  __u8 struct_v,				\
+			  __u8 struct_compat,				\
 			  char **start_pos,				\
 			  uint32_t *struct_len) {			\
-    __u8 code_v = *struct_v;						\
-    denc(*struct_v, p);							\
-    denc(*struct_compat, p);						\
-    if (unlikely(code_v < *struct_compat))				\
-      denc_compat_throw(__PRETTY_FUNCTION__, code_v, *struct_v, *struct_compat);\
+    __u8 code_v = struct_v;						\
+    denc(struct_v, p);							\
+    denc(struct_compat, p);						\
+    if (unlikely(code_v < struct_compat))				\
+      denc_compat_throw(__PRETTY_FUNCTION__, code_v, struct_v, struct_compat);\
     denc(*struct_len, p);						\
     *start_pos = const_cast<char*>(p.get_pos());			\
   }									\
   static void _denc_finish(::ceph::buffer::ptr::const_iterator& p,	\
-			   __u8 *struct_v, __u8 *struct_compat,		\
+			   __u8 struct_v, __u8 struct_compat,		\
 			   char **start_pos,				\
 			   uint32_t *struct_len) {			\
     const char *pos = p.get_pos();					\
@@ -1864,7 +1864,7 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
   char *_denc_pchar;							\
   uint32_t _denc_u32;							\
   static_assert(CEPH_RELEASE >= (CEPH_RELEASE_SQUID /*19*/ + 2) || compat == 1);	\
-  _denc_start(p, &struct_v, &struct_compat, &_denc_pchar, &_denc_u32);	\
+  _denc_start(p, struct_v, struct_compat, &_denc_pchar, &_denc_u32);	\
   do {
 
 // For the only type that is with compat 2: unittest.
@@ -1874,7 +1874,7 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
   char *_denc_pchar;							\
   uint32_t _denc_u32;							\
   static_assert(CEPH_RELEASE >= (CEPH_RELEASE_SQUID /*19*/ + 2) || compat == 2);	\
-  _denc_start(p, &struct_v, &struct_compat, &_denc_pchar, &_denc_u32);	\
+  _denc_start(p, struct_v, struct_compat, &_denc_pchar, &_denc_u32);	\
   do {
 
 // For osd_reqid_t which cannot be upgraded at all.
@@ -1885,12 +1885,12 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
   char *_denc_pchar;							\
   uint32_t _denc_u32;							\
   static_assert(compat == 2, "osd_reqid_t cannot be upgraded");		\
-  _denc_start(p, &struct_v, &struct_compat, &_denc_pchar, &_denc_u32);	\
+  _denc_start(p, struct_v, struct_compat, &_denc_pchar, &_denc_u32);	\
   do {
 
 #define DENC_FINISH(p)							\
   } while (false);							\
-  _denc_finish(p, &struct_v, &struct_compat, &_denc_pchar, &_denc_u32);
+  _denc_finish(p, struct_v, struct_compat, &_denc_pchar, &_denc_u32);
 
 
 // ----------------------------------------------------------------------
