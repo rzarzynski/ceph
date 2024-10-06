@@ -1791,6 +1791,33 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
     "' v=" + std::to_string(code_v)+ " cannot decode v=" + std::to_string(struct_v) +
     " minimal_decoder=" + std::to_string(struct_compat));
 }
+
+template <__u8 MaxV>
+struct VersionChecker
+{
+  struct CheckingWrapper {
+    consteval CheckingWrapper(__u8 c) : c(c) {
+      consteval_assert(
+        c <= MaxV, "checking against higher version than declared in DECODE_START");
+    }
+    __u8 c;
+  };
+  // we want the implicit conversion to take place but with lower
+  // rank than the CheckingWrapper-conversion during struct_v cmps.
+  template<class T=void> operator __u8() {
+    return v;
+  }
+  // need the wrapper as the operator cannot be consteval; otherwise
+  // it couldn't have accessed the non-constexpr `v`.
+  auto operator<=>(CheckingWrapper c) {
+    return v <=> c.c;
+  }
+  auto operator==(CheckingWrapper c) {
+    return v == c.c;
+  }
+  __u8 v;
+};
+
 #define DENC_HELPERS							\
   /* bound_encode */							\
   static void _denc_start(size_t& p,					\
@@ -1859,7 +1886,7 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
 // SQUID=19 T____=20 U____=21
 
 #define DENC_START(v, compat, p)					\
-  __u8 struct_v = v;							\
+  VersionChecker<v> struct_v{v};					\
   __u8 struct_compat = compat;						\
   char *_denc_pchar;							\
   uint32_t _denc_u32;							\
@@ -1869,7 +1896,7 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
 
 // For the only type that is with compat 2: unittest.
 #define DENC_START_COMPAT_2(v, compat, p)				\
-  __u8 struct_v = v;							\
+  VersionChecker<v> struct_v{v};					\
   __u8 struct_compat = compat;						\
   char *_denc_pchar;							\
   uint32_t _denc_u32;							\
@@ -1880,7 +1907,7 @@ inline std::enable_if_t<traits::supported && !traits::featured> decode_nohead(
 // For osd_reqid_t which cannot be upgraded at all.
 // We used it to communicate with clients and now we cannot safely upgrade.
 #define DENC_START_OSD_REQID(v, compat, p)				\
-  __u8 struct_v = v;							\
+  VersionChecker<v> struct_v{v};					\
   __u8 struct_compat = compat;						\
   char *_denc_pchar;							\
   uint32_t _denc_u32;							\
