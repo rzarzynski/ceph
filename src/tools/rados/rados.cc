@@ -46,6 +46,7 @@
 #include <dirent.h>
 #include <stdexcept>
 #include <climits>
+#include <limits>
 #include <locale>
 #include <memory>
 #include <optional>
@@ -127,6 +128,7 @@ void usage(ostream& out)
 "                                    default is 16 concurrent IOs and 4 MB ops\n"
 "                                    default is to clean up after write benchmark\n"
 "                                    default run-name is 'benchmark_last_metadata'\n"
+"                                    seconds can be numeral or 'max'\n"
 "   cleanup [--run-name run_name] [--prefix prefix]\n"
 "                                    clean up a previous benchmark operation\n"
 "                                    default run-name is 'benchmark_last_metadata'\n"
@@ -3298,7 +3300,8 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
       return 1;
     }
     char* endptr = NULL;
-    int seconds = strtol(nargs[1], &endptr, 10);
+    int seconds = nargs[1] == "max" ? std::numeric_limits<int>::max()
+				    : strtol(nargs[1], &endptr, 10);
     if (*endptr) {
       cerr << "Invalid value for seconds: '" << nargs[1] << "'" << std::endl;
       return 1;
