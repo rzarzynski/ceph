@@ -7781,15 +7781,15 @@ int PrimaryLogPG::do_osd_ops(OpContext *ctx, vector<OSDOp>& ops)
 	      ++num;
 	      return ObjectStore::omap_iter_ret_t::NEXT;
 	    });
+	  if (result < 0) {
+	    goto fail;
+	  }
 	} // else return empty out_set
 	encode(num, osd_op.outdata);
 	osd_op.outdata.claim_append(bl);
 	encode(truncated, osd_op.outdata);
 	ctx->delta_stats.num_rd_kb += shift_round_up(osd_op.outdata.length(), 10);
 	ctx->delta_stats.num_rd++;
-	if (result < 0) {
-	  goto fail;
-	}
       }
       break;
 
