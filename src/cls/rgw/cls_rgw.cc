@@ -235,12 +235,40 @@ static int log_index_operation(cls_method_context_t hctx, const cls_rgw_obj_key&
   return cls_cxx_map_set_val(hctx, key, &bl);
 }
 
+#if 0
 /*
- * Read list of objects, skipping objects in the "ugly namespace". The
- * "ugly namespace" entries begin with BI_PREFIX_CHAR (0x80). Valid
- * UTF-8 object names can *both* preceed and follow the "ugly
- * namespace".
+ * Determine whether an object is in the "ugly namespace".
+ * The "ugly namespace" entries begin with BI_PREFIX_CHAR (0x80).
+ * Valid  UTF-8 object names can *both* preceed and follow
+ * the "ugly namespace".
  */
+static bool is_ugly_key(std::string_view key)
+{
+  return static_cast<unsigned char>(key[0]) == BI_PREFIX_CHAR;
+}
+{
+  using iter_key_t =
+    ceph::netstring_cacher<ceph::string_view_holder>;
+  using iter_val_t =
+    ceph::decode_deferrer<rgw_bucket_dir_entry>;
+  // the lambda could be propagated even to the objectstore (assuming
+  // changes in PG::do_osd_ops)
+  int ret = cls_cxx_map_iterate(hctx, start, filter_prefix, num_entries,
+    [] (iter_key_t key, iter_val_t val) {
+      if (is_ugly_key(key)) {
+        return NEXT;
+      }
+      // these encodes are fast as netstring_cacher and decode_deferrer
+      // ensures no memcpy, even for the `len`, which crucial to avoid
+      // fragmentation.
+      encode(key, result_bl);
+      encode(val, result_bl);
+    });
+}
+#endif
+
+/*
+ * Read list of objects,  */
 static int get_obj_vals(cls_method_context_t hctx,
 			const std::string& start,
 			const std::string& filter_prefix,
