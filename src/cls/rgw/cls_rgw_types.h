@@ -1009,7 +1009,7 @@ struct rgw_bucket_dir {
     mutable std::map<std::string, ceph::buffer::list> entries;
 
     void encode(ceph::buffer::list &bl) const {
-      using ::ceph::encode;					     \
+      using ::ceph::encode;
       __u32 n = (__u32)(entries.size());
       encode(n, bl);
       for (auto p = entries.begin(); p != entries.end(); ++p) {
@@ -1020,7 +1020,7 @@ struct rgw_bucket_dir {
       }
     }
     void decode(ceph::buffer::list::const_iterator &p) {
-      using ::ceph::decode;					     \
+      using ::ceph::decode;
       decode(entries, p);
     }
   };
