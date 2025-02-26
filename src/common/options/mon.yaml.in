@@ -1295,6 +1295,13 @@ options:
   default: 1024
   services:
   - mon
+- name: mon_osd_disaster_recovery_features_for_incrementals
+  type: uint
+  level: dev
+  desc: extra feature flags to append when processing incremental maps on PAXOS update
+  default: 0
+  services:
+  - mon
 - name: mon_memory_target
   type: size
   level: basic

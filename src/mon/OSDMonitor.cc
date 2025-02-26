@@ -845,6 +845,13 @@ void OSDMonitor::update_from_paxos(bool *need_bootstrap)
       f = mon.get_quorum_con_features();
     if (!f)
       f = -1;
+    auto extra_bits =
+      g_conf().get_val<uint64_t>("mon_osd_disaster_recovery_features_for_incrementals");
+    if (extra_bits) {
+      dout(7) << __func__ << " adding extra features bits " << extra_bits
+	      << dendl;
+      f |= extra_bits;
+    }
     bufferlist full_bl;
     osdmap.encode(full_bl, f | CEPH_FEATURE_RESERVED);
     tx_size += full_bl.length();
