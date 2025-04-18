@@ -1352,7 +1352,7 @@ ReplicatedRecoveryBackend::get_md_from_push_op(PushOp &push_op)
 {
   LOG_PREFIX(ReplicatedRecoveryBackend::get_md_from_push_op);
   object_info_t oi;
-  oi.decode(push_op.attrset.at(OI_ATTR), push_op.soid);
+  oi.decode(push_op.attrset.at(OI_ATTR));
   assert(oi.soid == push_op.soid);
 
   crimson::osd::SnapSetContextRef ssc;
