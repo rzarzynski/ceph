@@ -64,7 +64,7 @@ static ostream& _prefix(std::ostream *_dout, ECBackend::RecoveryBackend *pgb) {
   return pgb->get_parent()->gen_dbg_prefix(*_dout);
 }
 
-struct ECRecoveryHandle : public PGBackend::RecoveryHandle {
+struct ECCommon::RecoveryBackend::ECRecoveryHandle : public PGBackend::RecoveryHandle {
   list<ECBackend::RecoveryBackend::RecoveryOp> ops;
 };
 
@@ -142,7 +142,8 @@ ECBackend::ECBackend(
 
 PGBackend::RecoveryHandle *ECBackend::open_recovery_op()
 {
-  return recovery_backend.open_recovery_op();
+  return static_cast<PGBackend::RecoveryHandle*>(
+    recovery_backend.open_recovery_op());
 }
 
 ECBackend::RecoveryBackend::RecoveryBackend(
@@ -164,7 +165,7 @@ ECBackend::RecoveryBackend::RecoveryBackend(
     ecbackend(ecbackend) {
 }
 
-PGBackend::RecoveryHandle *ECBackend::RecoveryBackend::open_recovery_op()
+ECCommon::RecoveryBackend::ECRecoveryHandle *ECBackend::RecoveryBackend::open_recovery_op()
 {
   return new ECRecoveryHandle;
 }
@@ -726,14 +727,14 @@ void ECBackend::run_recovery_op(
   int priority)
 {
   ceph_assert(_h);
-  ECRecoveryHandle &h = static_cast<ECRecoveryHandle&>(*_h);
+  auto &h = static_cast<ECCommon::RecoveryBackend::ECRecoveryHandle&>(*_h);
   recovery_backend.run_recovery_op(h, priority);
   switcher->send_recovery_deletes(priority, h.deletes);
   delete _h;
 }
 
 void ECBackend::RecoveryBackend::run_recovery_op(
-  ECRecoveryHandle &h,
+  ECCommon::RecoveryBackend::ECRecoveryHandle &h,
   int priority)
 {
   RecoveryMessages m;
@@ -755,7 +756,8 @@ int ECBackend::recover_object(
   ObjectContextRef obc,
   PGBackend::RecoveryHandle *_h)
 {
-  return recovery_backend.recover_object(hoid, v, head, obc, _h);
+  auto *h = static_cast<ECCommon::RecoveryBackend::ECRecoveryHandle*>(_h);
+  return recovery_backend.recover_object(hoid, v, head, obc, h);
 }
 
 int ECBackend::RecoveryBackend::recover_object(
@@ -763,9 +765,8 @@ int ECBackend::RecoveryBackend::recover_object(
   eversion_t v,
   ObjectContextRef head,
   ObjectContextRef obc,
-  PGBackend::RecoveryHandle *_h)
+  ECCommon::RecoveryBackend::ECRecoveryHandle *h)
 {
-  ECRecoveryHandle *h = static_cast<ECRecoveryHandle*>(_h);
   h->ops.push_back(RecoveryOp());
   h->ops.back().v = v;
   h->ops.back().hoid = hoid;

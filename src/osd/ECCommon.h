@@ -41,6 +41,7 @@ typedef crimson::osd::ObjectContextRef ObjectContextRef;
 #include "ECListener.h"
 
 //forward declaration
+struct ECBackend;
 struct ECSubWrite;
 struct PGLog;
 struct RecoveryMessages;
@@ -656,7 +657,7 @@ public:
 
     RecoveryOp() : state(IDLE) {}
   };
-  friend ostream &operator<<(ostream &lhs, const RecoveryOp &rhs);
+  friend std::ostream &operator<<(std::ostream &lhs, const RecoveryOp &rhs);
   std::map<hobject_t, RecoveryOp> recovery_ops;
 
   uint64_t get_recovery_chunk_size() const {
@@ -670,16 +671,17 @@ public:
     std::map<int, MOSDPGPushReply*> replies) = 0;
   void dispatch_recovery_messages(RecoveryMessages &m, int priority);
 
-  PGBackend::RecoveryHandle *open_recovery_op();
+  struct ECRecoveryHandle;
+  ECRecoveryHandle *open_recovery_op();
   void run_recovery_op(
-    struct ECRecoveryHandle &h,
+    ECRecoveryHandle &h,
     int priority);
   int recover_object(
     const hobject_t &hoid,
     eversion_t v,
     ObjectContextRef head,
     ObjectContextRef obc,
-    PGBackend::RecoveryHandle *h);
+    ECRecoveryHandle *h);
   void continue_recovery_op(
     RecoveryBackend::RecoveryOp &op,
     RecoveryMessages *m);
