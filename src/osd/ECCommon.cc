@@ -230,11 +230,13 @@ void ECCommon::ReadPipeline::get_all_avail_shards(
     if (error_shards.contains(*i)) {
       continue;
     }
+#ifndef WITH_CRIMSON
     if (cct->_conf->bluestore_debug_inject_read_err &&
           ECInject::test_read_error1(ghobject_t(hoid, ghobject_t::NO_GEN, i->shard))) {
       dout(0) << __func__ << " Error inject - Missing shard " << i->shard << dendl;
       continue;
     }
+#endif
     if (!missing.is_missing(hoid)) {
       ceph_assert(!have.count(static_cast<int>(i->shard)));
       have.insert(static_cast<int>(i->shard));
@@ -925,11 +927,13 @@ bool ECCommon::RMWPipeline::try_reads_to_commit()
     if (*i == get_parent()->whoami_shard()) {
       should_write_local = true;
       local_write_op.claim(sop);
+#ifndef WITH_CRIMSON
     } else if (cct->_conf->bluestore_debug_inject_read_err &&
                  ECInject::test_write_error1(ghobject_t(op->hoid,
                    ghobject_t::NO_GEN, i->shard))) {
       dout(0) << " Error inject - Dropping write message to shard " <<
         i->shard << dendl;
+#endif
     } else {
       MOSDECSubOpWrite *r = new MOSDECSubOpWrite(sop);
       r->pgid = spg_t(get_parent()->primary_spg_t().pgid, i->shard);
