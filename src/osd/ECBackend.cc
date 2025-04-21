@@ -130,7 +130,7 @@ ECBackend::ECBackend(
   uint64_t stripe_width,
   ECSwitch *s)
   : parent(pg), cct(cct), switcher(s),
-    read_pipeline(cct, ec_impl, this->sinfo, get_parent()->get_eclistener()),
+    read_pipeline(cct, ec_impl, this->sinfo, get_parent()->get_eclistener(), *this),
     rmw_pipeline(cct, ec_impl, this->sinfo, get_parent()->get_eclistener(), *this),
     recovery_backend(cct, switcher->coll, ec_impl, this->sinfo, read_pipeline, unstable_hashinfo_registry, get_parent(), this),
     ec_impl(ec_impl),
@@ -1134,6 +1134,16 @@ error:
   }
   reply->from = get_parent()->whoami_shard();
   reply->tid = op.tid;
+}
+
+void ECBackend::handle_sub_read_n_reply(
+  pg_shard_t from,
+  ECSubRead &op,
+  const ZTracer::Trace &trace)
+{
+  ECSubReadReply reply;
+  handle_sub_read(from, op, &reply, trace);
+  handle_sub_read_reply(from, reply, trace);
 }
 
 void ECBackend::handle_sub_write_reply(
