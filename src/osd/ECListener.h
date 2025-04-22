@@ -20,6 +20,7 @@
 #include "OSDMap.h"
 #include "common/WorkQueue.h"
 #include "PGLog.h"
+#include "messages/MOSDPGPush.h"
 
 // ECListener -- an interface decoupling the pipelines from
 // particular implementation of ECBackendL (crimson vs cassical).
