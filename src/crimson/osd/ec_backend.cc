@@ -571,7 +571,6 @@ ECBackend::handle_rep_read_op(Ref<MOSDECSubOpRead> m)
 ECBackend::ll_read_ierrorator::future<ECSubReadReply>
 ECBackend::handle_rep_read_op(ECSubRead& op)
 {
-<<<<<<< HEAD
   LOG_PREFIX(ECBackend::handle_rep_read_op);
   return seastar::do_with(ECSubReadReply{},
 		          [&op, FNAME, this] (auto&& reply) {
