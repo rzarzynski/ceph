@@ -17,8 +17,6 @@ namespace {
   }
 }
 
-SET_SUBSYS(osd);
-
 ceph::ErasureCodeInterfaceRef ECBackend::create_ec_impl(
   const ec_profile_t& ec_profile)
 {
