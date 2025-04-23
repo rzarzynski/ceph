@@ -1490,7 +1490,7 @@ void ECCommon::RecoveryBackend::continue_recovery_op(
 	amount,
 	std::move(want),
 	to_read,
-#ifdef WITH_SEASTAR
+#ifdef WITH_CRIMSON
 	op.recovery_progress.first && op.xattrs.count(OI_ATTR) == 0);
 #else
 	op.recovery_progress.first && !op.obc);
