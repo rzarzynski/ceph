@@ -50,11 +50,21 @@ typedef void *cls_handle_t;
 typedef void *cls_method_handle_t;
 
 /**
+ * @typedef cls_readonly_method_context_t
+ *
+ * A context for the method of the object class that, in contrast
+ * to cls_method_context_t, can only read from OSD.
+ */
+struct ctx_rd_tag_t {};
+typedef ctx_rd_tag_t* cls_readonly_method_context_t;
+
+/**
  * @typedef cls_method_context_t
  *
  * A context for the method of the object class.
  */
-typedef void* cls_method_context_t;
+struct ctx_tag_t : ctx_rd_tag_t {};
+typedef ctx_tag_t* cls_method_context_t;
 
 /*class utils*/
 extern int cls_log(int level, const char *format, ...)
