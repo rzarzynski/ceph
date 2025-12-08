@@ -52,7 +52,7 @@ typedef void *cls_method_handle_t;
 /**
  * @typedef cls_readonly_method_context_t
  *
- * A context for the method of the object class that, in contrast
+ * A context for a method of the object class that, in contrast
  * to cls_method_context_t, can only read from OSD.
  */
 struct ctx_rd_tag_t {};
