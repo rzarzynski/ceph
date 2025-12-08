@@ -27,7 +27,7 @@ using std::string;
 
 static constexpr int dout_subsys = ceph_subsys_objclass;
 
-static inline int execute_osd_op(cls_method_context_t hctx, OSDOp& op)
+static inline int execute_osd_op(cls_readonly_method_context_t hctx, OSDOp& op)
 {
   // we can expect the memory under `ret` will be still fine after
   // executing the osd op as we're running inside `seastar::thread`
@@ -42,6 +42,11 @@ static inline int execute_osd_op(cls_method_context_t hctx, OSDOp& op)
       return seastar::now();
     })).get(); // we're blocking here which requires `seastar::thread`.
   return ret;
+}
+
+static inline int execute_osd_op(cls_method_context_t hctx, OSDOp& op)
+{
+  return execute_osd_op(static_cast<cls_readonly_method_context_t>(hctx), op);
 }
 
 int cls_call(cls_method_context_t hctx, const char *cls, const char *method,

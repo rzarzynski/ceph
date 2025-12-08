@@ -82,6 +82,8 @@ extern int cls_register(const char *name, cls_handle_t *handle);
  */
 typedef int (*cls_method_cxx_call_t)(cls_method_context_t ctx,
     class ceph::buffer::list *inbl, class ceph::buffer::list *outbl);
+typedef int (*cls_method_cxx_rd_call_t)(cls_readonly_method_context_t ctx,
+    class ceph::buffer::list *inbl, class ceph::buffer::list *outbl);
 
 /**
  * Register a method.
@@ -110,6 +112,14 @@ struct ClassRegistrar {
 
     int flags = FlagTraits<Tag>::value;
     detail::cls_register_cxx_method_impl(h_class, method_def.name, flags, class_call, handle);
+  }
+  template <typename Tag>
+  void register_cxx_rd_method(const ClsMethod<Tag, ClassDef>& method_def,
+                    cls_method_cxx_rd_call_t class_call,
+                    cls_method_handle_t* handle) {
+
+    //int flags = FlagTraits<Tag>::value;
+    //detail::cls_register_cxx_method_impl(h_class, method_def.name, flags, class_call, handle);
   }
 };
 
