@@ -194,7 +194,7 @@ extern int cls_cxx_setxattr(cls_method_context_t hctx, const char *name,
  * @param key
  * @param outbl
  */
-extern int cls_cxx_map_get_val(cls_method_context_t hctx,
+extern int cls_cxx_map_get_val(cls_readonly_method_context_t hctx,
                                const std::string &key, ceph::bufferlist *outbl);
 
 /**

@@ -174,7 +174,7 @@ static snapid_t snap_id_from_key(const string &key) {
 }
 
 template<typename T>
-static int read_key(cls_method_context_t hctx, const string &key, T *out)
+static int read_key(cls_readonly_method_context_t hctx, const string &key, T *out)
 {
   bufferlist bl;
   int r = cls_cxx_map_get_val(hctx, key, &bl);
@@ -866,7 +866,7 @@ int create(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
  * @param incompatible incompatible feature bits
  * @returns 0 on success, negative error code on failure
  */
-int get_features(cls_method_context_t hctx, bufferlist *in, bufferlist *out)
+int get_features(cls_readonly_method_context_t hctx, bufferlist *in, bufferlist *out)
 {
   bool read_only = false;
 
@@ -8397,7 +8397,7 @@ CLS_INIT(rbd)
   
 
   cls.register_cxx_method(method::create, create, &h_create);
-  cls.register_cxx_method(method::get_features, get_features, &h_get_features);
+  cls.register_cxx_rd_method(method::get_features, get_features, &h_get_features);
   cls.register_cxx_method(method::set_features, set_features, &h_set_features);
   cls.register_cxx_method(method::get_size, get_size, &h_get_size);
   cls.register_cxx_method(method::set_size, set_size, &h_set_size);

@@ -367,7 +367,7 @@ int cls_cxx_map_read_header(cls_method_context_t hctx, bufferlist *outbl)
   return 0;
 }
 
-int cls_cxx_map_get_val(cls_method_context_t hctx,
+int cls_cxx_map_get_val(cls_readonly_method_context_t hctx,
                         const string &key,
                         bufferlist *outbl)
 {
