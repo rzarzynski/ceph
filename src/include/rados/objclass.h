@@ -61,7 +61,7 @@ typedef ctx_rd_tag_t* cls_readonly_method_context_t;
 /**
  * @typedef cls_method_context_t
  *
- * A context for the method of the object class.
+ * A context for a method of the object class.
  */
 struct ctx_tag_t : ctx_rd_tag_t {};
 typedef ctx_tag_t* cls_method_context_t;
