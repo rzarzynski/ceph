@@ -27,34 +27,6 @@ namespace crimson::os {
 class FuturizedCollection;
 class FuturizedStore;
 
-struct RelayStore {
-  FuturizedStore &f_store;  // indicate alienstore/seastore/cyanstore, not shard store
-  store_shard_t shard_id;       // indicate on which core it should run
-  store_index_t store_index;    // indicate which shard store on this core
-  RelayStore(FuturizedStore &f_store, store_shard_t shard_id, store_index_t store_index)
-    : f_store(f_store), shard_id(shard_id), store_index(store_index) {}
-
-  static seastar::future<> with_store_do_transaction(
-    RelayStore  store,
-    boost::intrusive_ptr<FuturizedCollection> ch, // TODO: move back to `FuturizedStore::Shard::CollectionRef ch,`
-    ceph::os::Transaction&& txn);
-
-  template<auto MemberFunc, typename... Args>
-  static auto with_store(RelayStore store, Args&&... args);
-
-  static RelayStore get_backend_store(FuturizedStore &f_store, store_index_t store_index)
-  {
-    auto this_id = seastar::this_shard_id();
-    auto store_shard_nums = f_store.get_storage_shard_count();
-    if (this_id < store_shard_nums) {
-      return RelayStore(f_store, this_id, store_index);
-    } else {
-      auto shard_id = this_id % store_shard_nums;
-      return RelayStore(f_store, shard_id, store_index);
-    }
-  }
-};
-
 // scaffolding
 using BackendStore = RelayStore;
 
@@ -286,6 +258,33 @@ protected:
 };
 
 
+struct RelayStore {
+  FuturizedStore &f_store;  // indicate alienstore/seastore/cyanstore, not shard store
+  store_shard_t shard_id;       // indicate on which core it should run
+  store_index_t store_index;    // indicate which shard store on this core
+  RelayStore(FuturizedStore &f_store, store_shard_t shard_id, store_index_t store_index)
+    : f_store(f_store), shard_id(shard_id), store_index(store_index) {}
+
+  static seastar::future<> with_store_do_transaction(
+    RelayStore  store,
+    boost::intrusive_ptr<FuturizedCollection> ch, // TODO: move back to `FuturizedStore::Shard::CollectionRef ch,`
+    ceph::os::Transaction&& txn);
+
+  template<auto MemberFunc, typename... Args>
+  static auto with_store(RelayStore store, Args&&... args);
+
+  static RelayStore get_backend_store(FuturizedStore &f_store, store_index_t store_index)
+  {
+    auto this_id = seastar::this_shard_id();
+    auto store_shard_nums = f_store.get_storage_shard_count();
+    if (this_id < store_shard_nums) {
+      return RelayStore(f_store, this_id, store_index);
+    } else {
+      auto shard_id = this_id % store_shard_nums;
+      return RelayStore(f_store, shard_id, store_index);
+    }
+  }
+};
 
 template<auto MemberFunc, typename... Args>
 auto RelayStore::with_store(RelayStore store, Args&&... args)
