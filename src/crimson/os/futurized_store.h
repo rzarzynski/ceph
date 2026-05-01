@@ -41,6 +41,18 @@ struct RelayStore {
 
   template<auto MemberFunc, typename... Args>
   static auto with_store(RelayStore store, Args&&... args);
+
+  static RelayStore get_backend_store(FuturizedStore &f_store, store_index_t store_index)
+  {
+    auto this_id = seastar::this_shard_id();
+    auto store_shard_nums = f_store.get_storage_shard_count();
+    if (this_id < store_shard_nums) {
+      return RelayStore(f_store, this_id, store_index);
+    } else {
+      auto shard_id = this_id % store_shard_nums;
+      return RelayStore(f_store, shard_id, store_index);
+    }
+  }
 };
 
 // scaffolding
@@ -261,17 +273,6 @@ public:
   // called on the shard and get this FuturizedStore::shard;
   virtual Shard& get_sharded_store(store_index_t store_index = 0) = 0;
   virtual uint32_t get_storage_shard_count() = 0;
-
-  RelayStore get_backend_store(store_index_t store_index) {
-    auto this_id = seastar::this_shard_id();
-    auto store_shard_nums = 42U;
-    if (this_id < store_shard_nums) {
-      return BackendStore(*this, this_id, store_index);
-    } else {
-      auto shard_id = this_id % store_shard_nums;
-      return BackendStore(*this, shard_id, store_index);
-    }
-  }
 
   virtual seastar::future<std::tuple<int, std::string>> read_meta(
     const std::string& key) = 0;
