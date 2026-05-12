@@ -274,7 +274,7 @@ seastar::future<OSDMeta> OSD::open_or_create_meta_coll(FuturizedStore &store)
       });
     } else {
       DEBUG("meta collection already exists");
-      return seastar::make_ready_future<OSDMeta>(ch, crimson::os::BackendStore:get_backend_store(store, META_STORE_INDEX));
+      return seastar::make_ready_future<OSDMeta>(ch, crimson::os::BackendStore::get_backend_store(store, META_STORE_INDEX));
     }
   });
 }
