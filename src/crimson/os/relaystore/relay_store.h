@@ -21,6 +21,7 @@ public:
   class Shard : public FuturizedStore::Shard {
     using base_t = FuturizedStore::Shard;
     FuturizedStore::Shard& shard;
+    uint32_t shard_count;
 
     template<auto MemberFunc, typename... Args>
     auto with_store(this auto&& self, Args&&... args)
@@ -78,8 +79,8 @@ public:
     }
 
   public:
-    Shard(FuturizedStore::Shard& shard)
-      : shard(shard)
+    Shard(FuturizedStore::Shard& shard, uint32_t shard_count)
+      : shard(shard), shard_count(shard_count)
     {}
     ~Shard() = default;
 
@@ -290,7 +291,8 @@ public:
     }
     if (!local_shards[store_index]) {
       auto& shard_to_decorate = decorated_store.get_sharded_store(store_index);
-      local_shards[store_index] = std::make_unique<Shard>(shard_to_decorate);
+      local_shards[store_index] =
+        std::make_unique<Shard>(shard_to_decorate, get_storage_shard_count());
     }
     return *local_shards[store_index];
   }
