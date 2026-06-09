@@ -16,6 +16,7 @@ namespace crimson::os {
 
 class _RelayStore final : public FuturizedStore {
   FuturizedStore& decorated_store;
+  std::unique_ptr<FuturizedStore> _decorated_store;
 
 public:
   class Shard : public FuturizedStore::Shard {
@@ -239,7 +240,10 @@ public:
   _RelayStore(FuturizedStore& decorated_store)
     : decorated_store(decorated_store)
   {}
-  ~_RelayStore() final;
+  _RelayStore(std::unique_ptr<FuturizedStore> _decorated_store)
+    : decorated_store(*_decorated_store), _decorated_store(std::move(_decorated_store))
+  {}
+  ~_RelayStore() final = default;
 
   seastar::future<uint32_t> start() final
   {
