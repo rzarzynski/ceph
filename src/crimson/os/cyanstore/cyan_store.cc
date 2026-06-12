@@ -67,7 +67,7 @@ namespace fs = std::filesystem;
 seastar::future<> CyanStore::determine_storage_shard_count()
 {
   // determine the number once
-  ceph_assert(store_shard_nums > 0);
+  ceph_assert(!store_shard_nums);
   for (const auto& entry : fs::directory_iterator(path)) {
     const std::string filename = entry.path().filename().string();
     if (filename.rfind("collections", 0) == 0) {
