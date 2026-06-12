@@ -109,6 +109,8 @@ multisharded<ServiceT>::stop() noexcept
 	this->_instances[c] = nullptr;
         return seastar::now();
       });
+    }).then([this] {
+      this->_instances.clear();
     });
 }
 
