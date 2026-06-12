@@ -247,12 +247,16 @@ public:
 
   seastar::future<uint32_t> start() final
   {
-    return decorated_store.start();
+    return decorated_shards.start().then([this] {
+      return decorated_store.start();
+    });
   }
 
   seastar::future<> stop() final
   {
-    return decorated_store.stop();
+    return decorated_shards.stop().then([this] {
+      return decorated_store.stop();
+    });
   }
 
   mount_ertr::future<> mount() final
@@ -293,7 +297,6 @@ public:
 
   FuturizedStore::Shard& get_sharded_store(store_index_t store_index = 0) final
   {
-    seastar::sharded<std::vector<std::unique_ptr<Shard>>> decorated_shards;
     auto& local_shards = decorated_shards.local();
     if (store_index >= local_shards.size()) {
       local_shards.resize(store_index + 1);
@@ -326,6 +329,9 @@ public:
   {
     return decorated_store.get_storage_shard_count();
   }
+
+private:
+  seastar::sharded<std::vector<std::unique_ptr<Shard>>> decorated_shards;
 };
 
 } // namespace crimson::os
