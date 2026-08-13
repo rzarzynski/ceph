@@ -1064,17 +1064,17 @@ ScrubBackend::for_empty_auth_list(std::list<pg_shard_t>&& auths,
                                   stringstream& errstream)
 {
   if (auths.empty()) {
-    if (obj_errors.empty()) {
-      errstream << m_pg_id << " soid " << ho
-                << " : failed to pick suitable auth object\n";
-      return std::nullopt;
-    }
-    // Object errors exist and nothing in auth_list
-    // Prefer the auth shard, otherwise take first from list.
     pg_shard_t shard;
-    if (obj_errors.count(auth->first)) {
+    if (obj_errors.empty()) {
+      // Apparently there is no discrepancy between shards, so we can
+      // make make any of them authoritative. Let's prefer the `auth` one.
+      shard = auth->first;
+    } else if (obj_errors.count(auth->first)) {
+      // Object errors exist and nothing in auth_list
+      // Prefer the auth shard.
       shard = auth->first;
     } else {
+      // Otherwise take first from list.
       shard = *(obj_errors.begin());
     }
 
