@@ -5490,6 +5490,7 @@ PeeringState::Reset::Reset(my_context ctx)
   context< PeeringMachine >().log_enter(state_name);
   DECLARE_LOCALS;
 
+  ps->send_notify = !ps->is_primary();
   ps->flushes_in_progress = 0;
   ps->set_last_peering_reset();
   ps->log_weirdness();
