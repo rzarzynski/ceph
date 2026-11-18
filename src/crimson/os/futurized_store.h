@@ -149,6 +149,13 @@ public:
 
     virtual seastar::future<CollectionRef> create_new_collection(const coll_t& cid) = 0;
 
+    virtual seastar::future<CollectionRef> create_split_collection(
+      const coll_t& cid,
+      CollectionRef /*parent*/)
+    {
+      return create_new_collection(cid);
+    }
+
     virtual seastar::future<CollectionRef> open_collection(const coll_t& cid) = 0;
 
     virtual seastar::future<> set_collection_opts(CollectionRef c,

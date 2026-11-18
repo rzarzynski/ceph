@@ -81,6 +81,47 @@ _RelayStore::list_collections()
 }
 
 seastar::future<CollectionRef>
+_RelayStore::Shard::create_collection_on(
+  coll_t cid,
+  core_id_t owner_core,
+  store_index_t local_index,
+  core_id_t exposed_core)
+{
+  const auto calling_core = seastar::this_shard_id();
+  auto open_on_owner = [&decorated_store = parent.decorated_store,
+                        cid, owner_core, local_index]() {
+    auto& target_shard = decorated_store.get_sharded_store(local_index);
+    return target_shard.create_new_collection(cid).then(
+      [owner_core, local_index, &target_shard](CollectionRef inner) {
+        return std::make_shared<RelayCollection::TargetState>(
+          seastar::foreign_ptr<CollectionRef>(std::move(inner)),
+          owner_core,
+          local_index,
+          target_shard);
+      });
+  };
+
+  std::shared_ptr<RelayCollection::TargetState> state;
+  if (owner_core == calling_core) {
+    state = co_await open_on_owner();
+  } else {
+    state = co_await seastar::smp::submit_to(owner_core, std::move(open_on_owner));
+  }
+
+  auto loc = coll_loc_t{owner_core, local_index, exposed_core};
+  if (calling_core == parent.primary_core) {
+    parent.coll_locations[cid] = loc;
+  } else {
+    co_await seastar::smp::submit_to(
+      parent.primary_core, [&parent = this->parent, cid, loc] {
+        parent.coll_locations[cid] = loc;
+      });
+  }
+
+  co_return CollectionRef(new RelayCollection(cid, std::move(state)));
+}
+
+seastar::future<CollectionRef>
 _RelayStore::Shard::create_new_collection(const coll_t& cid)
 {
   const auto calling_core = seastar::this_shard_id();
@@ -104,41 +145,19 @@ _RelayStore::Shard::create_new_collection(const coll_t& cid)
     next_local_index = (next_local_index + 1) % n_local;
   }
 
-  auto open_on_owner = [&decorated_store = parent.decorated_store,
-                        cid, owner_core, local_index]() {
-    auto& target_shard = decorated_store.get_sharded_store(local_index);
-    return target_shard.create_new_collection(cid).then(
-      [owner_core, local_index, &target_shard](CollectionRef inner) {
-        return std::make_shared<RelayCollection::TargetState>(
-          seastar::foreign_ptr<CollectionRef>(std::move(inner)),
-          owner_core,
-          local_index,
-          target_shard);
-      });
-  };
+  return create_collection_on(cid, owner_core, local_index, exposed_core);
+}
 
-  std::shared_ptr<RelayCollection::TargetState> state;
-  if (owner_core == calling_core) {
-    state = co_await open_on_owner();
-  } else {
-    state = co_await seastar::smp::submit_to(owner_core, std::move(open_on_owner));
-  }
-
-  if (parent.storage_shards > smp_count) {
-    local_created_colls[cid] = state;
-  }
-
-  auto loc = coll_loc_t{owner_core, local_index, exposed_core};
-  if (calling_core == parent.primary_core) {
-    parent.coll_locations[cid] = loc;
-  } else {
-    co_await seastar::smp::submit_to(
-      parent.primary_core, [&parent = this->parent, cid, loc] {
-        parent.coll_locations[cid] = loc;
-      });
-  }
-
-  co_return CollectionRef(new RelayCollection(cid, std::move(state)));
+seastar::future<CollectionRef>
+_RelayStore::Shard::create_split_collection(
+  const coll_t& cid,
+  CollectionRef parent_coll)
+{
+  ceph_assert(parent_coll);
+  auto* parent_relay = static_cast<RelayCollection*>(parent_coll.get());
+  const auto& pstate = parent_relay->get_state();
+  return create_collection_on(
+    cid, pstate->owner_core, pstate->local_index, seastar::this_shard_id());
 }
 
 seastar::future<CollectionRef>
@@ -198,37 +217,6 @@ _RelayStore::Shard::open_collection(const coll_t& cid)
   co_return CollectionRef(new RelayCollection(cid, std::move(state)));
 }
 
-seastar::future<> _RelayStore::Shard::rebind_split_collections(
-  std::shared_ptr<RelayCollection::TargetState> parent_state,
-  std::vector<coll_t> split_dest_colls)
-{
-  ceph_assert(parent_state->owner_core == seastar::this_shard_id());
-  for (const auto& dest_cid : split_dest_colls) {
-    if (auto it = local_created_colls.find(dest_cid); it != local_created_colls.end()) {
-      if (auto child_state = it->second.lock();
-          child_state && child_state->local_index != parent_state->local_index) {
-        auto new_inner = co_await parent_state->target_shard->create_new_collection(dest_cid);
-        child_state->inner = seastar::foreign_ptr<CollectionRef>(std::move(new_inner));
-        child_state->owner_core = parent_state->owner_core;
-        child_state->local_index = parent_state->local_index;
-        child_state->target_shard = parent_state->target_shard;
-        auto loc = coll_loc_t{
-          parent_state->owner_core,
-          parent_state->local_index,
-          parent_state->owner_core};
-        if (seastar::this_shard_id() == parent.primary_core) {
-          parent.coll_locations[dest_cid] = loc;
-        } else {
-          co_await seastar::smp::submit_to(
-            parent.primary_core, [&parent = this->parent, dest_cid, loc] {
-              parent.coll_locations[dest_cid] = loc;
-            });
-        }
-      }
-    }
-  }
-}
-
 seastar::future<> _RelayStore::Shard::do_transaction_no_callbacks(
   CollectionRef ch,
   ceph::os::Transaction&& txn)
@@ -237,64 +225,43 @@ seastar::future<> _RelayStore::Shard::do_transaction_no_callbacks(
   auto state = relay_coll->get_state();
 
   std::vector<coll_t> removed_colls;
-  std::vector<coll_t> split_dest_colls;
-  const bool may_split = parent.storage_shards > seastar::this_smp_shard_count();
-
   for (auto i = txn.begin(); i.have_op(); ) {
     auto* op = i.decode_op();
-    if (may_split && op->op == ceph::os::Transaction::OP_SPLIT_COLLECTION2) {
-      split_dest_colls.push_back(i.get_cid(op->dest_cid));
-    } else if (op->op == ceph::os::Transaction::OP_RMCOLL ||
-               op->op == ceph::os::Transaction::OP_MERGE_COLLECTION) {
+    if (op->op == ceph::os::Transaction::OP_RMCOLL ||
+        op->op == ceph::os::Transaction::OP_MERGE_COLLECTION) {
       removed_colls.push_back(i.get_cid(op->cid));
     }
   }
 
-  auto dispatch = [this, state, removed_colls = std::move(removed_colls)](
-                    ceph::os::Transaction&& t) mutable {
-    seastar::future<> fut = seastar::now();
-    if (state->owner_core == seastar::this_shard_id()) {
-      fut = state->target_shard->do_transaction_no_callbacks(
-        state->inner.get(), std::move(t));
-    } else {
-      fut = seastar::smp::submit_to(
-        state->owner_core,
-        [state, t = std::move(t)]() mutable {
+  const auto owner_core = state->owner_core;
+  auto fut = (owner_core == seastar::this_shard_id())
+    ? state->target_shard->do_transaction_no_callbacks(
+        state->inner.get(), std::move(txn))
+    : seastar::smp::submit_to(
+        owner_core,
+        [state = std::move(state), txn = std::move(txn)]() mutable {
           return state->target_shard->do_transaction_no_callbacks(
-            state->inner.get(), std::move(t));
+            state->inner.get(), std::move(txn));
         });
-    }
-    if (removed_colls.empty()) {
-      return fut;
-    }
-    return fut.then([this, removed_colls = std::move(removed_colls)]() mutable {
+
+  if (removed_colls.empty()) {
+    return fut;
+  }
+  return fut.then([this, removed_colls = std::move(removed_colls)]() mutable {
+    if (seastar::this_shard_id() == parent.primary_core) {
       for (const auto& cid : removed_colls) {
-        local_created_colls.erase(cid);
+        parent.coll_locations.erase(cid);
       }
-      if (seastar::this_shard_id() == parent.primary_core) {
+      return seastar::now();
+    }
+    return seastar::smp::submit_to(
+      parent.primary_core,
+      [&parent = this->parent, removed_colls = std::move(removed_colls)] {
         for (const auto& cid : removed_colls) {
           parent.coll_locations.erase(cid);
         }
-        return seastar::now();
-      }
-      return seastar::smp::submit_to(
-        parent.primary_core,
-        [&parent = this->parent, removed_colls = std::move(removed_colls)] {
-          for (const auto& cid : removed_colls) {
-            parent.coll_locations.erase(cid);
-          }
-        });
-    });
-  };
-
-  if (split_dest_colls.empty()) {
-    return dispatch(std::move(txn));
-  }
-
-  return rebind_split_collections(state, std::move(split_dest_colls)).then(
-    [dispatch = std::move(dispatch), txn = std::move(txn)]() mutable {
-      return dispatch(std::move(txn));
-    });
+      });
+  });
 }
 
 template <auto Method>

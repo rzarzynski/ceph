@@ -1008,7 +1008,8 @@ seastar::future<> ShardServices::prepare_scrub()
 seastar::future<Ref<PG>> ShardServices::make_pg(
   OSDMapService::cached_map_t create_map,
   spg_t pgid,
-  bool do_create)
+  bool do_create,
+  crimson::os::CollectionRef parent_coll)
 {
   using ec_profile_t = std::map<std::string, std::string>;
   auto get_pool_info_for_pg = [create_map, pgid, this] {
@@ -1031,11 +1032,17 @@ seastar::future<Ref<PG>> ShardServices::make_pg(
       return get_pool_info(pgid.pool());
     }
   };
-  auto get_collection = [pgid, do_create, this] {
+  auto get_collection = [pgid, do_create,
+                         parent_coll = std::move(parent_coll),
+                         this]() mutable {
     const coll_t cid{pgid};
     if (do_create) {
+      if (parent_coll) {
+        return get_store().create_split_collection(cid, std::move(parent_coll));
+      }
       return get_store().create_new_collection(cid);
     } else {
+      ceph_assert(!parent_coll);
       return get_store().open_collection(cid);
     }
   };

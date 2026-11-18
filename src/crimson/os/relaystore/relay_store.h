@@ -91,11 +91,6 @@ public:
     using base_t = FuturizedStore::Shard;
     _RelayStore& parent;
     store_index_t next_local_index = 0;
-    // Tracks live collections created on this reactor when
-    // storage_shards > smp_count so OP_SPLIT_COLLECTION2 can rebind
-    // child collections to the parent's storage shard.
-    std::unordered_map<coll_t, std::weak_ptr<RelayCollection::TargetState>>
-      local_created_colls;
 
     template <auto MemberFunc, typename... Args>
     static auto dispatch_coll_op(CollectionRef ch, Args&&... args)
@@ -127,11 +122,6 @@ public:
     explicit Shard(_RelayStore& parent)
       : parent(parent) {}
     ~Shard() override = default;
-
-    seastar::future<> stop() {
-      local_created_colls.clear();
-      return seastar::now();
-    }
 
     seastar::future<bool> is_coll_storage_full(CollectionRef ch) const final {
       auto* relay_coll = static_cast<RelayCollection*>(ch.get());
@@ -255,6 +245,10 @@ public:
 
     seastar::future<CollectionRef> create_new_collection(const coll_t& cid) final;
 
+    seastar::future<CollectionRef> create_split_collection(
+      const coll_t& cid,
+      CollectionRef parent_coll) final;
+
     seastar::future<CollectionRef> open_collection(const coll_t& cid) final;
 
     seastar::future<> set_collection_opts(
@@ -290,9 +284,11 @@ public:
     }
 
   private:
-    seastar::future<> rebind_split_collections(
-      std::shared_ptr<RelayCollection::TargetState> parent_state,
-      std::vector<coll_t> split_dest_colls);
+    seastar::future<CollectionRef> create_collection_on(
+      coll_t cid,
+      core_id_t owner_core,
+      store_index_t local_index,
+      core_id_t exposed_core);
 
     template <auto Method>
     seastar::future<> fan_out_inject(const ghobject_t& o);

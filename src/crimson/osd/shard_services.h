@@ -663,7 +663,8 @@ public:
   seastar::future<Ref<PG>> make_pg(
     cached_map_t create_map,
     spg_t pgid,
-    bool do_create);
+    bool do_create,
+    crimson::os::CollectionRef parent_coll = {});
   seastar::future<Ref<PG>> handle_pg_create_info(
     std::unique_ptr<PGCreateInfo> info);
 
