@@ -59,6 +59,14 @@ seastar::future<> _RelayStore::discover_collections(
         // round-robin across congruent reactors (owner_core + k * storage_shards)
         // so PGShardManager::load_pgs() distributes PGs across all reactors while
         // RelayCollection transparently tunnels store ops back to owner_core.
+        //
+        // Note: per_owner_idx depends on iteration order and the current set of
+        // collections, so a collection's exposed_core may change between separate
+        // list_collections() calls (e.g., after creating/removing collections or
+        // in CyanStore's unordered coll_map). This matches the contract where
+        // OSD queries list_collections() once at startup; if cross-call stability
+        // is ever required, derive the index from std::hash<coll_t>{}(cid) %
+        // num_mapped instead (trading off even balance for small PG counts).
         const auto num_mapped = (smp_count - 1 - owner_core) / storage_shards + 1;
         exposed_core = owner_core + (per_owner_idx[owner_core]++ % num_mapped) * storage_shards;
       }

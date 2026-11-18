@@ -265,6 +265,10 @@ public:
     const std::string& key) = 0;
 
   using coll_core_t = std::pair<coll_t, core_id_t>;
+  /// Lists existing collections along with a suggested reactor core_id_t for
+  /// hosting each PG at startup (e.g. PGShardManager::load_pgs()). The returned
+  /// core assignment is not guaranteed to remain stable across separate
+  /// list_collections() calls after collections are created or removed.
   virtual seastar::future<std::vector<coll_core_t>> list_collections() = 0;
 
   virtual seastar::future<std::string> get_default_device_class() = 0;
