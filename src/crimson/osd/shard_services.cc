@@ -41,7 +41,7 @@ PerShardState::PerShardState(
   crimson::os::FuturizedStore &store,
   OSDState &osd_state)
   : whoami(whoami),
-    b_store(store.get_backend_store(NULL_STORE_INDEX)),
+    b_store(store.get_sharded_store()),
     osd_state(osd_state),
     osdmap_gate("PerShardState::osdmap_gate"),
     perf(perf), recoverystate_perf(recoverystate_perf),
@@ -1008,7 +1008,6 @@ seastar::future<> ShardServices::prepare_scrub()
 seastar::future<Ref<PG>> ShardServices::make_pg(
   OSDMapService::cached_map_t create_map,
   spg_t pgid,
-  unsigned store_index,
   bool do_create)
 {
   using ec_profile_t = std::map<std::string, std::string>;
@@ -1032,27 +1031,26 @@ seastar::future<Ref<PG>> ShardServices::make_pg(
       return get_pool_info(pgid.pool());
     }
   };
-  auto get_collection = [pgid, do_create, store_index, this] {
+  auto get_collection = [pgid, do_create, this] {
     const coll_t cid{pgid};
     if (do_create) {
       return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::create_new_collection>(
-        get_store(store_index), cid);
+        get_store(), cid);
     } else {
       return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::open_collection>(
-        get_store(store_index), cid);
+        get_store(), cid);
     }
   };
   return seastar::when_all(
     std::move(get_pool_info_for_pg),
     std::move(get_collection)
-  ).then([pgid, create_map, store_index, this](auto &&ret) {
+  ).then([pgid, create_map, this](auto &&ret) {
     auto [pool, name, ec_profile] = std::get<0>(std::move(ret)).get();
     auto coll = std::get<1>(std::move(ret)).get();
     return seastar::make_ready_future<Ref<PG>>(
       new PG{
         pgid,
         pg_shard_t{local_state.whoami, pgid.shard},
-        std::move(store_index),
         std::move(coll),
         std::move(pool),
         std::move(name),
@@ -1063,14 +1061,13 @@ seastar::future<Ref<PG>> ShardServices::make_pg(
 }
 
 seastar::future<Ref<PG>> ShardServices::handle_pg_create_info(
-  store_index_t store_index,
   std::unique_ptr<PGCreateInfo> info) {
   return seastar::do_with(
     std::move(info),
-    [store_index, this](auto &info)
+    [this](auto &info)
     -> seastar::future<Ref<PG>> {
       return get_map(info->epoch).then(
-	[&info, store_index, this](cached_map_t startmap)
+	[&info, this](cached_map_t startmap)
 	-> seastar::future<std::tuple<Ref<PG>, cached_map_t>> {
 	  LOG_PREFIX(ShardServices::handle_pg_create_info);
 	  const spg_t &pgid = info->pgid;
@@ -1112,7 +1109,7 @@ seastar::future<Ref<PG>> ShardServices::handle_pg_create_info(
 	    }
 	  }
 	  return make_pg(
-	    startmap, pgid, store_index, true
+	    startmap, pgid, true
 	  ).then([startmap=std::move(startmap)](auto pg) mutable {
 	    return seastar::make_ready_future<
 	      std::tuple<Ref<PG>, OSDMapService::cached_map_t>
@@ -1169,7 +1166,6 @@ ShardServices::get_or_create_pg_ret
 ShardServices::get_or_create_pg(
   PGMap::PGCreationBlockingEvent::TriggerI&& trigger,
   spg_t pgid,
-  store_index_t store_index,
   std::unique_ptr<PGCreateInfo> info)
 {
   if (info) {
@@ -1177,9 +1173,7 @@ ShardServices::get_or_create_pg(
       std::move(trigger), pgid);
     if (!existed) {
       local_state.pg_map.set_creating(pgid);
-      (void)handle_pg_create_info(
-        store_index,
-        std::move(info));
+      (void)handle_pg_create_info(std::move(info));
     }
     return std::move(fut);
   } else {
@@ -1209,19 +1203,19 @@ ShardServices::create_split_pg(
   return std::move(fut);
 }
 
-seastar::future<Ref<PG>> ShardServices::load_pg(spg_t pgid, store_index_t store_index)
+seastar::future<Ref<PG>> ShardServices::load_pg(spg_t pgid)
 {
   LOG_PREFIX(OSDSingletonState::load_pg);
   DEBUG("{}", pgid);
 
-  return seastar::do_with(PGMeta(get_store(store_index), pgid), [](auto& pg_meta) {
+  return seastar::do_with(PGMeta(get_store(), pgid), [](auto& pg_meta) {
     return pg_meta.get_epoch();
   }).then([this](epoch_t e) {
     return get_map(e);
-  }).then([pgid, store_index, this](auto&& create_map) {
-    return make_pg(std::move(create_map), pgid, store_index, false);
-  }).then([store_index, this](Ref<PG> pg) {
-    return pg->read_state(get_store(store_index)).then([pg] {
+  }).then([pgid, this](auto&& create_map) {
+    return make_pg(std::move(create_map), pgid, false);
+  }).then([this](Ref<PG> pg) {
+    return pg->read_state(get_store()).then([pg] {
 	return seastar::make_ready_future<Ref<PG>>(std::move(pg));
     });
   }).handle_exception([FNAME, pgid](auto ep) {
@@ -1232,7 +1226,7 @@ seastar::future<Ref<PG>> ShardServices::load_pg(spg_t pgid, store_index_t store_
 }
 
 seastar::future<> ShardServices::dispatch_context_transaction(
-  crimson::os::CollectionRef col, PeeringCtx &ctx, store_index_t store_index) {
+  crimson::os::CollectionRef col, PeeringCtx &ctx) {
   LOG_PREFIX(OSDSingletonState::dispatch_context_transaction);
   if (ctx.transaction.empty()) {
     DEBUG("empty transaction");
@@ -1246,7 +1240,7 @@ seastar::future<> ShardServices::dispatch_context_transaction(
 
   DEBUG("do_transaction ...");
   co_await crimson::os::with_store_do_transaction(
-    get_store(store_index),
+    get_store(),
     col,
     ctx.transaction.claim_and_reset());
   co_return;
@@ -1275,18 +1269,17 @@ seastar::future<> ShardServices::dispatch_context_messages(
 }
 
 seastar::future<> ShardServices::dispatch_context(
-  store_index_t store_index,
   crimson::os::CollectionRef col,
   PeeringCtx &&pctx)
 {
   return seastar::do_with(
     std::move(pctx),
-    [this, col, store_index](auto &ctx) {
+    [this, col](auto &ctx) {
     ceph_assert(col || ctx.transaction.empty());
     return seastar::when_all_succeed(
       dispatch_context_messages(
        BufferedRecoveryMessages{ctx}),
-      col ? dispatch_context_transaction(col, ctx, store_index) : seastar::now()
+      col ? dispatch_context_transaction(col, ctx) : seastar::now()
     ).then_unpack([] {
       return seastar::now();
     });

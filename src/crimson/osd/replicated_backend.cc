@@ -23,7 +23,7 @@ ReplicatedBackend::ReplicatedBackend(pg_t pgid,
                                      ReplicatedBackend::CollectionRef coll,
                                      crimson::osd::ShardServices& shard_services,
 				     DoutPrefixProvider &dpp)
-  : PGBackend{whoami, coll, shard_services, pg.get_store_index(), dpp},
+  : PGBackend{whoami, coll, shard_services, dpp},
     pgid{pgid},
     pg(pg),
     pct_timer([this, &pg]() mutable {
@@ -202,7 +202,7 @@ ReplicatedBackend::submit_transaction(
 
   auto all_completed = interruptor::make_interruptible(
     crimson::os::with_store_do_transaction(
-      shard_services.get_store(pg.get_store_index()),
+      shard_services.get_store(),
       coll, std::move(txn))
    ).then_interruptible([FNAME, this,
 			peers=pending_txn->second.weak_from_this()] {

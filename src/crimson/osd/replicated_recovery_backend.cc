@@ -26,7 +26,7 @@ ReplicatedRecoveryBackend::ReplicatedRecoveryBackend(
   crimson::osd::ShardServices& shard_services,
   crimson::os::CollectionRef coll,
   PGBackend* backend)
-    : RecoveryBackend(pg, shard_services, coll, pg.get_store_index(), backend)
+    : RecoveryBackend(pg, shard_services, coll, backend)
 {}
 
 RecoveryBackend::interruptible_future<>
@@ -272,7 +272,7 @@ RecoveryBackend::on_local_recover_persist(
     ).then_interruptible([FNAME, this, &t] {
       DEBUGDPP("submitting transaction", pg);
       return crimson::os::with_store_do_transaction(
-        shard_services.get_store(pg.get_store_index()),
+        shard_services.get_store(),
         coll, std::move(t));
     }).then_interruptible(
       [this, epoch_frozen, last_complete = pg.get_info().last_complete,
@@ -305,7 +305,7 @@ RecoveryBackend::local_recover_delete(
 	  [FNAME, this, &txn]() mutable {
 	  DEBUGDPP("submitting transaction", pg);
 	  return crimson::os::with_store_do_transaction(
-      shard_services.get_store(pg.get_store_index()),
+      shard_services.get_store(),
       coll,
       std::move(txn));
 	});
@@ -793,7 +793,7 @@ ReplicatedRecoveryBackend::read_omap_for_push_op(
 
   co_await interruptor::make_interruptible(
     crimson::os::with_store<&crimson::os::FuturizedStore::Shard::omap_iterate>(
-      shard_services.get_store(pg.get_store_index()),
+      shard_services.get_store(),
       coll, ghobject_t{oid}, start_from, callback, 0, nullptr
     ).safe_then([&new_progress](auto ret) {
       if (ret == ObjectStore::omap_iter_ret_t::NEXT) {
@@ -983,7 +983,7 @@ ReplicatedRecoveryBackend::_handle_pull_response(
     DEBUGDPP("submitting transaction, complete", pg);
     co_await interruptor::make_interruptible(
       crimson::os::with_store_do_transaction(
-        shard_services.get_store(pg.get_store_index()),
+        shard_services.get_store(),
         coll, std::move(t)));
     // Only now is the pulled object actually durable in the local object
     // store; let a waiting scrub chunk scan on this shard proceed against it.
@@ -995,7 +995,7 @@ ReplicatedRecoveryBackend::_handle_pull_response(
     DEBUGDPP("submitting transaction, incomplete", pg);
     co_await interruptor::make_interruptible(
       crimson::os::with_store_do_transaction(
-        shard_services.get_store(pg.get_store_index()),
+        shard_services.get_store(),
         coll, std::move(t)));
   }
 
@@ -1178,7 +1178,7 @@ ReplicatedRecoveryBackend::handle_push(
 
     co_await interruptor::make_interruptible(
       crimson::os::with_store_do_transaction(
-        shard_services.get_store(pg.get_store_index()),
+        shard_services.get_store(),
         coll, std::move(t)));
     replica_push_targets.erase(ptiter);
 
@@ -1190,7 +1190,7 @@ ReplicatedRecoveryBackend::handle_push(
   } else {
     co_await interruptor::make_interruptible(
       crimson::os::with_store_do_transaction(
-        shard_services.get_store(pg.get_store_index()), coll, std::move(t)));
+        shard_services.get_store(), coll, std::move(t)));
   }
 
   auto reply = crimson::make_message<MOSDPGPushReply>();

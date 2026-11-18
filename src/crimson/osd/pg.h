@@ -106,7 +106,6 @@ class PG
   spg_t pgid;
   pg_shard_t pg_whoami;
   crimson::os::CollectionRef coll_ref;
-  store_index_t store_index;
   ghobject_t pgmeta_oid;
 
   seastar::timer<seastar::lowres_clock> check_readable_timer;
@@ -120,7 +119,6 @@ public:
 
   PG(spg_t pgid,
      pg_shard_t pg_shard,
-     store_index_t store_index,
      crimson::os::CollectionRef coll_ref,
      pg_pool_t&& pool,
      std::string&& name,
@@ -242,7 +240,7 @@ public:
   }
 
   seastar::future<bool> is_local_store_full() const {
-    return shard_services.is_local_storage_full(get_store_index());
+    return shard_services.is_local_storage_full(coll_ref);
   }
 
   epoch_t get_last_peering_reset_epoch() const final {
@@ -274,9 +272,6 @@ public:
     return pgid;
   }
 
-  unsigned get_store_index() const {
-    return store_index;
-  }
   PGBackend& get_backend() {
     return *backend;
   }
@@ -361,7 +356,6 @@ public:
     std::swap(o, orderer);
     return seastar::when_all(
       shard_services.dispatch_context(
-        store_index,
 	get_collection_ref(),
 	std::move(rctx)),
       shard_services.run_orderer(std::move(o))
@@ -931,7 +925,7 @@ public:
       target);
     init_pg_ondisk(t, child, pool);
     return crimson::os::with_store_do_transaction(
-      shard_services.get_store(store_index),
+      shard_services.get_store(),
       coll_ref, std::move(t));
   }
 

@@ -240,7 +240,7 @@ ScrubScan::ifut<> ScrubScan::scan_object(
   auto &entry = ret.objects[obj.hobj];
   return interruptor::make_interruptible(
     crimson::os::with_store<&crimson::os::FuturizedStore::Shard::stat>(
-      pg.shard_services.get_store(pg.get_store_index()),
+      pg.shard_services.get_store(),
       pg.get_collection_ref(),
       obj,
       0)
@@ -248,7 +248,7 @@ ScrubScan::ifut<> ScrubScan::scan_object(
     DEBUGDPP("obj: {}, stat complete, size {}", pg, obj, obj_stat.st_size);
     entry.size = obj_stat.st_size;
     return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::get_attrs>(
-      pg.shard_services.get_store(pg.get_store_index()),
+      pg.shard_services.get_store(),
       pg.get_collection_ref(),
       obj,
       0);
@@ -302,7 +302,7 @@ ScrubScan::ifut<> ScrubScan::deep_scan_object(
       const auto stride = local_conf().get_val<Option::size_t>(
         "osd_deep_scrub_stride");
       return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::read>(
-        pg.shard_services.get_store(pg.get_store_index()),
+        pg.shard_services.get_store(),
         pg.get_collection_ref(),
         obj,
         *(progress.offset),
@@ -339,7 +339,7 @@ ScrubScan::ifut<> ScrubScan::deep_scan_object(
       DEBUGDPP("op: {}, obj: {}, progress: {} scanning omap header",
                 pg, *this, obj, progress);
       return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::omap_get_header>(
-        pg.shard_services.get_store(pg.get_store_index()),
+        pg.shard_services.get_store(),
         pg.get_collection_ref(),
         obj,
         0
@@ -381,7 +381,7 @@ ScrubScan::ifut<> ScrubScan::deep_scan_object(
       DEBUGDPP("op: {}, obj: {}, progress: {} scanning omap keys",
                 pg, *this, obj, progress);
       return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::omap_iterate>(
-        pg.shard_services.get_store(pg.get_store_index()),
+        pg.shard_services.get_store(),
         pg.get_collection_ref(),
         obj,
         start_from,
@@ -665,7 +665,7 @@ ScrubSnapMapperRepair::ifut<> ScrubSnapMapperRepair::run(PG &pg)
   if (*need_write) {
     co_await interruptor::make_interruptible(
       crimson::os::with_store_do_transaction(
-        pg.shard_services.get_store(pg.store_index),
+        pg.shard_services.get_store(),
         pg.get_collection_ref(),
         std::move(*txn)));
     DEBUGDPP("snap mapper repair complete for {}", pg, hoid);

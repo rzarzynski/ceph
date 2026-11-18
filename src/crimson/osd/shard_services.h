@@ -412,7 +412,6 @@ class ShardServices : public OSDMapService,
   PerShardState local_state;
   seastar::sharded<OSDSingletonState> &osd_singleton_state;
   PGShardMapping& pg_to_shard_mapping;
-  uint32_t store_shard_nums = 0;
 
   seastar::timer<seastar::lowres_clock> scrub_timer;
   /// Keeps prepare_scrub() alive across stop(): it is a coroutine capturing
@@ -542,12 +541,10 @@ public:
   ShardServices(
     seastar::sharded<OSDSingletonState> &osd_singleton_state,
     PGShardMapping& pg_to_shard_mapping,
-    uint32_t store_shard_nums,
     PSSArgs&&... args)
     : local_state(std::forward<PSSArgs>(args)...),
       osd_singleton_state(osd_singleton_state),
       pg_to_shard_mapping(pg_to_shard_mapping),
-      store_shard_nums(store_shard_nums),
       scrub_timer{[this] {
         if (!scrub_gate.is_closed()) {
           std::ignore = seastar::with_gate(scrub_gate, [this] {
@@ -600,15 +597,13 @@ public:
   seastar::future<> shutdown_cluster_lane();
   seastar::future<> mark_down_cluster_lane(entity_addr_t addr);
 
-  crimson::os::BackendStore get_store(store_index_t store_index) const {
-    auto store = local_state.b_store;
-    store.store_index = store_index;
-    return store;
+  crimson::os::BackendStore get_store() const {
+    return local_state.b_store;
   }
 
-  seastar::future<bool> is_local_storage_full(store_index_t store_index) const {
-    return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::is_storage_full>(
-        get_store(store_index));
+  seastar::future<bool> is_local_storage_full(crimson::os::CollectionRef ch) const {
+    return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::is_coll_storage_full>(
+      get_store(), std::move(ch));
   }
 
   struct shard_stats_t {
@@ -622,22 +617,11 @@ public:
     return pg_to_shard_mapping.dump_store_shards(f);
   }
 
-  auto create_split_pg_mapping(spg_t pgid, core_id_t core, store_index_t store_index) {
-    return pg_to_shard_mapping.get_or_create_pg_mapping(pgid, core, store_index);
+  auto create_split_pg_mapping(spg_t pgid, core_id_t core) {
+    return pg_to_shard_mapping.get_or_create_pg_mapping(pgid, core);
   }
 
   seastar::future<core_id_t> get_pg_mapping(spg_t pgid) {
-    return pg_to_shard_mapping.get_or_create_pg_mapping(pgid).then(
-      [](std::pair<core_id_t, store_index_t> mapping) {
-        return mapping.first;
-      });
-  }
-
-  /// Returns the (core_id, store_index) mapping for the PG that owns pgid.
-  /// Callers should use crimson::submit_to(core, ...) to run store operations
-  /// on the correct reactor rather than dispatching cross-shard.
-  seastar::future<std::pair<core_id_t, store_index_t>> get_pg_core_and_store(
-    spg_t pgid) {
     return pg_to_shard_mapping.get_or_create_pg_mapping(pgid);
   }
 
@@ -680,10 +664,8 @@ public:
   seastar::future<Ref<PG>> make_pg(
     cached_map_t create_map,
     spg_t pgid,
-    store_index_t store_index,
     bool do_create);
   seastar::future<Ref<PG>> handle_pg_create_info(
-    store_index_t store_index,
     std::unique_ptr<PGCreateInfo> info);
 
   using get_or_create_pg_ertr = PGMap::wait_for_pg_ertr;
@@ -691,7 +673,6 @@ public:
   get_or_create_pg_ret get_or_create_pg(
     PGMap::PGCreationBlockingEvent::TriggerI&&,
     spg_t pgid,
-    store_index_t store_index,
     std::unique_ptr<PGCreateInfo> info);
 
   using wait_for_pg_ertr = PGMap::wait_for_pg_ertr;
@@ -702,11 +683,11 @@ public:
     PGMap::PGCreationBlockingEvent::TriggerI&& trigger,
     spg_t pgid);
 
-  seastar::future<Ref<PG>> load_pg(spg_t pgid, store_index_t store_index);
+  seastar::future<Ref<PG>> load_pg(spg_t pgid);
 
   /// Dispatch and reset ctx transaction
   seastar::future<> dispatch_context_transaction(
-    crimson::os::CollectionRef col, PeeringCtx &ctx, store_index_t store_index);
+    crimson::os::CollectionRef col, PeeringCtx &ctx);
 
   /// Dispatch and reset ctx messages
   seastar::future<> dispatch_context_messages(
@@ -714,15 +695,13 @@ public:
 
   /// Dispatch ctx and dispose of context
   seastar::future<> dispatch_context(
-    store_index_t store_index,
     crimson::os::CollectionRef col,
     PeeringCtx &&ctx);
 
   /// Dispatch ctx and dispose of ctx, transaction must be empty
   seastar::future<> dispatch_context(
-    store_index_t store_index,
     PeeringCtx &&ctx) {
-    return dispatch_context(store_index, {}, std::move(ctx));
+    return dispatch_context({}, std::move(ctx));
   }
 
   PerShardPipeline &get_client_request_pipeline() {

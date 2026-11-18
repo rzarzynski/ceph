@@ -63,7 +63,7 @@ PGBackend::create(pg_t pgid,
 					       coll, shard_services,
 					       dpp);
   case pg_pool_t::TYPE_ERASURE:
-    return std::make_unique<ECBackend>(whoami, coll, shard_services, pg.get_store_index(),
+    return std::make_unique<ECBackend>(whoami, coll, shard_services,
                                        std::move(ec_profile),
                                        pool.stripe_width,
 				       pool.fast_read,
@@ -79,13 +79,12 @@ PGBackend::create(pg_t pgid,
 PGBackend::PGBackend(pg_shard_t whoami,
                      CollectionRef coll,
                      crimson::osd::ShardServices &shard_services,
-                     store_index_t store_index,
 		     DoutPrefixProvider &dpp)
   : whoami{whoami},
     coll{coll},
     shard_services{shard_services},
     dpp{dpp},
-    store{shard_services.get_store(store_index)}
+    store{shard_services.get_store()}
 {
 }
 

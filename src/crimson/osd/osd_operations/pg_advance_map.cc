@@ -197,10 +197,10 @@ seastar::future<Ref<PG>> PGAdvanceMap::handle_split_pg_creation(
   LOG_PREFIX(PGAdvanceMap::handle_split_pg_creation);
 
   // Map each child pg ID to a core
-  auto core = co_await shard_services.create_split_pg_mapping(child_pgid, seastar::this_shard_id(), pg->get_store_index());
+  auto core = co_await shard_services.create_split_pg_mapping(child_pgid, seastar::this_shard_id());
   DEBUG(" PG {} mapped to {}", child_pgid.pgid, core);
   DEBUG(" {} map epoch: {}", child_pgid.pgid, next_map->get_epoch());
-  auto child_pg = co_await shard_services.make_pg(next_map, child_pgid, pg->get_store_index(), true);
+  auto child_pg = co_await shard_services.make_pg(next_map, child_pgid, true);
 
   DEBUG(" Parent pgid: {}", pg->get_pgid());
   DEBUG(" Child pgid: {}", child_pg->get_pgid());

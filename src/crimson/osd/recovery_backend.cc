@@ -165,7 +165,7 @@ RecoveryBackend::handle_backfill_progress(
     t);
   DEBUGDPP("submitting transaction", pg);
   return crimson::os::with_store_do_transaction(
-    shard_services.get_store(pg.get_store_index()),
+    shard_services.get_store(),
     pg.get_collection_ref(), std::move(t)).or_terminate();
 }
 
@@ -225,7 +225,7 @@ RecoveryBackend::handle_backfill_remove(
   DEBUGDPP("submitting transaction", pg);
   co_await interruptor::make_interruptible(
     crimson::os::with_store_do_transaction(
-      shard_services.get_store(pg.get_store_index()),
+      shard_services.get_store(),
       pg.get_collection_ref(), std::move(t)).or_terminate());
 }
 

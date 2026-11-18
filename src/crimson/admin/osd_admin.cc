@@ -538,10 +538,10 @@ public:
       logger().info("error during data error injection: {}", e.what());
       co_return tell_result_t(-EINVAL, e.what());
     }
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       obj, store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       obj] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::inject_data_error>(store, obj);
     });
@@ -588,10 +588,10 @@ public:
       logger().info("error during metadata error injection: {}", e.what());
       co_return tell_result_t(-EINVAL, e.what());
     }
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       obj, store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       obj] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::inject_mdata_error>(store, obj);
     });
@@ -640,14 +640,13 @@ public:
     cmd_getval(cmdmap, "key", key);
     cmd_getval(cmdmap, "val", val);
 
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       pgid, obj, key, val=std::move(val),
-                                       store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       pgid, obj, key, val=std::move(val)] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
-      ).then([store, obj, key, val=std::move(val), pgid](auto ch) mutable {
+      ).then([&store, obj, key, val=std::move(val), pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
             std::system_error(ENOENT, std::generic_category(),
@@ -702,14 +701,13 @@ public:
     std::string key;
     cmd_getval(cmdmap, "key", key);
 
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       pgid, obj, key,
-                                       store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       pgid, obj, key] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
-      ).then([store, obj, key, pgid](auto ch) mutable {
+      ).then([&store, obj, key, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
             std::system_error(ENOENT, std::generic_category(),
@@ -761,14 +759,13 @@ public:
     std::string headerstr;
     cmd_getval(cmdmap, "header", headerstr);
 
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       pgid, obj, headerstr=std::move(headerstr),
-                                       store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       pgid, obj, headerstr=std::move(headerstr)] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
-      ).then([store, obj, headerstr=std::move(headerstr), pgid](auto ch) mutable {
+      ).then([&store, obj, headerstr=std::move(headerstr), pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
             std::system_error(ENOENT, std::generic_category(),
@@ -822,14 +819,13 @@ public:
     int64_t trunclen = 0;
     cmd_getval(cmdmap, "len", trunclen);
 
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       pgid, obj, trunclen,
-                                       store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       pgid, obj, trunclen] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
-      ).then([store, obj, trunclen, pgid](auto ch) mutable {
+      ).then([&store, obj, trunclen, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
             std::system_error(ENOENT, std::generic_category(),
@@ -888,14 +884,13 @@ public:
       co_return tell_result_t(-EINVAL, "len must be > 0");
     }
 
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       pgid, obj, offset, len,
-                                       store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       pgid, obj, offset, len] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
-      ).then([store, obj, offset, len, pgid](auto ch) mutable {
+      ).then([&store, obj, offset, len, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
             std::system_error(ENOENT, std::generic_category(),
@@ -947,14 +942,13 @@ public:
     } catch (const std::invalid_argument& e) {
       co_return tell_result_t(-EINVAL, e.what());
     }
-    auto [core, store_index] = co_await shard_services.get_pg_core_and_store(pgid);
+    auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
-                                       pgid, obj,
-                                       store_index] () mutable {
-      auto store = shard_services.container().local().get_store(store_index);
+                                       pgid, obj] () mutable {
+      auto& store = shard_services.container().local().get_store();
       return crimson::os::with_store<
         &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
-      ).then([store, obj, pgid](auto ch) mutable {
+      ).then([&store, obj, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
             std::system_error(ENOENT, std::generic_category(),

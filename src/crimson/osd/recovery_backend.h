@@ -39,11 +39,10 @@ public:
   RecoveryBackend(crimson::osd::PG& pg,
 		  crimson::osd::ShardServices& shard_services,
 		  crimson::os::CollectionRef coll,
-      store_index_t store_index,
 		  PGBackend* backend)
     : pg{pg},
       shard_services{shard_services},
-      store(shard_services.get_store(store_index)),
+      store(shard_services.get_store()),
       coll{coll},
       backend{backend} {}
   virtual ~RecoveryBackend() {}

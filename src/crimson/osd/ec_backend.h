@@ -31,7 +31,6 @@ public:
   ECBackend(pg_shard_t whoami,
 	    CollectionRef coll,
 	    crimson::osd::ShardServices& shard_services,
-	    store_index_t store_index,
 	    const ec_profile_t& ec_profile,
 	    uint64_t stripe_width,
 	    bool fast_read,

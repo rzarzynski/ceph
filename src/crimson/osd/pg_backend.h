@@ -70,7 +70,6 @@ public:
   using rep_op_fut_t = interruptible_future<rep_op_ret_t>;
   PGBackend(pg_shard_t whoami, CollectionRef coll,
             crimson::osd::ShardServices &shard_services,
-            store_index_t store_index,
             DoutPrefixProvider &dpp);
   virtual ~PGBackend() = default;
   static std::unique_ptr<PGBackend> create(pg_t pgid,
