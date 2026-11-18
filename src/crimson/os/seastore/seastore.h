@@ -227,6 +227,7 @@ public:
     // init managers and mount transaction_manager
     seastar::future<> mount_managers();
 
+    seastar::future<std::vector<coll_t>> list_shard_collections() override final;
     seastar::future<std::vector<coll_core_t>> list_collections();
 
     seastar::future<> write_meta(const std::string& key,
@@ -777,26 +778,16 @@ public:
 
   seastar::future<> do_gc() override;
 
-  BackendStore get_backend_store(store_index_t store_index) override {
-    assert(store_shard_nums > 0);
-    if (store_index != NULL_STORE_INDEX) {
-      assert(store_index < shard_stores.local_count());
-    }
-    auto this_id = seastar::this_shard_id();
-    if (this_id < store_shard_nums) {
-      return BackendStore(*this, this_id, store_index);
-    } else {
-      auto shard_id = this_id % store_shard_nums;
-      return BackendStore(*this, shard_id, store_index);
-    }
-  }
-
   FuturizedStore::Shard& get_sharded_store(store_index_t store_index = 0) override
   {
     assert(store_index < shard_stores.local_count());
     auto &shard_store = shard_stores.local(store_index);
     assert(shard_store.get_status() == true);
     return shard_store;
+  }
+
+  uint32_t get_storage_shard_count() const override {
+    return store_shard_nums;
   }
 
   static col_obj_ranges_t

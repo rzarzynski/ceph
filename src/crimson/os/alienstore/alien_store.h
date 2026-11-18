@@ -118,12 +118,12 @@ public:
     uint64_t len,
     uint32_t op_flags) override;
 
-  BackendStore get_backend_store(store_index_t store_index) override {
-    return BackendStore(*this, GLOBAL_STORE, store_index);
-  }
-
   FuturizedStore::Shard& get_sharded_store(store_index_t store_index = 0) override {
     return *this;
+  }
+
+  uint32_t get_storage_shard_count() const override {
+    return seastar::this_smp_shard_count();
   }
 
 private:

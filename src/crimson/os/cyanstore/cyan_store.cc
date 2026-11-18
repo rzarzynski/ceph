@@ -325,17 +325,31 @@ CyanStore::Shard::open_collection(const coll_t& cid)
   return seastar::make_ready_future<CollectionRef>(_get_collection(cid));
 }
 
+seastar::future<std::vector<coll_t>>
+CyanStore::Shard::list_shard_collections()
+{
+  if (!store_active) {
+    return seastar::make_ready_future<std::vector<coll_t>>();
+  }
+  std::vector<coll_t> collections;
+  collections.reserve(coll_map.size());
+  for (auto& coll : coll_map) {
+    collections.push_back(coll.first);
+  }
+  return seastar::make_ready_future<std::vector<coll_t>>(std::move(collections));
+}
+
 seastar::future<std::vector<coll_core_t>>
 CyanStore::Shard::list_collections()
 {
-  if (!store_active) {
-    return seastar::make_ready_future<std::vector<coll_core_t>>();
-  }
-  std::vector<coll_core_t> collections;
-  for (auto& coll : coll_map) {
-    collections.push_back(std::make_pair(coll.first, std::make_pair(seastar::this_shard_id(), store_shard_desc.local_index)));
-  }
-  return seastar::make_ready_future<std::vector<coll_core_t>>(std::move(collections));
+  return list_shard_collections().then([](auto colls) {
+    std::vector<coll_core_t> collections;
+    collections.reserve(colls.size());
+    for (const auto& cid : colls) {
+      collections.emplace_back(cid, seastar::this_shard_id());
+    }
+    return collections;
+  });
 }
 
 CyanStore::Shard::base_errorator::future<bool>

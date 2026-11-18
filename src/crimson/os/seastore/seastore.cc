@@ -1352,12 +1352,9 @@ SeaStore::Shard::open_collection(const coll_t& cid)
   assert(store_active);
   LOG_PREFIX(SeaStoreS::open_collection);
   DEBUG("cid={} ...", cid);
-  return list_collections(
-  ).then([cid, this, FNAME] (auto colls_cores) {
-    if (auto found = std::find(colls_cores.begin(),
-                               colls_cores.end(),
-                               std::make_pair(cid, std::make_pair(seastar::this_shard_id(), store_shard_desc.local_index)));
-      found != colls_cores.end()) {
+  return list_shard_collections(
+  ).then([cid, this, FNAME] (auto colls) {
+    if (std::find(colls.begin(), colls.end(), cid) != colls.end()) {
       DEBUG("cid={} exists", cid);
       return seastar::make_ready_future<CollectionRef>(_get_collection(cid));
     } else {
@@ -1378,17 +1375,17 @@ SeaStore::Shard::set_collection_opts(CollectionRef c,
   return seastar::now();
 }
 
-seastar::future<std::vector<coll_core_t>>
-SeaStore::Shard::list_collections()
+seastar::future<std::vector<coll_t>>
+SeaStore::Shard::list_shard_collections()
 {
   if(!store_active) {
-    return seastar::make_ready_future<std::vector<coll_core_t>>();
+    return seastar::make_ready_future<std::vector<coll_t>>();
   }
   ++(shard_stats.read_num);
   ++(shard_stats.pending_read_num);
 
   return seastar::do_with(
-    std::vector<coll_core_t>(),
+    std::vector<coll_t>(),
     [this](auto &ret) {
       return repeat_eagain([this, &ret] {
         ++(shard_stats.repeat_read_num);
@@ -1399,31 +1396,44 @@ SeaStore::Shard::list_collections()
 	  CACHE_HINT_TOUCH,
           [this, &ret](auto& t)
         {
-          LOG_PREFIX(SeaStoreS::list_collections);
+          LOG_PREFIX(SeaStoreS::list_shard_collections);
           DEBUGT("...", t);
           return transaction_manager->read_collection_root(t
           ).si_then([this, &t](auto coll_root) {
             return collection_manager->list(coll_root, t);
-          }).si_then([this, &ret](auto colls) {
+          }).si_then([&ret](auto colls) {
             ret.resize(colls.size());
             std::transform(
               colls.begin(), colls.end(), ret.begin(),
-              [this](auto p) {
-              return std::make_pair(p.first, std::make_pair(seastar::this_shard_id(), store_shard_desc.local_index));
+              [](auto p) {
+              return p.first;
             });
           });
         });
       }).safe_then([&ret] {
-        return seastar::make_ready_future<std::vector<coll_core_t>>(ret);
+        return seastar::make_ready_future<std::vector<coll_t>>(ret);
       });
     }
   ).handle_error(
     crimson::ct_error::assert_all(
-      "Invalid error in SeaStoreS::list_collections"
+      "Invalid error in SeaStoreS::list_shard_collections"
     )
   ).finally([this] {
     assert(shard_stats.pending_read_num);
     --(shard_stats.pending_read_num);
+  });
+}
+
+seastar::future<std::vector<coll_core_t>>
+SeaStore::Shard::list_collections()
+{
+  return list_shard_collections().then([](auto colls) {
+    std::vector<coll_core_t> ret;
+    ret.reserve(colls.size());
+    for (const auto& cid : colls) {
+      ret.emplace_back(cid, seastar::this_shard_id());
+    }
+    return ret;
   });
 }
 
