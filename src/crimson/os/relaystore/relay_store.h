@@ -84,7 +84,6 @@ public:
   struct coll_loc_t {
     core_id_t owner_core = 0;
     store_index_t local_index = 0;
-    core_id_t exposed_core = 0;
   };
 
   class Shard final : public FuturizedStore::Shard {
@@ -287,8 +286,7 @@ public:
     seastar::future<CollectionRef> create_collection_on(
       coll_t cid,
       core_id_t owner_core,
-      store_index_t local_index,
-      core_id_t exposed_core);
+      store_index_t local_index);
 
     template <auto Method>
     seastar::future<> fan_out_inject(const ghobject_t& o);
@@ -305,7 +303,9 @@ public:
 
   seastar::future<uint32_t> start() final;
   seastar::future<> stop() final;
-  mount_ertr::future<> mount() final;
+  mount_ertr::future<> mount() final {
+    return decorated_store.mount();
+  }
   seastar::future<> umount() final;
 
   mkfs_ertr::future<> mkfs(uuid_d new_osd_fsid) final {
@@ -373,7 +373,8 @@ public:
   }
 
 private:
-  seastar::future<> discover_collections();
+  seastar::future<> discover_collections(
+    std::vector<coll_core_t>* out = nullptr);
 
   store_index_t local_shard_count_on(core_id_t core) const {
     const auto smp_count = seastar::this_smp_shard_count();
