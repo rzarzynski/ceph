@@ -541,9 +541,7 @@ public:
     auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        obj] () mutable {
-      auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::inject_data_error>(store, obj);
+      return shard_services.container().local().get_store().inject_data_error(obj);
     });
     logger().info("successfully injected data error for obj={}", obj);
     ceph::bufferlist bl;
@@ -591,9 +589,7 @@ public:
     auto core = co_await shard_services.get_pg_mapping(pgid);
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        obj] () mutable {
-      auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::inject_mdata_error>(store, obj);
+      return shard_services.container().local().get_store().inject_mdata_error(obj);
     });
     logger().info("successfully injected metadata error for obj={}", obj);
     ceph::bufferlist bl;
@@ -644,8 +640,7 @@ public:
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        pgid, obj, key, val=std::move(val)] () mutable {
       auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
+      return store.open_collection(coll_t(pgid)
       ).then([&store, obj, key, val=std::move(val), pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
@@ -657,7 +652,7 @@ public:
         valbl.append(val);
         t.omap_setkeys(ch->get_cid(), obj,
           std::map<std::string, ceph::bufferlist>{{key, valbl}});
-        return crimson::os::with_store_do_transaction(store, ch, std::move(t));
+        return store.do_transaction(ch, std::move(t));
       });
     });
     DEBUG("setomapval ok obj={} key={}", obj, key);
@@ -705,8 +700,7 @@ public:
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        pgid, obj, key] () mutable {
       auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
+      return store.open_collection(coll_t(pgid)
       ).then([&store, obj, key, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
@@ -715,7 +709,7 @@ public:
         }
         ceph::os::Transaction t;
         t.omap_rmkey(ch->get_cid(), obj, key);
-        return crimson::os::with_store_do_transaction(store, ch, std::move(t));
+        return store.do_transaction(ch, std::move(t));
       });
     });
     DEBUG("rmomapkey ok obj={} key={}", obj, key);
@@ -763,8 +757,7 @@ public:
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        pgid, obj, headerstr=std::move(headerstr)] () mutable {
       auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
+      return store.open_collection(coll_t(pgid)
       ).then([&store, obj, headerstr=std::move(headerstr), pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
@@ -775,7 +768,7 @@ public:
         ceph::bufferlist hdrbl;
         hdrbl.append(headerstr);
         t.omap_setheader(ch->get_cid(), obj, hdrbl);
-        return crimson::os::with_store_do_transaction(store, ch, std::move(t));
+        return store.do_transaction(ch, std::move(t));
       });
     });
     DEBUG("setomapheader ok obj={}", obj);
@@ -823,8 +816,7 @@ public:
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        pgid, obj, trunclen] () mutable {
       auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
+      return store.open_collection(coll_t(pgid)
       ).then([&store, obj, trunclen, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
@@ -833,7 +825,7 @@ public:
         }
         ceph::os::Transaction t;
         t.truncate(ch->get_cid(), obj, static_cast<uint64_t>(trunclen));
-        return crimson::os::with_store_do_transaction(store, ch, std::move(t));
+        return store.do_transaction(ch, std::move(t));
       });
     });
     DEBUG("truncobj ok obj={} len={}", obj, trunclen);
@@ -888,8 +880,7 @@ public:
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        pgid, obj, offset, len] () mutable {
       auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
+      return store.open_collection(coll_t(pgid)
       ).then([&store, obj, offset, len, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
@@ -901,7 +892,7 @@ public:
         ceph::os::Transaction t;
         t.write(ch->get_cid(), obj,
                 static_cast<uint64_t>(offset), static_cast<uint64_t>(len), zeros);
-        return crimson::os::with_store_do_transaction(store, ch, std::move(t));
+        return store.do_transaction(ch, std::move(t));
       });
     });
     DEBUG("writeobj ok obj={} offset={} len={}", obj, offset, len);
@@ -946,8 +937,7 @@ public:
     co_await crimson::submit_to(core, [&shard_services=shard_services,
                                        pgid, obj] () mutable {
       auto& store = shard_services.container().local().get_store();
-      return crimson::os::with_store<
-        &crimson::os::FuturizedStore::Shard::open_collection>(store, coll_t(pgid)
+      return store.open_collection(coll_t(pgid)
       ).then([&store, obj, pgid](auto ch) mutable {
         if (!ch) {
           return seastar::make_exception_future<>(
@@ -956,7 +946,7 @@ public:
         }
         ceph::os::Transaction t;
         t.remove(ch->get_cid(), obj);
-        return crimson::os::with_store_do_transaction(store, ch, std::move(t));
+        return store.do_transaction(ch, std::move(t));
       });
     });
     DEBUG("removeobj ok obj={}", obj);

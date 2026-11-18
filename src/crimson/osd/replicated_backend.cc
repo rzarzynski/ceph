@@ -45,8 +45,7 @@ ReplicatedBackend::_read(const hobject_t& hoid,
                          const uint32_t flags)
 {
   std::ignore = object_size;
-  return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::read>(
-    store, coll, ghobject_t{hoid}, off, len, flags);
+  return store.read(coll, ghobject_t{hoid}, off, len, flags);
 }
 
 MURef<MOSDRepOp> ReplicatedBackend::new_repop_msg(
@@ -201,9 +200,7 @@ ReplicatedBackend::submit_transaction(
   pg.scrubber.on_rep_op_submitted(osd_op_p.at_version);
 
   auto all_completed = interruptor::make_interruptible(
-    crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
-      coll, std::move(txn))
+    shard_services.get_store().do_transaction(coll, std::move(txn))
    ).then_interruptible([FNAME, this,
 			peers=pending_txn->second.weak_from_this()] {
     if (!peers) {
@@ -394,8 +391,7 @@ ReplicatedBackend::getxattr(
   std::string&& key) const
 {
   return seastar::do_with(key, [this, &soid](auto &key) {
-    return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::get_attr>(
-      store, coll, ghobject_t{soid}, key, 0);
+    return store.get_attr(coll, ghobject_t{soid}, key);
   });
 }
 

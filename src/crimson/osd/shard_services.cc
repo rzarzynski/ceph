@@ -1034,11 +1034,9 @@ seastar::future<Ref<PG>> ShardServices::make_pg(
   auto get_collection = [pgid, do_create, this] {
     const coll_t cid{pgid};
     if (do_create) {
-      return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::create_new_collection>(
-        get_store(), cid);
+      return get_store().create_new_collection(cid);
     } else {
-      return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::open_collection>(
-        get_store(), cid);
+      return get_store().open_collection(cid);
     }
   };
   return seastar::when_all(
@@ -1239,8 +1237,7 @@ seastar::future<> ShardServices::dispatch_context_transaction(
   }
 
   DEBUG("do_transaction ...");
-  co_await crimson::os::with_store_do_transaction(
-    get_store(),
+  co_await get_store().do_transaction(
     col,
     ctx.transaction.claim_and_reset());
   co_return;

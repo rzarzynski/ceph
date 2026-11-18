@@ -74,8 +74,7 @@ void ECRecoveryBackend::commit_txn_send_replies(
   ceph::os::Transaction&& txn,
   std::map<int, MOSDPGPushReply*> replies)
 {
-  std::ignore = crimson::os::with_store_do_transaction(
-    shard_services.get_store(),
+  std::ignore = shard_services.get_store().do_transaction(
     crimson::osd::RecoveryBackend::coll,
     std::move(txn)
   ).then([replies=std::move(replies), this]() mutable {

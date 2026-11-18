@@ -277,28 +277,4 @@ protected:
   const core_id_t primary_core;
 };
 
-using BackendStore = FuturizedStore::Shard&;
-
-template<auto MemberFunc, typename... Args>
-auto with_store(BackendStore store, Args&&... args)
-{
-  using raw_return_type = decltype((store.*MemberFunc)(std::forward<Args>(args)...));
-  constexpr bool is_errorator = is_errorated_future_v<raw_return_type>;
-  constexpr bool is_seastar_future = seastar::is_future<raw_return_type>::value && !is_errorator;
-  if constexpr (!is_errorator && !is_seastar_future) {
-    return seastar::make_ready_future<raw_return_type>(
-      (store.*MemberFunc)(std::forward<Args>(args)...));
-  } else {
-    return (store.*MemberFunc)(std::forward<Args>(args)...);
-  }
-}
-
-inline seastar::future<> with_store_do_transaction(
-  BackendStore store,
-  FuturizedStore::Shard::CollectionRef ch,
-  ceph::os::Transaction&& txn)
-{
-  return store.do_transaction(std::move(ch), std::move(txn));
-}
-
 }

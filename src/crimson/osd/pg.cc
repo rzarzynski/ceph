@@ -150,7 +150,7 @@ PG::PG(
       *backend.get(),
       *this},
     osdriver(
-      shard_services.get_store(),
+      &shard_services.get_store(),
       coll_ref,
       pgid.make_snapmapper_oid()),
     snap_mapper(
@@ -191,8 +191,7 @@ void PG::check_blocklisted_watchers()
 
 bool PG::try_flush_or_schedule_async() {
   logger().debug("PG::try_flush_or_schedule_async: flush ...");
-  (void)crimson::os::with_store_do_transaction(
-    shard_services.get_store(),
+  (void)shard_services.get_store().do_transaction(
     coll_ref, ceph::os::Transaction{}
   ).then(
     [this, epoch=get_osdmap_epoch()]() {
@@ -251,8 +250,7 @@ void PG::publish_stats_to_osd()
   ceph::os::Transaction t;
   peering_state.write_if_dirty(t);
   if (!t.empty()) {
-    (void) crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
+    (void) shard_services.get_store().do_transaction(
       coll_ref,
       std::move(t));
   }
@@ -530,13 +528,11 @@ PG::do_delete_work(ceph::os::Transaction &t, ghobject_t _next)
   LOG_PREFIX(PG::do_delete_work);
   DEBUGDPP("removing pg {}", *this, pgid);
   auto fut = interruptor::make_interruptible(
-    crimson::os::with_store<&crimson::os::FuturizedStore::Shard::list_objects>(
-      shard_services.get_store(),
+    shard_services.get_store().list_objects(
       coll_ref,
       _next,
       ghobject_t::get_max(),
-      local_conf()->osd_target_transaction_size,
-      0));
+      local_conf()->osd_target_transaction_size));
 
   auto [objs_to_rm, next] = fut.get();
   if (objs_to_rm.empty()) {
@@ -555,8 +551,7 @@ PG::do_delete_work(ceph::os::Transaction &t, ghobject_t _next)
      * about to disappear.
      */
     peering_state.set_delete_complete();
-    (void) crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
+    (void) shard_services.get_store().do_transaction(
       coll_ref,
       t.claim_and_reset()).then([this] {
       return shard_services.remove_pg(pgid);
@@ -607,13 +602,11 @@ seastar::future<> PG::clear_temp_objects()
   ceph::os::Transaction t;
   auto max_size = local_conf()->osd_target_transaction_size;
   while(true) {
-    auto [objs, next] = co_await crimson::os::with_store<&crimson::os::FuturizedStore::Shard::list_objects>(
-      shard_services.get_store(),
-      coll_ref, _next, ghobject_t::get_max(), max_size, 0);
+    auto [objs, next] = co_await shard_services.get_store().list_objects(
+      coll_ref, _next, ghobject_t::get_max(), max_size);
     if (objs.empty()) {
       if (!t.empty()) {
-        co_await crimson::os::with_store_do_transaction(
-          shard_services.get_store(),
+        co_await shard_services.get_store().do_transaction(
           coll_ref, std::move(t));
       }
       break;
@@ -625,8 +618,7 @@ seastar::future<> PG::clear_temp_objects()
     }
     _next = next;
     if (t.get_num_ops() >= max_size) {
-      co_await crimson::os::with_store_do_transaction(
-        shard_services.get_store(),
+      co_await shard_services.get_store().do_transaction(
         coll_ref, t.claim_and_reset());
     }
   }
@@ -923,9 +915,8 @@ seastar::future<> PG::init(
     role, newup, new_up_primary, newacting,
     new_acting_primary, history, pi, t);
   assert(coll_ref);
-  return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::exists>(
-    shard_services.get_store(),
-    get_collection_ref(), pgid.make_snapmapper_oid(), 0
+  return shard_services.get_store().exists(
+    get_collection_ref(), pgid.make_snapmapper_oid()
   ).safe_then([&t, this](bool existed) {
     if (!existed) {
       t.touch(coll_ref->get_cid(), pgid.make_snapmapper_oid());
@@ -936,7 +927,7 @@ seastar::future<> PG::init(
 );
 }
 
-seastar::future<> PG::read_state(crimson::os::BackendStore store)
+seastar::future<> PG::read_state(crimson::os::FuturizedStore::Shard& store)
 {
   if (__builtin_expect(stopping, false)) {
     return seastar::make_exception_future<>(
@@ -982,10 +973,9 @@ seastar::future<> PG::read_state(crimson::os::BackendStore store)
     return seastar::now();
   }).then([this, &store]() {
     logger().debug("{} setting collection options", __func__);
-    return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::set_collection_opts>(
-          store,
-          coll_ref,
-          get_pgpool().info.opts);
+    return store.set_collection_opts(
+      coll_ref,
+      get_pgpool().info.opts);
   });
 }
 
@@ -1057,8 +1047,8 @@ void PG::handle_initialize(PeeringCtx &rctx)
 
 void PG::init_collection_pool_opts()
 {
-  std::ignore = crimson::os::with_store<&crimson::os::FuturizedStore::Shard::set_collection_opts>(
-    shard_services.get_store(), coll_ref, get_pgpool().info.opts);
+  std::ignore = shard_services.get_store().set_collection_opts(
+    coll_ref, get_pgpool().info.opts);
 }
 
 void PG::on_pool_change()
@@ -1311,8 +1301,7 @@ PG::interruptible_future<eversion_t> PG::submit_error_log(
   }
 
   co_await interruptor::make_interruptible(
-    crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
+    shard_services.get_store().do_transaction(
       get_collection_ref(), std::move(t)
     ));
 
@@ -1551,8 +1540,7 @@ PG::handle_rep_op_fut PG::handle_rep_op(Ref<MOSDRepOp> req)
   scrubber.on_rep_op_submitted(last_log_version);
 
   auto commit_fut = interruptor::make_interruptible(
-    crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
+    shard_services.get_store().do_transaction(
       coll_ref, std::move(txn))
   ).then_interruptible([this, last_log_version] {
     // Only now is the write actually durable in the local object store;
@@ -1750,8 +1738,7 @@ PG::interruptible_future<> PG::do_update_log_missing(
     m->entries, t, op_trim_to, op_pg_committed_to);
 
   return interruptor::make_interruptible(
-    crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
+    shard_services.get_store().do_transaction(
       coll_ref, std::move(t))).then_interruptible(
     [m, conn, lcod=peering_state.get_info().last_complete, this] {
     if (!peering_state.pg_has_reset_since(m->get_epoch())) {

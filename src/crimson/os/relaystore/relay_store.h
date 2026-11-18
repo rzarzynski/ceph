@@ -98,7 +98,7 @@ public:
       local_created_colls;
 
     template <auto MemberFunc, typename... Args>
-    static auto with_store_coll(CollectionRef ch, Args&&... args)
+    static auto dispatch_coll_op(CollectionRef ch, Args&&... args)
     {
       auto* relay_coll = static_cast<RelayCollection*>(ch.get());
       const auto& state = relay_coll->get_state();
@@ -153,7 +153,7 @@ public:
       const ghobject_t& oid,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::stat>(std::move(c), oid, op_flags);
+      return dispatch_coll_op<&base_t::stat>(std::move(c), oid, op_flags);
     }
 
     read_errorator::future<ceph::bufferlist> read(
@@ -163,7 +163,7 @@ public:
       size_t len,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::read>(std::move(c), oid, offset, len, op_flags);
+      return dispatch_coll_op<&base_t::read>(std::move(c), oid, offset, len, op_flags);
     }
 
     read_errorator::future<ceph::bufferlist> readv(
@@ -172,7 +172,7 @@ public:
       interval_set<uint64_t>& m,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::readv>(std::move(c), oid, m, op_flags);
+      return dispatch_coll_op<&base_t::readv>(std::move(c), oid, m, op_flags);
     }
 
     base_errorator::future<bool> exists(
@@ -180,7 +180,7 @@ public:
       const ghobject_t& oid,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::exists>(std::move(ch), oid, op_flags);
+      return dispatch_coll_op<&base_t::exists>(std::move(ch), oid, op_flags);
     }
 
     get_attr_errorator::future<ceph::bufferlist> get_attr(
@@ -210,7 +210,7 @@ public:
       const ghobject_t& oid,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::get_attrs>(std::move(c), oid, op_flags);
+      return dispatch_coll_op<&base_t::get_attrs>(std::move(c), oid, op_flags);
     }
 
     read_errorator::future<omap_values_t> omap_get_values(
@@ -219,7 +219,7 @@ public:
       const omap_keys_t& keys,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::omap_get_values>(std::move(c), oid, keys, op_flags);
+      return dispatch_coll_op<&base_t::omap_get_values>(std::move(c), oid, keys, op_flags);
     }
 
     read_errorator::future<ObjectStore::omap_iter_ret_t> omap_iterate(
@@ -230,7 +230,7 @@ public:
       uint32_t op_flags = 0,
       omap_iterate_conf_t on_conflict = nullptr) final
     {
-      return with_store_coll<&base_t::omap_iterate>(
+      return dispatch_coll_op<&base_t::omap_iterate>(
         std::move(c), oid, start_from, callback, op_flags, on_conflict);
     }
 
@@ -239,7 +239,7 @@ public:
       const ghobject_t& oid,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::omap_get_header>(std::move(c), oid, op_flags);
+      return dispatch_coll_op<&base_t::omap_get_header>(std::move(c), oid, op_flags);
     }
 
     seastar::future<std::tuple<std::vector<ghobject_t>, ghobject_t>> list_objects(
@@ -249,7 +249,7 @@ public:
       uint64_t limit,
       uint32_t op_flags = 0) const final
     {
-      return with_store_coll<&base_t::list_objects>(
+      return dispatch_coll_op<&base_t::list_objects>(
         std::move(c), start, end, limit, op_flags);
     }
 
@@ -261,7 +261,7 @@ public:
       CollectionRef c,
       const pool_opts_t& opts) final
     {
-      return with_store_coll<&base_t::set_collection_opts>(std::move(c), opts);
+      return dispatch_coll_op<&base_t::set_collection_opts>(std::move(c), opts);
     }
 
     seastar::future<> do_transaction_no_callbacks(
@@ -269,7 +269,7 @@ public:
       ceph::os::Transaction&& txn) final;
 
     seastar::future<> flush(CollectionRef ch) final {
-      return with_store_coll<&base_t::flush>(std::move(ch));
+      return dispatch_coll_op<&base_t::flush>(std::move(ch));
     }
 
     seastar::future<> inject_data_error(const ghobject_t& o) final;
@@ -282,7 +282,7 @@ public:
       uint64_t len,
       uint32_t op_flags = 0) final
     {
-      return with_store_coll<&base_t::fiemap>(std::move(ch), oid, off, len, op_flags);
+      return dispatch_coll_op<&base_t::fiemap>(std::move(ch), oid, off, len, op_flags);
     }
 
     unsigned get_max_attr_name_length() const final {

@@ -70,7 +70,7 @@ class PerShardState {
 #define assert_core() ceph_assert(seastar::this_shard_id() == core);
 
   const int whoami;
-  crimson::os::BackendStore b_store;
+  crimson::os::FuturizedStore::Shard& b_store;
   crimson::common::CephContext cct;
 
   OSDState &osd_state;
@@ -597,13 +597,12 @@ public:
   seastar::future<> shutdown_cluster_lane();
   seastar::future<> mark_down_cluster_lane(entity_addr_t addr);
 
-  crimson::os::BackendStore get_store() const {
+  crimson::os::FuturizedStore::Shard& get_store() const {
     return local_state.b_store;
   }
 
   seastar::future<bool> is_local_storage_full(crimson::os::CollectionRef ch) const {
-    return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::is_coll_storage_full>(
-      get_store(), std::move(ch));
+    return get_store().is_coll_storage_full(std::move(ch));
   }
 
   struct shard_stats_t {

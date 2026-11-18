@@ -432,8 +432,7 @@ ECBackend::handle_sub_write(
     pg.op_applied(op.at_version);
   }
   DEBUGDPP("line={}", dpp, __LINE__);
-  return crimson::os::with_store_do_transaction(
-      store, coll, std::move(txn)).then(
+  return store.do_transaction(coll, std::move(txn)).then(
       [FNAME, tid=op.tid, at_version=op.at_version, &dpp=this->dpp, &pg] {
     DEBUGDPP("tid={} transaction commited!", dpp, tid);
     // Only now is the write (including backfill/async-recovery sub-writes)
@@ -534,8 +533,7 @@ ECBackend::maybe_chunked_read(
   LOG_PREFIX(ECBackend::maybe_chunked_read);
   DEBUGDPP("tid={} hoid={} off={} size={} flags={}", dpp, op.tid, obj, off, size, flags);
   DEBUGDPP("tid={} ghobj={}", dpp, op.tid, ghobject_t{obj, ghobject_t::NO_GEN, get_shard()});
-  return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::read>(
-    store,
+  return store.read(
     coll, ghobject_t{obj, ghobject_t::NO_GEN, get_shard()}, off, size, flags);
 }
 
@@ -607,8 +605,8 @@ ECBackend::handle_rep_read_op(ECSubRead& op)
 	if (reply.errors.count(obj_attr)) {
           return read_ertr::now();
 	}
-        return crimson::os::with_store<&crimson::os::FuturizedStore::Shard::get_attrs>(
-          store, coll, ghobject_t{obj_attr, ghobject_t::NO_GEN, get_shard()}, 0
+        return store.get_attrs(
+          coll, ghobject_t{obj_attr, ghobject_t::NO_GEN, get_shard()}
 	).safe_then([&reply, obj_attr] (auto&& attrs) {
 	  reply.attrs_read[obj_attr] = std::move(attrs);
           return read_ertr::now();

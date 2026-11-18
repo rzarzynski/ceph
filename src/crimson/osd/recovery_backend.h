@@ -142,7 +142,7 @@ public:
 protected:
   crimson::osd::PG& pg;
   crimson::osd::ShardServices& shard_services;
-  crimson::os::BackendStore store;
+  crimson::os::FuturizedStore::Shard& store;
   crimson::os::CollectionRef coll;
   PGBackend* backend;
 

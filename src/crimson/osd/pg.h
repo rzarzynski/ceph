@@ -889,7 +889,7 @@ public:
     const PastIntervals& pim,
     ceph::os::Transaction &t);
 
-  seastar::future<> read_state(crimson::os::BackendStore store);
+  seastar::future<> read_state(crimson::os::FuturizedStore::Shard& store);
 
   void do_peering_event(PGPeeringEvent& evt, PeeringCtx &rctx);
 
@@ -924,8 +924,7 @@ public:
       seed,
       target);
     init_pg_ondisk(t, child, pool);
-    return crimson::os::with_store_do_transaction(
-      shard_services.get_store(),
+    return shard_services.get_store().do_transaction(
       coll_ref, std::move(t));
   }
 
