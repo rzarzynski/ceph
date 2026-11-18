@@ -14,6 +14,7 @@
 
 #include "crimson/common/layout.h"
 
+#include "crimson/os/sharding_helpers.h"
 #include "crimson/os/seastore/segment_manager.h"
 
 #include "include/uuid.h"
@@ -65,12 +66,18 @@ namespace crimson::os::seastore::segment_manager::zbd {
     mkfs_ret mkfs(device_config_t meta) override;
 
     ZBDSegmentManager(
+      shard_desc_t store_shard_desc,
       const std::string &path,
       device_type_t dtype,
-      device_id_t id,
-      store_index_t store_index = 0)
+      device_id_t id)
     : SegmentManager(path, dtype, id),
-      store_index(store_index) {}
+      store_shard_desc(store_shard_desc) {}
+
+    ZBDSegmentManager(
+      const std::string &path,
+      device_type_t dtype,
+      device_id_t id)
+    : ZBDSegmentManager(shard_desc_t{0, 1}, path, dtype, id) {}
 
     ~ZBDSegmentManager() override = default;
 
@@ -170,10 +177,10 @@ namespace crimson::os::seastore::segment_manager::zbd {
     mount_ret shard_mount();
 
     uint32_t device_shard_nums = 0;
-    store_index_t store_index = 0;
+    shard_desc_t store_shard_desc{0, 1};
     bool shard_status = true;
 
-    seastar::sharded<MultiShardDevices<ZBDSegmentManager>> shard_devices;
+    crimson::os::multisharded<ZBDSegmentManager> shard_devices;
   };
 
 }

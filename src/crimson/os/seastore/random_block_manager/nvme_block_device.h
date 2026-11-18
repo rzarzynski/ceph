@@ -49,11 +49,16 @@ public:
    */
 
   NVMeBlockDevice(
+    shard_desc_t store_shard_desc,
     std::string device_path,
     device_type_t dtype,
-    device_id_t id,
-    store_index_t store_index = 0)
-    : RBMDevice(device_path, dtype, id, store_index) {}
+    device_id_t id)
+    : RBMDevice(store_shard_desc, device_path, dtype, id) {}
+  NVMeBlockDevice(
+    std::string device_path,
+    device_type_t dtype,
+    device_id_t id)
+    : RBMDevice(device_path, dtype, id) {}
   ~NVMeBlockDevice() = default;
 
   ceph::unique_leakable_ptr<ceph::buffer::raw> alloc_io_buffer(
@@ -178,7 +183,7 @@ private:
   uint32_t atomic_write_unit = 4096;
 
 
-  seastar::sharded<MultiShardDevices<NVMeBlockDevice>> shard_devices;
+  crimson::os::multisharded<NVMeBlockDevice> shard_devices;
 };
 
 }

@@ -302,10 +302,9 @@ seastar::future<> BlockSegmentManager::start(uint32_t shard_nums)
 {
   LOG_PREFIX(BlockSegmentManager::start);
   device_shard_nums = shard_nums;
-  auto num_shard_services = (device_shard_nums + seastar::this_smp_shard_count() - 1 ) / seastar::this_smp_shard_count();
-  INFO("device_shard_nums={} seastar::smp={}, num_shard_services={}", device_shard_nums, seastar::this_smp_shard_count(), num_shard_services);
+  INFO("device_shard_nums={} seastar::smp={}", device_shard_nums, seastar::this_smp_shard_count());
   return shard_devices.start(
-    num_shard_services,
+    device_shard_nums,
     device_path,
     get_device_type(),
     get_device_id());
@@ -318,8 +317,8 @@ seastar::future<> BlockSegmentManager::stop()
 
 Device& BlockSegmentManager::get_sharded_device(store_index_t store_index)
 {
-  assert(store_index < shard_devices.local().mshard_devices.size());
-  return *shard_devices.local().mshard_devices[store_index];
+  assert(store_index < shard_devices.local_count());
+  return shard_devices.local(store_index);
 }
 
 BlockSegmentManager::access_ertr::future<seastar::stat_data>
@@ -354,14 +353,12 @@ SegmentManager::read_ertr::future<uint32_t> BlockSegmentManager::get_shard_nums(
 
 BlockSegmentManager::mount_ret BlockSegmentManager::mount()
 {
-  return shard_devices.invoke_on_all([](auto &local_device) {
-    return seastar::do_for_each(local_device.mshard_devices, [](auto& mshard_device) {
-      return mshard_device->shard_mount(
-      ).handle_error(
-        crimson::ct_error::assert_all(
-          "Invalid error in BlockSegmentManager::mount"
-      ));
-    });
+  return shard_devices.invoke_on_all([](auto &mshard_device) {
+    return mshard_device.shard_mount(
+    ).handle_error(
+      crimson::ct_error::assert_all(
+        "Invalid error in BlockSegmentManager::mount"
+    ));
   });
 }
 
@@ -374,15 +371,16 @@ BlockSegmentManager::mount_ret BlockSegmentManager::shard_mount()
   }).safe_then([=, this](auto sb) ->mount_ertr::future<> {
     ceph_assert(sb.config.spec.id == get_device_id());
     ceph_assert(sb.config.spec.dtype == get_device_type());
-    if(seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index >= sb.shard_num) {
+    const auto global_index = store_shard_desc.global_index();
+    if (global_index >= sb.shard_num) {
       INFO("{} shard_id {} out of range {}",
       device_id_printer_t{get_device_id()},
-        seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index,
+        global_index,
         sb.shard_num);
       shard_status = false;
       return mount_ertr::now();
     }
-    shard_info = sb.shard_infos[seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index];
+    shard_info = sb.shard_infos[global_index];
     INFO("{} read {}", device_id_printer_t{get_device_id()}, shard_info);
     sb.validate();
     superblock = sb;
@@ -409,23 +407,21 @@ BlockSegmentManager::mount_ret BlockSegmentManager::shard_mount()
     });
   }).safe_then([this, FNAME] {
     INFO("{} complete", device_id_printer_t{get_device_id()});
-    register_metrics(store_index);
+    register_metrics(store_shard_desc.local_index);
   });
 }
 
 BlockSegmentManager::mkfs_ret BlockSegmentManager::mkfs(
   device_config_t sm_config)
 {
-  return shard_devices.local().mshard_devices[0]->primary_mkfs(sm_config
+  return shard_devices.local(0).primary_mkfs(sm_config
   ).safe_then([this] {
-    return shard_devices.invoke_on_all([](auto &local_device) {
-      return seastar::do_for_each(local_device.mshard_devices, [](auto& mshard_device) {
-        return mshard_device->shard_mkfs(
-        ).handle_error(
-          crimson::ct_error::assert_all(
-            "Invalid error in BlockSegmentManager::mkfs"
-        ));
-      });
+    return shard_devices.invoke_on_all([](auto &mshard_device) {
+      return mshard_device.shard_mkfs(
+      ).handle_error(
+        crimson::ct_error::assert_all(
+          "Invalid error in BlockSegmentManager::mkfs"
+      ));
     });
   });
 }
@@ -468,7 +464,7 @@ BlockSegmentManager::mkfs_ret BlockSegmentManager::shard_mkfs()
   }).safe_then([this, FNAME](auto sb) {
     ceph_assert(sb.config.spec.id == get_device_id());
     ceph_assert(sb.config.spec.dtype == get_device_type());
-    shard_info = sb.shard_infos[seastar::this_shard_id()];
+    shard_info = sb.shard_infos[store_shard_desc.global_index()];
     INFO("{} read {}", device_id_printer_t{get_device_id()}, shard_info);
     sb.validate();
     tracker.reset(new SegmentStateTracker(

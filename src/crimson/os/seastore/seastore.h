@@ -22,6 +22,7 @@
 #include "crimson/common/smp_helpers.h"
 #include "crimson/os/futurized_collection.h"
 #include "crimson/os/futurized_store.h"
+#include "crimson/os/sharding_helpers.h"
 
 #include "crimson/os/seastore/device.h"
 #include "crimson/os/seastore/transaction.h"
@@ -115,13 +116,12 @@ public:
   class Shard : public FuturizedStore::Shard {
   public:
     Shard(
+      shard_desc_t store_shard_desc,
       std::string root,
       Device* device,
-      std::vector<Device*> &cache_devices,
-      std::vector<Device*> &data_devices,
-      bool is_test,
-      uint32_t store_shard_nums,
-      store_index_t store_index = 0);
+      const std::vector<Device*> &cache_devices,
+      const std::vector<Device*> &data_devices,
+      bool is_test);
     ~Shard() = default;
 
     stat_ertr::future<struct stat> stat(
@@ -251,7 +251,11 @@ public:
     cache_stats_t get_cache_stats(bool report_detail, double seconds) const;
 
     unsigned int get_store_index() const {
-      return store_index;
+      return store_shard_desc.local_index;
+    }
+
+    const shard_desc_t& get_store_shard_desc() const {
+      return store_shard_desc;
     }
 
     bool get_status() const {
@@ -692,7 +696,7 @@ public:
     OnodeManagerRef onode_manager;
 
     common::Throttle throttler;
-    store_index_t store_index;
+    shard_desc_t store_shard_desc;
     bool store_active = true;
 
     seastar::metrics::metric_group metrics;
@@ -750,7 +754,7 @@ public:
 
   uuid_d get_fsid() const override {
     ceph_assert(seastar::this_shard_id() == primary_core);
-    return shard_stores.local().mshard_stores[0]->get_fsid();
+    return shard_stores.local(0).get_fsid();
   }
 
   uint64_t get_max_object_size() const override final {
@@ -774,9 +778,9 @@ public:
   seastar::future<> do_gc() override;
 
   BackendStore get_backend_store(store_index_t store_index) override {
-    assert(!shard_stores.local().mshard_stores.empty());
+    assert(store_shard_nums > 0);
     if (store_index != NULL_STORE_INDEX) {
-      assert(store_index < shard_stores.local().mshard_stores.size());
+      assert(store_index < shard_stores.local_count());
     }
     auto this_id = seastar::this_shard_id();
     if (this_id < store_shard_nums) {
@@ -789,8 +793,8 @@ public:
 
   FuturizedStore::Shard& get_sharded_store(store_index_t store_index = 0) override
   {
-    assert(store_index < shard_stores.local().mshard_stores.size());
-    auto &shard_store = *(shard_stores.local().mshard_stores[store_index]);
+    assert(store_index < shard_stores.local_count());
+    auto &shard_store = shard_stores.local(store_index);
     assert(shard_store.get_status() == true);
     return shard_store;
   }
@@ -836,30 +840,6 @@ private:
     backend_type_t btype);
 
 private:
-  class MultiShardStores {
-  public:
-    std::vector<std::unique_ptr<SeaStore::Shard>> mshard_stores;
-
-  public:
-    MultiShardStores(size_t count,
-                     const std::string& root,
-                     Device* device,
-                     std::vector<Device*> &cache_devs,
-                     std::vector<Device*> &data_devs,
-                     bool is_test,
-                     uint32_t store_shard_nums)
-    : mshard_stores() {
-      mshard_stores.reserve(count); // Reserve space for the shards
-      for (size_t store_index = 0; store_index < count; ++store_index) {
-        mshard_stores.emplace_back(std::make_unique<SeaStore::Shard>(
-          root, device, cache_devs, data_devs, is_test,
-          store_shard_nums, store_index));
-      }
-    }
-    ~MultiShardStores() {
-      mshard_stores.clear();
-    }
-  };
   std::string root;
   MDStoreRef mdstore;
   Device* primary_device = nullptr; // the lowest-id device in
@@ -867,7 +847,7 @@ private:
                                     // if cache_devices is empty.
   std::vector<DeviceRef> cache_devices;
   std::vector<DeviceRef> data_devices;
-  seastar::sharded<SeaStore::MultiShardStores> shard_stores;
+  crimson::os::multisharded<SeaStore::Shard> shard_stores;
   uint32_t store_shard_nums = 0;
 
   mutable seastar::lowres_clock::time_point last_tp =

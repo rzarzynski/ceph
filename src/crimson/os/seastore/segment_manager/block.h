@@ -12,6 +12,7 @@
 
 #include "crimson/common/layout.h"
 
+#include "crimson/os/sharding_helpers.h"
 #include "crimson/os/seastore/block_io_driver.h"
 #include "crimson/os/seastore/seastore_dma_alloc.h"
 #include "crimson/os/seastore/segment_manager.h"
@@ -127,14 +128,20 @@ public:
   close_ertr::future<> close();
 
   BlockSegmentManager(
+    shard_desc_t store_shard_desc,
     const std::string &path,
     device_type_t dtype,
-    device_id_t id,
-    store_index_t store_index = 0)
+    device_id_t id)
   : SegmentManager(path, dtype, id),
-    store_index(store_index) {
+    store_shard_desc(store_shard_desc) {
     superblock.config.spec.dtype = dtype;
   }
+
+  BlockSegmentManager(
+    const std::string &path,
+    device_type_t dtype,
+    device_id_t id)
+  : BlockSegmentManager(shard_desc_t{0, 1}, path, dtype, id) {}
 
   ~BlockSegmentManager();
 
@@ -256,10 +263,10 @@ private:
   mount_ret shard_mount();
 
   uint32_t device_shard_nums = 0;
-  store_index_t store_index = 0;
+  shard_desc_t store_shard_desc{0, 1};
   bool shard_status = true;
 
-  seastar::sharded<MultiShardDevices<BlockSegmentManager>> shard_devices;
+  crimson::os::multisharded<BlockSegmentManager> shard_devices;
 };
 
 }

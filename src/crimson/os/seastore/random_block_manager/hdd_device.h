@@ -9,11 +9,17 @@ namespace crimson::os::seastore::random_block_device {
 class RotationalDevice : public RBMDevice {
 public:
   RotationalDevice(
+    shard_desc_t store_shard_desc,
     std::string device_path,
     device_type_t dtype,
-    device_id_t id,
-    store_index_t store_index = 0)
-    : RBMDevice(device_path, dtype, id, store_index)
+    device_id_t id)
+    : RBMDevice(store_shard_desc, device_path, dtype, id)
+  {}
+  RotationalDevice(
+    std::string device_path,
+    device_type_t dtype,
+    device_id_t id)
+    : RBMDevice(device_path, dtype, id)
   {}
   ~RotationalDevice() = default;
 
@@ -26,8 +32,8 @@ public:
   }
 
   Device& get_sharded_device(store_index_t store_index) final {
-    assert(store_index < shard_devices.local().mshard_devices.size());
-    return *shard_devices.local().mshard_devices[store_index];
+    assert(store_index < shard_devices.local_count());
+    return shard_devices.local(store_index);
   }
 
   mkfs_ret mkfs(device_config_t config) final;
@@ -90,7 +96,7 @@ public:
 
 private:
   seastar::file device;
-  seastar::sharded<MultiShardDevices<RotationalDevice>> shard_devices;
+  crimson::os::multisharded<RotationalDevice> shard_devices;
 };
 
 }

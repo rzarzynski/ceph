@@ -22,11 +22,10 @@ namespace crimson::os::seastore::random_block_device::nvme {
 seastar::future<> NVMeBlockDevice::start(uint32_t shard_nums)
 {
   device_shard_nums = shard_nums;
-  auto num_shard_services = (device_shard_nums + seastar::this_smp_shard_count() - 1 ) / seastar::this_smp_shard_count();
   LOG_PREFIX(NVMeBlockDevice::start);
-  DEBUG("device_shard_nums={} seastar::smp={}, num_shard_services={}", device_shard_nums, seastar::this_smp_shard_count(), num_shard_services);
+  DEBUG("device_shard_nums={} seastar::smp={}", device_shard_nums, seastar::this_smp_shard_count());
   return shard_devices.start(
-    num_shard_services,
+    device_shard_nums,
     device_path,
     get_device_type(),
     get_device_id());
@@ -39,13 +38,13 @@ seastar::future<> NVMeBlockDevice::stop()
 
 Device& NVMeBlockDevice::get_sharded_device(store_index_t store_index)
 {
-  assert(store_index < shard_devices.local().mshard_devices.size());
-  return *shard_devices.local().mshard_devices[store_index];
+  assert(store_index < shard_devices.local_count());
+  return shard_devices.local(store_index);
 }
 
 NVMeBlockDevice::mkfs_ret NVMeBlockDevice::mkfs(device_config_t config) {
   using crimson::common::get_conf;
-  co_await shard_devices.local().mshard_devices[0]->do_primary_mkfs(config,
+  co_await shard_devices.local(0).do_primary_mkfs(config,
     seastar::this_smp_shard_count(),
     get_conf<Option::size_t>("seastore_cbjournal_size") 
   );
@@ -93,25 +92,21 @@ NVMeBlockDevice::mount_ret NVMeBlockDevice::mount()
 {
   LOG_PREFIX(NVMeBlockDevice::mount);
   DEBUG("mount");
-  co_await shard_devices.invoke_on_all([](auto &local_device) {
-    return seastar::do_for_each(local_device.mshard_devices, [](auto& mshard_device) {
-      return mshard_device->do_shard_mount(
-      ).handle_error(
-        crimson::ct_error::assert_all(
-          "Invalid error in NVMeBlockDevice::do_shard_mount"
-      ));
-    });
+  co_await shard_devices.invoke_on_all([](auto &mshard_device) {
+    return mshard_device.do_shard_mount(
+    ).handle_error(
+      crimson::ct_error::assert_all(
+        "Invalid error in NVMeBlockDevice::do_shard_mount"
+    ));
   });
 
   // Superblocks are loaded now: activate PI on each shard's driver if the
   // device was formatted with end-to-end data protection, so subsequent I/O
   // uses the PI command path.
-  co_await shard_devices.invoke_on_all([](auto &local_device) {
-    for (auto& mshard_device : local_device.mshard_devices) {
-      if (mshard_device->is_end_to_end_data_protection()) {
-        mshard_device->driver->set_protection_info(
-          true, mshard_device->super.nvme_block_size);
-      }
+  co_await shard_devices.invoke_on_all([](auto &mshard_device) {
+    if (mshard_device.is_end_to_end_data_protection()) {
+      mshard_device.driver->set_protection_info(
+        true, mshard_device.super.nvme_block_size);
     }
     return seastar::now();
   });

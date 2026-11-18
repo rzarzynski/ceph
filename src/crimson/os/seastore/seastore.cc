@@ -118,36 +118,30 @@ public:
 using crimson::common::get_conf;
 
 SeaStore::Shard::Shard(
+  shard_desc_t store_shard_desc,
   std::string root,
   Device* device,
-  std::vector<Device*> &cache_devs,
-  std::vector<Device*> &data_devs,
-  bool is_test,
-  uint32_t store_shard_nums,
-  store_index_t store_index)
+  const std::vector<Device*> &cache_devs,
+  const std::vector<Device*> &data_devs,
+  bool is_test)
   :root(root),
    max_object_size(
      get_conf<uint64_t>("seastore_default_max_object_size")),
    is_test(is_test),
    throttler(
       get_conf<uint64_t>("seastore_max_concurrent_transactions")),
-   store_index(store_index)
+   store_shard_desc(store_shard_desc)
 {
-  if (store_active = is_shard_store_active(store_index, store_shard_nums); !store_active) {
-    LOG_PREFIX(SeaStore::Shard::Shard);
-    INFO("store_index {} is out of range - inactivating this store shard, store_shard_nums {}", store_index, store_shard_nums);
-  }
-
   ceph_assert(device);
-  primary_device = &(device->get_sharded_device(store_index));
+  primary_device = &(device->get_sharded_device(store_shard_desc.local_index));
   for (auto &dev : cache_devs) {
-    cache_devices.emplace_back(&(dev->get_sharded_device(store_index)));
+    cache_devices.emplace_back(&(dev->get_sharded_device(store_shard_desc.local_index)));
   }
   for (auto &dev : data_devs) {
-    data_devices.emplace_back(&(dev->get_sharded_device(store_index)));
+    data_devices.emplace_back(&(dev->get_sharded_device(store_shard_desc.local_index)));
   }
 
-  register_metrics(store_index);
+  register_metrics(store_shard_desc.local_index);
 }
 
 SeaStore::SeaStore(
@@ -393,12 +387,8 @@ seastar::future<> SeaStore::get_shard_nums(Device &device)
 seastar::future<> SeaStore::shard_stores_start(bool is_test)
 {
   LOG_PREFIX(SeaStore::shard_stores_start);
-  auto num_shard_services =
-    (store_shard_nums + seastar::this_smp_shard_count() - 1 ) /
-      seastar::this_smp_shard_count();
-  INFO("store_shard_nums={} seastar::smp={}, num_shard_services={}, "
-    "cache_devices: {}, data_devices: {}",
-    store_shard_nums, seastar::this_smp_shard_count(), num_shard_services,
+  INFO("store_shard_nums={} seastar::smp={}, cache_devices: {}, data_devices: {}",
+    store_shard_nums, seastar::this_smp_shard_count(),
     cache_devices.size(), data_devices.size());
 
   std::vector<Device*> cache_devs;
@@ -410,13 +400,12 @@ seastar::future<> SeaStore::shard_stores_start(bool is_test)
     data_devs.emplace_back(dev.get());
   }
   return shard_stores.start(
-    num_shard_services,
+    store_shard_nums,
     root,
     primary_device,
     cache_devs,
     data_devs,
-    is_test,
-    store_shard_nums);
+    is_test);
 }
 
 seastar::future<> SeaStore::shard_stores_stop()
@@ -613,14 +602,13 @@ seastar::future<> SeaStore::test_start(
   for (auto &dev : data_devices) {
     data_devs.emplace_back(dev.get());
   }
-  co_await shard_stores.start_single(
+  co_await shard_stores.start(
     1,
     root,
     primary_device,
     cache_devs,
     data_devs,
-    true,
-    seastar::this_smp_shard_count());
+    true);
   INFO("done");
 }
 
@@ -646,8 +634,8 @@ SeaStore::mount_ertr::future<> SeaStore::test_mount()
   INFO("...");
 
   ceph_assert(seastar::this_shard_id() == primary_core);
-  co_await seastar::do_for_each(shard_stores.local().mshard_stores, [](auto& mshard_store) {
-    return mshard_store->mount_managers();
+  co_await shard_stores.invoke_on_locals([](auto& shard_store) {
+    return shard_store.mount_managers();
   });
   INFO("done");
 }
@@ -703,10 +691,8 @@ Device::access_ertr::future<> SeaStore::_mount()
                  laddr_t::UNIT_SIZE, device->get_device_path().c_str(),
                  block_size, laddr_t::UNIT_SIZE);
   }
-  co_await shard_stores.invoke_on_all([](auto &local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-      return mshard_store->mount_managers();
-    });
+  co_await shard_stores.invoke_on_all([](auto &shard_store) {
+    return shard_store.mount_managers();
   });
   INFO("done");
 }
@@ -733,13 +719,11 @@ seastar::future<> SeaStore::umount()
   INFO("...");
 
   ceph_assert(seastar::this_shard_id() == primary_core);
-  co_await shard_stores.invoke_on_all([](auto &local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-      return mshard_store->umount().handle_error(
-        crimson::ct_error::assert_all(
-          "Invalid error in shard_store->umount"
-      ));
-    });
+  co_await shard_stores.invoke_on_all([](auto &shard_store) {
+    return shard_store.umount().handle_error(
+      crimson::ct_error::assert_all(
+        "Invalid error in shard_store->umount"
+    ));
   });
   INFO("done");
 }
@@ -780,10 +764,8 @@ seastar::future<> SeaStore::do_gc()
 {
   LOG_PREFIX(SeaStore::do_gc);
   INFO("...");
-  co_await shard_stores.invoke_on_all([](auto &local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-      return mshard_store->do_gc();
-    });
+  co_await shard_stores.invoke_on_all([](auto &shard_store) {
+    return shard_store.do_gc();
   });
   INFO("done");
 }
@@ -848,7 +830,7 @@ SeaStore::mkfs_ertr::future<> SeaStore::test_mkfs(uuid_d new_osd_fsid)
     ERROR("failed");
     co_return;
   }
-  co_await shard_stores.local().mshard_stores[0]->mkfs_managers().handle_error(
+  co_await shard_stores.local(0).mkfs_managers().handle_error(
     crimson::ct_error::assert_all("Invalid error in SeaStore::mkfs"));
   co_await prepare_meta(new_osd_fsid);
   INFO("done");
@@ -926,11 +908,9 @@ Device::access_ertr::future<> SeaStore::_mkfs(uuid_d new_osd_fsid)
     co_await dev->mount();
   }
   DEBUG("mkfs managers");
-  co_await shard_stores.invoke_on_all([] (auto &local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-      return mshard_store->mkfs_managers().handle_error(
-        crimson::ct_error::assert_all("Invalid error in SeaStoreS::mkfs_managers"));
-    });
+  co_await shard_stores.invoke_on_all([] (auto &shard_store) {
+    return shard_store.mkfs_managers().handle_error(
+      crimson::ct_error::assert_all("Invalid error in SeaStoreS::mkfs_managers"));
   });
   co_await prepare_meta(new_osd_fsid);
   co_await umount();
@@ -946,20 +926,8 @@ SeaStore::list_collections()
 
   ceph_assert(seastar::this_shard_id() == primary_core);
   return shard_stores.map_reduce0(
-    [](auto& local_store) {
-    // For each local store, collect all collections from its mshard_stores
-    return seastar::map_reduce(
-      local_store.mshard_stores.begin(),
-      local_store.mshard_stores.end(),
-      [](auto& mshard_store) {
-        return mshard_store->list_collections();
-      },
-      std::vector<coll_core_t>(),
-      [](auto&& merged, auto&& result) {
-        merged.insert(merged.end(), result.begin(), result.end());
-        return std::move(merged);
-      }
-    );
+    [](auto& shard_store) {
+      return shard_store.list_collections();
     },
     std::vector<coll_core_t>(),
     [](auto&& total, auto&& shard_result) {
@@ -990,22 +958,13 @@ seastar::future<store_statfs_t> SeaStore::stat() const
 
   ceph_assert(seastar::this_shard_id() == primary_core);
   return shard_stores.map_reduce0(
-    [](auto& local_store) {
-        return seastar::map_reduce(
-            local_store.mshard_stores.begin(),
-            local_store.mshard_stores.end(),
-            [](auto& mshard_store) { return mshard_store->stat(); },
-            store_statfs_t(),
-            [](auto&& ss, auto&& ret) {
-                ss.add(ret);
-                return std::move(ss);
-            }
-        );
+    [](auto& shard_store) {
+      return shard_store.stat();
     },
     store_statfs_t(),
     [](auto&& total_stats, auto&& shard_stats) {
-        total_stats.add(shard_stats);
-        return std::move(total_stats);
+      total_stats.add(shard_stats);
+      return std::move(total_stats);
     }
   ).then([FNAME](auto final_stats) {
     DEBUG("done, stat={}", final_stats);
@@ -1035,22 +994,22 @@ seastar::future<> SeaStore::report_stats()
   shard_device_stats.resize(store_shard_nums);
   shard_io_stats.resize(store_shard_nums);
   shard_cache_stats.resize(store_shard_nums);
-  return shard_stores.invoke_on_all([this](auto& local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [this](auto& mshard_store) {
-      bool report_detail = false;
-      double seconds = 0;
-      if (seastar::this_shard_id() == 0 && mshard_store->get_store_index() == 0) {
-        // avoid too verbose logs, only report detail in a particular shard
-        report_detail = true;
-        seconds = mshard_store->reset_report_interval();
-      }
-      shard_device_stats[seastar::this_shard_id() + seastar::this_smp_shard_count() * mshard_store->get_store_index()] =
-        mshard_store->get_device_stats(report_detail, seconds);
-      shard_io_stats[seastar::this_shard_id() + seastar::this_smp_shard_count() * mshard_store->get_store_index()] =
-        mshard_store->get_io_stats(report_detail, seconds);
-      shard_cache_stats[seastar::this_shard_id() + seastar::this_smp_shard_count() * mshard_store->get_store_index()] =
-        mshard_store->get_cache_stats(report_detail, seconds);
-    });
+  return shard_stores.invoke_on_all([this](auto& shard_store) {
+    bool report_detail = false;
+    double seconds = 0;
+    const auto& desc = shard_store.get_store_shard_desc();
+    if (seastar::this_shard_id() == 0 && desc.local_index == 0) {
+      // avoid too verbose logs, only report detail in a particular shard
+      report_detail = true;
+      seconds = shard_store.reset_report_interval();
+    }
+    const auto gidx = desc.global_index();
+    shard_device_stats[gidx] =
+      shard_store.get_device_stats(report_detail, seconds);
+    shard_io_stats[gidx] =
+      shard_store.get_io_stats(report_detail, seconds);
+    shard_cache_stats[gidx] =
+      shard_store.get_cache_stats(report_detail, seconds);
   }).then([this, FNAME] {
     auto now = seastar::lowres_clock::now();
     if (last_tp == seastar::lowres_clock::time_point::min()) {
@@ -1397,7 +1356,7 @@ SeaStore::Shard::open_collection(const coll_t& cid)
   ).then([cid, this, FNAME] (auto colls_cores) {
     if (auto found = std::find(colls_cores.begin(),
                                colls_cores.end(),
-                               std::make_pair(cid, std::make_pair(seastar::this_shard_id(), store_index)));
+                               std::make_pair(cid, std::make_pair(seastar::this_shard_id(), store_shard_desc.local_index)));
       found != colls_cores.end()) {
       DEBUG("cid={} exists", cid);
       return seastar::make_ready_future<CollectionRef>(_get_collection(cid));
@@ -1450,7 +1409,7 @@ SeaStore::Shard::list_collections()
             std::transform(
               colls.begin(), colls.end(), ret.begin(),
               [this](auto p) {
-              return std::make_pair(p.first, std::make_pair(seastar::this_shard_id(), store_index));
+              return std::make_pair(p.first, std::make_pair(seastar::this_shard_id(), store_shard_desc.local_index));
             });
           });
         });
@@ -3361,7 +3320,7 @@ seastar::future<> SeaStore::write_meta(
   ceph_assert(seastar::this_shard_id() == primary_core);
   return seastar::do_with(key, value,
     [this, FNAME](auto& key, auto& value) {
-    return shard_stores.local().mshard_stores[0]->write_meta(key, value
+    return shard_stores.local(0).write_meta(key, value
     ).then([this, &key, &value] {
       return mdstore->write_meta(key, value);
     }).safe_then([FNAME, &key, &value] {
@@ -3477,7 +3436,7 @@ void SeaStore::Shard::init_managers()
       cache_devices,
       data_devices,
       shard_stats,
-      store_index,
+      store_shard_desc.local_index,
       is_test);
   collection_manager = std::make_unique<collection_manager::FlatCollectionManager>(
       *transaction_manager);

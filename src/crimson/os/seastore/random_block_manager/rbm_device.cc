@@ -220,15 +220,16 @@ RBMDevice::mount_ret RBMDevice::do_shard_mount()
     "Invalid error read_rbm_superblock in RBMDevice::do_shard_mount")
   );
   LOG_PREFIX(RBMDevice::do_shard_mount);
-  if(seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index >= s.shard_num) {
+  const auto global_index = store_shard_desc.global_index();
+  if (global_index >= s.shard_num) {
     INFO("{} shard_id {} out of range {}",
          device_id_printer_t{get_device_id()},
-         seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index,
+         global_index,
          s.shard_num);
     shard_status = false;
     co_return;
   }
-  shard_info = s.shard_infos[seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index];
+  shard_info = s.shard_infos[global_index];
   INFO("{} read {}", device_id_printer_t{get_device_id()}, shard_info);
   s.validate();
 }

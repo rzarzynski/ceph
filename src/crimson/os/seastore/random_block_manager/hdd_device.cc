@@ -11,14 +11,11 @@ namespace crimson::os::seastore::random_block_device {
 
 seastar::future<> RotationalDevice::start(uint32_t shard_nums) {
   device_shard_nums = shard_nums;
-  auto num_shard_services =
-    (device_shard_nums + seastar::this_smp_shard_count() - 1 ) /
-      seastar::this_smp_shard_count();
-  LOG_PREFIX(NVMeBlockDevice::start);
-  DEBUG("device_shard_nums={} seastar::smp={}, num_shard_services={}",
-    device_shard_nums, seastar::this_smp_shard_count(), num_shard_services);
+  LOG_PREFIX(RotationalDevice::start);
+  DEBUG("device_shard_nums={} seastar::smp={}",
+    device_shard_nums, seastar::this_smp_shard_count());
   return shard_devices.start(
-    num_shard_services,
+    device_shard_nums,
     device_path,
     get_device_type(),
     get_device_id());
@@ -27,7 +24,7 @@ seastar::future<> RotationalDevice::start(uint32_t shard_nums) {
 RotationalDevice::mkfs_ret RotationalDevice::mkfs(device_config_t config) {
   LOG_PREFIX(RotationalDevice::mkfs);
   INFO("{}", config);
-  return shard_devices.local().mshard_devices[0]->do_primary_mkfs(
+  return shard_devices.local(0).do_primary_mkfs(
     config,
     seastar::this_smp_shard_count(),
     // If there's no cache devices, the rotational
@@ -39,17 +36,13 @@ RotationalDevice::mkfs_ret RotationalDevice::mkfs(device_config_t config) {
 RotationalDevice::mount_ret RotationalDevice::mount() {
   LOG_PREFIX(RotationalDevice::mount);
   DEBUG("mount");
-  return shard_devices.invoke_on_all([](auto &local_device) {
-    return seastar::do_for_each(
-      local_device.mshard_devices,
-      [](auto &mshard_device) {
-      return mshard_device->do_shard_mount(
-      ).handle_error(
-	crimson::ct_error::assert_all(
-	  "Invalid error in RBMDevice::do_mount"
-	)
-      );
-    });
+  return shard_devices.invoke_on_all([](auto &mshard_device) {
+    return mshard_device.do_shard_mount(
+    ).handle_error(
+      crimson::ct_error::assert_all(
+        "Invalid error in RBMDevice::do_mount"
+      )
+    );
   });
 }
 

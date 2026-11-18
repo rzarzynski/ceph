@@ -77,9 +77,8 @@ seastar::future<uint32_t> CyanStore::start()
 {
   ceph_assert(seastar::this_shard_id() == primary_core);
   return get_shard_nums().then([this] {
-    auto num_shard_services = (store_shard_nums + seastar::this_smp_shard_count() - 1 ) / seastar::this_smp_shard_count();
-    logger().info("store_shard_nums={} seastar::smp={}, num_shard_services={}", store_shard_nums, seastar::this_smp_shard_count(), num_shard_services);
-    return shard_stores.start(num_shard_services, path, store_shard_nums);
+    logger().info("store_shard_nums={} seastar::smp={}", store_shard_nums, seastar::this_smp_shard_count());
+    return shard_stores.start(store_shard_nums, path);
   }).then([this] {
     logger().debug("CyanStore started with {} shard stores", store_shard_nums);
     return seastar::make_ready_future<uint32_t>(store_shard_nums);
@@ -95,23 +94,19 @@ seastar::future<> CyanStore::stop()
 CyanStore::mount_ertr::future<> CyanStore::mount()
 {
   ceph_assert(seastar::this_shard_id() == primary_core);
-  return shard_stores.invoke_on_all([](auto &local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-      return mshard_store->mount().handle_error(
-        crimson::ct_error::assert_all(
-          "Invalid error in CyanStore::mount"
-        ));
-    });
+  return shard_stores.invoke_on_all([](auto &shard_store) {
+    return shard_store.mount().handle_error(
+      crimson::ct_error::assert_all(
+        "Invalid error in CyanStore::mount"
+      ));
   });
 }
 
 seastar::future<> CyanStore::umount()
 {
   ceph_assert(seastar::this_shard_id() == primary_core);
-  return shard_stores.invoke_on_all([](auto &local_store) {
-    return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-      return mshard_store->umount();
-    });
+  return shard_stores.invoke_on_all([](auto &shard_store) {
+    return shard_store.umount();
   });
 }
 
@@ -121,17 +116,9 @@ seastar::future<store_statfs_t> CyanStore::stat() const
   logger().debug("{}", __func__);
 
   return shard_stores.map_reduce0(
-    [](const auto& local_store) {
-      return seastar::map_reduce(
-        local_store.mshard_stores.begin(),
-        local_store.mshard_stores.end(),
-        [](const auto& mshard_store) {
-          return seastar::make_ready_future<uint64_t>(
-            mshard_store->get_used_bytes()
-          );
-        },
-        uint64_t{0},
-        std::plus<uint64_t>()
+    [](const auto& shard_store) {
+      return seastar::make_ready_future<uint64_t>(
+        shard_store.get_used_bytes()
       );
     },
     uint64_t{0},
@@ -182,26 +169,18 @@ CyanStore::mkfs_ertr::future<> CyanStore::mkfs(uuid_d new_osd_fsid)
   }).safe_then([this]{
     return write_meta("type", "cyanstore");
   }).safe_then([this] {
-    return shard_stores.invoke_on_all([](auto &local_store) {
-      return seastar::do_for_each(local_store.mshard_stores, [](auto& mshard_store) {
-        return mshard_store->mkfs();
-      });
+    return shard_stores.invoke_on_all([](auto &shard_store) {
+      return shard_store.mkfs();
     });
   });
 }
 
 CyanStore::Shard::Shard(
-  std::string path,
-  uint32_t store_shard_nums,
-  store_index_t store_index)
+  shard_desc_t store_shard_desc,
+  std::string path)
   : path(path),
-    store_index(store_index)
+    store_shard_desc(store_shard_desc)
 {
-  ceph_assert(store_index < store_shard_nums);
-  if (store_active = is_shard_store_active(store_index, store_shard_nums); !store_active) {
-    logger().info("store_index {} is out of range - inactivating this store shard, store_shard_nums {}", store_index, store_shard_nums);
-  }
-
 }
 
 seastar::future<> CyanStore::Shard::mkfs()
@@ -210,7 +189,7 @@ seastar::future<> CyanStore::Shard::mkfs()
     return seastar::now();
   }
   std::string fn =
-    path + "/collections" + std::to_string(seastar::this_shard_id());
+    path + "/collections" + std::to_string(store_shard_desc.global_index());
   ceph::bufferlist bl;
   std::set<coll_t> collections;
   ceph::encode(collections, bl);
@@ -223,20 +202,8 @@ CyanStore::list_collections()
 {
   ceph_assert(seastar::this_shard_id() == primary_core);
   return shard_stores.map_reduce0(
-    [](auto& local_store) {
-    // For each local store, collect all collections from its mshard_stores
-    return seastar::map_reduce(
-      local_store.mshard_stores.begin(),
-      local_store.mshard_stores.end(),
-      [](auto& mshard_store) {
-        return mshard_store->list_collections();
-      },
-      std::vector<coll_core_t>(),  // Initial empty vector
-      [](auto&& merged, auto&& result) {  // Reduction function
-        merged.insert(merged.end(), result.begin(), result.end());
-        return std::move(merged);
-      }
-    );
+    [](auto& shard_store) {
+      return shard_store.list_collections();
     },
     std::vector<coll_core_t>(),  // Initial empty vector for final reduction
     [](auto&& total, auto&& shard_result) {  // Final reduction function
@@ -262,7 +229,7 @@ CyanStore::mount_ertr::future<> CyanStore::Shard::mount()
   static const char read_file_errmsg[]{"read_file"};
   ceph::bufferlist bl;
   std::string fn =
-    path + "/collections" + std::to_string(seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index);
+    path + "/collections" + std::to_string(store_shard_desc.global_index());
   std::string err;
   if (int r = bl.read_file(fn.c_str(), &err); r < 0) {
     return crimson::stateful_ec{ singleton_ec<read_file_errmsg>() };
@@ -274,7 +241,7 @@ CyanStore::mount_ertr::future<> CyanStore::Shard::mount()
 
   for (auto& coll : collections) {
     std::string fn = fmt::format("{}/{}{}", path, coll,
-      std::to_string(seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index));
+      std::to_string(store_shard_desc.global_index()));
     ceph::bufferlist cbl;
     if (int r = cbl.read_file(fn.c_str(), &err); r < 0) {
       return crimson::stateful_ec{ singleton_ec<read_file_errmsg>() };
@@ -301,13 +268,13 @@ seastar::future<> CyanStore::Shard::umount()
       ceph_assert(ch);
       ch->encode(bl);
       std::string fn = fmt::format("{}/{}{}", path, col,
-        std::to_string(seastar::this_shard_id()+ seastar::this_smp_shard_count() * store_index));
+        std::to_string(store_shard_desc.global_index()));
       return crimson::write_file(std::move(bl), fn);
     }).then([&collections, this] {
       ceph::bufferlist bl;
       ceph::encode(collections, bl);
       std::string fn = fmt::format("{}/collections{}",
-        path, std::to_string(seastar::this_shard_id()+ seastar::this_smp_shard_count() * store_index));
+        path, std::to_string(store_shard_desc.global_index()));
       return crimson::write_file(std::move(bl), fn);
     });
   });
@@ -366,7 +333,7 @@ CyanStore::Shard::list_collections()
   }
   std::vector<coll_core_t> collections;
   for (auto& coll : coll_map) {
-    collections.push_back(std::make_pair(coll.first, std::make_pair(seastar::this_shard_id(), store_index)));
+    collections.push_back(std::make_pair(coll.first, std::make_pair(seastar::this_shard_id(), store_shard_desc.local_index)));
   }
   return seastar::make_ready_future<std::vector<coll_core_t>>(std::move(collections));
 }

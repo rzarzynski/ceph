@@ -49,10 +49,9 @@ seastar::future<> ZBDSegmentManager::start(uint32_t shard_nums)
 {
   LOG_PREFIX(ZBDSegmentManager::start);
   device_shard_nums = shard_nums;
-  auto num_shard_services = (device_shard_nums + seastar::this_smp_shard_count() - 1 ) / seastar::this_smp_shard_count();
-  INFO("device_shard_nums={} seastar::smp={}, num_shard_services={}", device_shard_nums, seastar::this_smp_shard_count(), num_shard_services);
+  INFO("device_shard_nums={} seastar::smp={}", device_shard_nums, seastar::this_smp_shard_count());
   return shard_devices.start(
-    num_shard_services,
+    device_shard_nums,
     device_path,
     get_device_type(),
     get_device_id());
@@ -66,8 +65,8 @@ seastar::future<> ZBDSegmentManager::stop()
 
 Device& ZBDSegmentManager::get_sharded_device(store_index_t store_index)
 {
-  assert(store_index < shard_devices.local().mshard_devices.size());
-  return *shard_devices.local().mshard_devices[store_index];
+  assert(store_index < shard_devices.local_count());
+  return shard_devices.local(store_index);
 }
 
 using open_device_ret = ZBDSegmentManager::access_ertr::future<
@@ -510,14 +509,12 @@ ZBDSegmentManager::mount_ret ZBDSegmentManager::mount()
           "non-zoned device.");
     return crimson::ct_error::input_output_error::make();
   }
-  return shard_devices.invoke_on_all([](auto &local_device) {
-    return seastar::do_for_each(local_device.mshard_devices, [](auto& mshard_device) {
-      return mshard_device->shard_mount(
-      ).handle_error(
-        crimson::ct_error::assert_all(
-          "Invalid error in ZBDSegmentManager::mount"
-      ));
-    });
+  return shard_devices.invoke_on_all([](auto &mshard_device) {
+    return mshard_device.shard_mount(
+    ).handle_error(
+      crimson::ct_error::assert_all(
+        "Invalid error in ZBDSegmentManager::mount"
+    ));
   });
 }
 
@@ -533,15 +530,16 @@ ZBDSegmentManager::mount_ret ZBDSegmentManager::shard_mount()
     ceph_assert(meta.config.spec.id == get_device_id());
     ceph_assert(meta.config.spec.dtype == get_device_type());
     LOG_PREFIX(ZBDSegmentManager::shard_mount);
-    if(seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index >= meta.shard_num) {
+    const auto global_index = store_shard_desc.global_index();
+    if (global_index >= meta.shard_num) {
       INFO("{} shard_id {} out of range {}",
         device_id_printer_t{get_device_id()},
-        seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index,
+        global_index,
         meta.shard_num);
       shard_status = false;
       return mount_ertr::now();
     }
-    shard_info = meta.shard_infos[seastar::this_shard_id() + seastar::this_smp_shard_count() * store_index];
+    shard_info = meta.shard_infos[global_index];
     metadata = meta;
     return mount_ertr::now();
   });
@@ -558,16 +556,14 @@ ZBDSegmentManager::mkfs_ret ZBDSegmentManager::mkfs(
           "non-zoned device.");
     return crimson::ct_error::input_output_error::make();
   }
-  return shard_devices.local().mshard_devices[0]->primary_mkfs(config
+  return shard_devices.local(0).primary_mkfs(config
     ).safe_then([this] {
-    return shard_devices.invoke_on_all([](auto &local_device) {
-      return seastar::do_for_each(local_device.mshard_devices, [](auto& mshard_device) {
-        return mshard_device->shard_mkfs(
-        ).handle_error(
-          crimson::ct_error::assert_all(
-            "Invalid error in ZBDSegmentManager::mkfs"
-        ));
-      });
+    return shard_devices.invoke_on_all([](auto &mshard_device) {
+      return mshard_device.shard_mkfs(
+      ).handle_error(
+        crimson::ct_error::assert_all(
+          "Invalid error in ZBDSegmentManager::mkfs"
+      ));
     });
   });
 }
@@ -662,7 +658,7 @@ ZBDSegmentManager::mkfs_ret ZBDSegmentManager::shard_mkfs()
   }).safe_then([=, this](auto meta){
     ceph_assert(meta.config.spec.id == get_device_id());
     ceph_assert(meta.config.spec.dtype == get_device_type());
-    shard_info = meta.shard_infos[seastar::this_shard_id()];
+    shard_info = meta.shard_infos[store_shard_desc.global_index()];
     metadata = meta;
     return device.close();
   }).safe_then([FNAME] {

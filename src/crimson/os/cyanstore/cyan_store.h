@@ -19,6 +19,7 @@
 #include "crimson/os/cyanstore/cyan_object.h"
 #include "crimson/os/cyanstore/cyan_collection.h"
 #include "crimson/os/futurized_store.h"
+#include "crimson/os/sharding_helpers.h"
 
 namespace ceph::os {
 class Transaction;
@@ -29,9 +30,8 @@ class CyanStore final : public FuturizedStore {
 public:
   class Shard : public FuturizedStore::Shard {
   public:
-    Shard(std::string path,
-      uint32_t store_shard_nums,
-      store_index_t store_index);
+    Shard(shard_desc_t store_shard_desc,
+      std::string path);
     ~Shard() = default;
 
     stat_ertr::future<struct stat> stat(
@@ -139,7 +139,10 @@ public:
     }
 
     unsigned int get_store_index() const {
-      return store_index;
+      return store_shard_desc.local_index;
+    }
+    const shard_desc_t& get_store_shard_desc() const {
+      return store_shard_desc;
     }
     bool get_status() const {
       return store_active;
@@ -191,7 +194,7 @@ public:
     const std::string path;
     std::unordered_map<coll_t, boost::intrusive_ptr<Collection>> coll_map;
     std::map<coll_t, boost::intrusive_ptr<Collection>> new_coll_map;
-    store_index_t store_index;
+    shard_desc_t store_shard_desc;
     bool store_active = true;
   };
 
@@ -218,9 +221,9 @@ public:
 		  const std::string& value) override;
 
   BackendStore get_backend_store(store_index_t store_index) override {
-    assert(!shard_stores.local().mshard_stores.empty());
+    assert(store_shard_nums > 0);
     if (store_index != NULL_STORE_INDEX) {
-      assert(store_index < shard_stores.local().mshard_stores.size());
+      assert(store_index < shard_stores.local_count());
     }
     auto this_id = seastar::this_shard_id();
     if (this_id < store_shard_nums) {
@@ -233,8 +236,8 @@ public:
 
   FuturizedStore::Shard& get_sharded_store(store_index_t store_index = 0) override
   {
-    assert(store_index < shard_stores.local().mshard_stores.size());
-    auto &shard_store = *(shard_stores.local().mshard_stores[store_index]);
+    assert(store_index < shard_stores.local_count());
+    auto &shard_store = shard_stores.local(store_index);
     assert(shard_store.get_status() == true);
     return shard_store;
   }
@@ -250,26 +253,7 @@ public:
 
 
 private:
-class MultiShardStores {
-  public:
-    std::vector<std::unique_ptr<CyanStore::Shard>> mshard_stores;
-
-  public:
-    MultiShardStores(size_t count,
-                     const std::string path,
-                     uint32_t store_shard_nums)
-    : mshard_stores() {
-      mshard_stores.reserve(count); // Reserve space for the shards
-      for (size_t store_index = 0; store_index < count; ++store_index) {
-        mshard_stores.emplace_back(std::make_unique<CyanStore::Shard>(
-          path, store_shard_nums, store_index));
-      }
-    }
-    ~MultiShardStores() {
-      mshard_stores.clear();
-    }
-  };
-  seastar::sharded<CyanStore::MultiShardStores> shard_stores;
+  multisharded<CyanStore::Shard> shard_stores;
   uint32_t store_shard_nums = 0;
   const std::string path;
   uuid_d osd_fsid;

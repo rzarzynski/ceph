@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "crimson/os/sharding_helpers.h"
 #include "crimson/os/seastore/seastore_types.h"
 #include "crimson/os/seastore/random_block_manager.h"
 #include "crimson/os/seastore/device.h"
@@ -87,7 +88,7 @@ protected:
   device_superblock_t super;
   device_shard_info_t shard_info;
   uint32_t device_shard_nums = 0;
-  store_index_t store_index = 0;
+  shard_desc_t store_shard_desc{0, 1};
   bool shard_status = true;
   virtual read_ertr::future<> _readv(
     uint64_t offset,
@@ -95,12 +96,17 @@ protected:
 
 public:
   RBMDevice(
+    shard_desc_t store_shard_desc,
     const std::string &path,
     device_type_t dtype,
-    device_id_t id,
-    store_index_t store_index = 0)
-  : Device(path, dtype,id),
-    store_index(store_index) {}
+    device_id_t id)
+  : Device(path, dtype, id),
+    store_shard_desc(store_shard_desc) {}
+  RBMDevice(
+    const std::string &path,
+    device_type_t dtype,
+    device_id_t id)
+  : RBMDevice(shard_desc_t{0, 1}, path, dtype, id) {}
   virtual ~RBMDevice() = default;
 
   template <typename T>
